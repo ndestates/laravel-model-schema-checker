@@ -34,7 +34,7 @@ jobs:
         composer create-project laravel/laravel test-project --prefer-dist --no-progress
         cd test-project
         composer config repositories.local path ../
-        composer require ndestates/ *@dev --dev
+        composer require ndestates/laravel-model-schema-checker *@dev --dev
 
     - name: Copy check files to test project
       run: |
