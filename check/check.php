@@ -14,9 +14,21 @@
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
-// Bootstrap Laravel
-$app = require_once __DIR__ . '/../bootstrap/app.php';
-$app->make('Illuminate\Contracts\Console\Kernel')->bootstrap();
+// Bootstrap Laravel if available (for Laravel projects)
+$bootstrapPath = __DIR__ . '/../bootstrap/app.php';
+if (file_exists($bootstrapPath)) {
+    $app = require_once $bootstrapPath;
+    $app->make('Illuminate\Contracts\Console\Kernel')->bootstrap();
+} else {
+    // Running as standalone package - look for Laravel in current directory
+    $laravelBootstrap = getcwd() . '/bootstrap/app.php';
+    if (file_exists($laravelBootstrap)) {
+        $app = require_once $laravelBootstrap;
+        $app->make('Illuminate\Contracts\Console\Kernel')->bootstrap();
+    } else {
+        echo "Warning: Laravel application not detected. Some features may not work.\n";
+    }
+}
 
 // Load classes directly
 require_once __DIR__ . '/config/CheckConfig.php';
