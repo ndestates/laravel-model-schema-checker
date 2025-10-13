@@ -1,0 +1,81 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  release:
+    types: [published]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        php: [8.1, 8.2, 8.3]
+        laravel: [10.*, 11.*]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: ${{ matrix.php }}
+        extensions: pdo, pdo_mysql, pdo_sqlite
+        coverage: none
+
+    - name: Install dependencies
+      run: composer install --no-progress --prefer-dist --optimize-autoloader
+
+    - name: Create test Laravel project
+      run: |
+        composer create-project laravel/laravel test-project --prefer-dist --no-progress
+        cd test-project
+        composer config repositories.local path ../
+        composer require ndestates/laravel-model-schema-checker *@dev --dev
+
+    - name: Copy check files to test project
+      run: |
+        cd test-project
+        cp ../check.php .
+        cp ../run-checker.sh .
+        cp -r ../check .
+        chmod +x run-checker.sh
+
+    - name: Run basic check
+      run: |
+        cd test-project
+        php check.php --help
+
+    - name: Run full validation
+      run: |
+        cd test-project
+        php check.php --check-all
+
+  publish:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release'
+    needs: test
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: 8.2
+        extensions: pdo, pdo_mysql, pdo_sqlite
+
+    - name: Install dependencies
+      run: composer install --no-progress --prefer-dist --optimize-autoloader
+
+    - name: Run tests
+      run: composer test
+
+    - name: Publish to Packagist
+      run: |
+        composer config http-basic.packagist.org username ${{ secrets.PACKAGIST_USERNAME }}
+        composer config http-basic.packagist.org password ${{ secrets.PACKAGIST_API_TOKEN }}
+        composer publish --no-interaction

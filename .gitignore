@@ -1,0 +1,24 @@
+# Composer
+/vendor/
+/composer.lock
+
+# PHP
+*.log
+.phpunit.result.cache
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Test outputs
+test_results/
+outputs/
+logs/
+
+# Temporary files
+*.tmp
+*.bak
