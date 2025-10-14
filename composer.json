@@ -21,8 +21,7 @@
     },
     "autoload": {
         "psr-4": {
-            "NDEstates\\LaravelModelSchemaChecker\\": "src/",
-            "Check\\": "check/"
+            "NDEstates\\LaravelModelSchemaChecker\\": "src/"
         }
     },
     "autoload-dev": {
@@ -30,18 +29,12 @@
             "NDEstates\\LaravelModelSchemaChecker\\Tests\\": "tests/"
         }
     },
-    "scripts": {
-        "test": "phpunit",
-        "post-install-cmd": [
-            "chmod +x run-checker.sh"
-        ],
-        "post-update-cmd": [
-            "chmod +x run-checker.sh"
-        ]
-    },
     "bin": [
-        "run-checker.sh"
+        "bin/laravel-model-schema-checker"
     ],
+    "scripts": {
+        "test": "phpunit"
+    },
     "extra": {
         "laravel": {
             "providers": [
