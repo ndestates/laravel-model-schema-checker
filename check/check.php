@@ -2,12 +2,16 @@
 
 /**
  * Laravel Model-Database Schema Checker
- * Modular Version
  *
- * Usage:
- *   php check.php                    # Compare models with database
- *   php check.php --fix              # Fix model fillable properties
- *   php check.php --dry-run          # Show what would be changed
+ * This script is a launcher for the modular checker.
+ * All logic is now contained in /check/check.php.
+ */
+
+// Include the modular checker directly
+require_once __DIR__ . '/check/check.php';
+
+
+
  *   php check.php --generate-migrations  # Generate Laravel migrations
  *   php check.php --backup           # Create database backup recommendations
  */
@@ -81,6 +85,9 @@ try {
         return;
     }
 
+    // Try to bootstrap Laravel if available
+    $app = bootstrapLaravel();
+    
     // Initialize configuration
     $config = new CheckConfig();
     $logger = new Logger($config->getLogFile());

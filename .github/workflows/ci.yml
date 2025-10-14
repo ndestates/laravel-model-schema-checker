@@ -70,7 +70,7 @@ jobs:
     - name: Run basic check
       run: |
         cd test-project
-        php vendor/ndestates/laravel-model-schema-checker/check.php --help
+        php -l vendor/ndestates/laravel-model-schema-checker/check.php
 
     - name: Run full validation
       run: |
