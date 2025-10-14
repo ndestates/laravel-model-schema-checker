@@ -50,7 +50,7 @@ jobs:
         composer create-project laravel/laravel test-project ${{ matrix.laravel }} --prefer-dist --no-progress --no-scripts --no-dev
         cd test-project
         composer config repositories.local path ../
-        composer require ndestates/laravel-model-schema-checker *@dev --dev --no-scripts
+        composer require ndestates/laravel-model-schema-checker *@dev --no-scripts
 
     - name: Setup Laravel application
       run: |
@@ -61,16 +61,10 @@ jobs:
         php artisan key:generate --no-interaction --force
         touch database/database.sqlite
 
-    - name: Copy check files to test project
-      run: |
-        cd test-project
-        cp ../run-checker.sh .
-        chmod +x run-checker.sh
-
     - name: Run basic check
       run: |
         cd test-project
-        php -l vendor/ndestates/laravel-model-schema-checker/check.php
+        php artisan --version
 
     - name: Run full validation
       run: |

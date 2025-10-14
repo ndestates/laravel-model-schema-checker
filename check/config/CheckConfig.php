@@ -13,28 +13,12 @@ class CheckConfig
     
     private function loadConfig(): array
     {
-        // Use Laravel helpers if available, otherwise use basic paths
-        $basePath = getcwd();
-        
-        if (function_exists('app_path')) {
-            // Laravel is bootstrapped, use helpers
-            $modelsDir = app_path('Models');
-            $migrationsDir = database_path('migrations');
-            $dbConnection = 'mysql'; // Default Laravel connection
-        } else {
-            // Laravel not available, use basic paths
-            $appPath = $basePath . '/app';
-            $databasePath = $basePath . '/database';
-            $modelsDir = $appPath . '/Models';
-            $migrationsDir = $databasePath . '/migrations';
-            $dbConnection = 'sqlite'; // Use SQLite for CI
-        }
-        
+        // This tool requires Laravel, so helpers should be available
         return [
-            'models_dir' => $modelsDir,
+            'models_dir' => app_path('Models'),
             'excluded_fields' => ['id', 'created_at', 'updated_at', 'created_by', 'updated_by', 'deleted_by'],
-            'database_connection' => $dbConnection,
-            'migrations_dir' => $migrationsDir,
+            'database_connection' => config('database.default', 'sqlite'),
+            'migrations_dir' => database_path('migrations'),
             'timestamp' => date('Y-m-d-His'),
             'backup_enabled' => true,
             'ignore_id_columns_in_constraint_check' => true,

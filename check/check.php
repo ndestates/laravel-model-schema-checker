@@ -1,7 +1,28 @@
 <?php
 
 /**
- * Laravel Model-Database Schema Checker
+ * Larave// Function to bootstrap Laravel - detects Laravel project automatically
+function bootstrapLaravel() {
+    // When installed in a Laravel project, bootstrap from project root
+    $projectBootstrap = getcwd() . '/bootstrap/app.php';
+    if (file_exists($projectBootstrap)) {
+        $app = require_once $projectBootstrap;
+        $app->make('Illuminate\Contracts\Console\Kernel')->bootstrap();
+        return $app;
+    }
+    
+    // Fallback: check package directory (for development)
+    $packageBootstrap = __DIR__ . '/../bootstrap/app.php';
+    if (file_exists($packageBootstrap)) {
+        $app = require_once $packageBootstrap;
+        $app->make('Illuminate\Contracts\Console\Kernel')->bootstrap();
+        return $app;
+    }
+    
+    // Laravel not found
+    echo "Warning: Laravel application not detected. This tool requires a Laravel project.\n";
+    return null;
+}ema Checker
  *
  * This script is a launcher for the modular checker.
  * All logic is now contained in /check/check.php.
