@@ -48,6 +48,7 @@ jobs:
     - name: Setup Laravel application
       run: |
         cd test-project
+        cp .env.example .env || echo "APP_KEY=" > .env
         php artisan key:generate --no-interaction
         touch database/database.sqlite
         php artisan migrate --no-interaction --force
