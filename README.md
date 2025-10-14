@@ -1,6 +1,98 @@
-# Laravel Model-Database Schema Checker
+# Laravel Model Schema Checker
 
 A comprehensive Laravel tool for validating model fillable properties against database schema and checking Filament relationship integrity.
+
+## Compatibility
+
+- **Laravel**: 10.x, 11.x, 12.x
+- **PHP**: 8.1+
+
+## Installation
+
+Install the package via Composer:
+
+```bash
+composer require ndestates/laravel-model-schema-checker --dev
+```
+
+### Laravel Auto-Discovery
+
+The package uses Laravel's auto-discovery feature, so it will be automatically registered.
+
+### Publish Configuration (Optional)
+
+You can publish the configuration file to customize the behavior:
+
+```bash
+php artisan vendor:publish --provider="NDEstates\LaravelModelSchemaChecker\ModelSchemaCheckerServiceProvider" --tag="config"
+```
+
+This will create a `config/model-schema-checker.php` file where you can customize:
+- Model directory
+- Excluded fields
+- Database connection
+- Migration directory
+- Other settings
+
+## Usage
+
+### Basic Usage
+
+Run the checker with the basic command:
+
+```bash
+php vendor/ndestates/laravel-model-schema-checker/check.php
+```
+
+### Available Options
+
+- `--help` - Show help information
+- `--dry-run` - Show what would be changed without making changes
+- `--fix` - Fix model fillable properties
+- `--generate-migrations` - Generate Laravel migrations
+- `--analyze` - Analyze models and database schema
+- `--json` - Output results in JSON format
+
+### Examples
+
+```bash
+# Check models against database schema (dry run)
+php vendor/ndestates/laravel-model-schema-checker/check.php --dry-run
+
+# Fix model fillable properties
+php vendor/ndestates/laravel-model-schema-checker/check.php --fix
+
+# Generate migrations for schema differences
+php vendor/ndestates/laravel-model-schema-checker/check.php --generate-migrations
+
+# Analyze and output JSON report
+php vendor/ndestates/laravel-model-schema-checker/check.php --analyze --json
+```
+
+## Features
+
+- **Model Validation**: Compare model fillable properties with database columns
+- **Schema Analysis**: Analyze database schema and model relationships
+- **Migration Generation**: Generate Laravel migrations for schema differences
+- **Filament Integration**: Check Filament form and relationship integrity
+- **Flexible Configuration**: Customizable via configuration file
+- **Multiple Output Formats**: Human-readable and JSON output
+
+## Testing
+
+The package includes comprehensive tests:
+
+```bash
+composer test
+```
+
+## Contributing
+
+Please see [CONTRIBUTING.md](CONTRIBUTING.md) for details.
+
+## License
+
+The MIT License (MIT). Please see [License File](LICENSE) for more information.
 
 ## Features
 

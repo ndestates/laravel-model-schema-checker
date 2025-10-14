@@ -6,7 +6,15 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CHECKER_PATH="$SCRIPT_DIR/check/check.php"
+
+# Detect if we're in vendor directory or development
+if [[ "$SCRIPT_DIR" == *"/vendor/ndestates/laravel-model-schema-checker"* ]]; then
+    # Running from installed package
+    CHECKER_PATH="$SCRIPT_DIR/check.php"
+else
+    # Running from development directory
+    CHECKER_PATH="$SCRIPT_DIR/check.php"
+fi
 
 # Function to check if command exists
 command_exists() {
