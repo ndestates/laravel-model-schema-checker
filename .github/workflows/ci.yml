@@ -53,6 +53,7 @@ jobs:
         cp -r ../check .
         chmod +x run-checker.sh
 
+
     - name: Run basic check
       run: |
         cd test-project
@@ -83,8 +84,4 @@ jobs:
     - name: Run tests
       run: composer test
 
-    - name: Publish to Packagist
-      run: |
-        composer config http-basic.packagist.org username ${{ secrets.PACKAGIST_USERNAME }}
-        composer config http-basic.packagist.org password ${{ secrets.PACKAGIST_API_TOKEN }}
-        composer publish --no-interaction
+  
