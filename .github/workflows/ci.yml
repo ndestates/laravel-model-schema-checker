@@ -47,7 +47,7 @@ jobs:
 
     - name: Create test Laravel project
       run: |
-        composer create-project laravel/laravel test-project ${{ matrix.laravel }} --prefer-dist --no-progress --no-scripts
+        composer create-project laravel/laravel test-project ${{ matrix.laravel }} --prefer-dist --no-progress --no-scripts --no-dev
         cd test-project
         composer config repositories.local path ../
         composer require ndestates/laravel-model-schema-checker *@dev --dev --no-scripts
@@ -55,12 +55,11 @@ jobs:
     - name: Setup Laravel application
       run: |
         cd test-project
-        cp .env.example .env || echo "APP_KEY=" > .env  # Security: Avoid exposing defaults
+        cp .env.example .env || echo "APP_KEY=" > .env
         sed -i 's/DB_CONNECTION=mysql/DB_CONNECTION=sqlite/' .env
         sed -i 's/DB_DATABASE=.*/DB_DATABASE=\/home\/runner\/work\/laravel-model-schema-checker\/laravel-model-schema-checker\/test-project\/database\/database.sqlite/' .env
-        php artisan key:generate --no-interaction
+        php artisan key:generate --no-interaction --force
         touch database/database.sqlite
-        php artisan migrate --no-interaction --force
 
     - name: Copy check files to test project
       run: |
