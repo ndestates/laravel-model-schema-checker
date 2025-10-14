@@ -14,23 +14,30 @@
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
-// Bootstrap Laravel if available (for Laravel projects)
-// Only bootstrap if we're running as the main script, not during Composer autoload
-if (basename($_SERVER['SCRIPT_NAME'] ?? '') === 'check.php' || defined('ARTISAN_BINARY')) {
+// Function to bootstrap Laravel - only call this when actually running the checker
+function bootstrapLaravel() {
     $bootstrapPath = __DIR__ . '/../bootstrap/app.php';
     if (file_exists($bootstrapPath)) {
         $app = require_once $bootstrapPath;
         $app->make('Illuminate\Contracts\Console\Kernel')->bootstrap();
+        return $app;
     } else {
         // Running as standalone package - look for Laravel in current directory
         $laravelBootstrap = getcwd() . '/bootstrap/app.php';
         if (file_exists($laravelBootstrap)) {
             $app = require_once $laravelBootstrap;
             $app->make('Illuminate\Contracts\Console\Kernel')->bootstrap();
+            return $app;
         } else {
             echo "Warning: Laravel application not detected. Some features may not work.\n";
+            return null;
         }
     }
+}
+
+// Only bootstrap if this file is being executed directly (not just included)
+if (realpath($_SERVER['SCRIPT_FILENAME'] ?? '') === __FILE__) {
+    $app = bootstrapLaravel();
 }
 
 // Load classes directly
