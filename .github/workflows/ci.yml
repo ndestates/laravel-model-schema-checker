@@ -65,20 +65,18 @@ jobs:
     - name: Copy check files to test project
       run: |
         cd test-project
-        cp ../check.php .
         cp ../run-checker.sh .
-        cp -r ../check .
         chmod +x run-checker.sh
 
     - name: Run basic check
       run: |
         cd test-project
-        php check.php --help
+        php vendor/ndestates/laravel-model-schema-checker/check.php --help
 
     - name: Run full validation
       run: |
         cd test-project
-        php check.php --dry-run
+        php vendor/ndestates/laravel-model-schema-checker/check.php --dry-run
 
     - name: CodeQL Analysis (Security Scan)
       uses: github/codeql-action@v3
