@@ -40,10 +40,16 @@ jobs:
 
     - name: Create test Laravel project
       run: |
-        composer create-project laravel/laravel test-project ${{ matrix.laravel }} --prefer-dist --no-progress
+        composer create-project laravel/laravel test-project ${{ matrix.laravel }} --prefer-dist --no-progress --no-scripts
         cd test-project
         composer config repositories.local path ../
-        composer require ndestates/laravel-model-schema-checker *@dev --dev
+        composer require ndestates/laravel-model-schema-checker *@dev --dev --no-scripts
+
+    - name: Setup Laravel application
+      run: |
+        cd test-project
+        php artisan key:generate --no-interaction
+        php artisan migrate --no-interaction
 
     - name: Copy check files to test project
       run: |
