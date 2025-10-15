@@ -2,7 +2,8 @@
 
 A comprehensive Laravel tool for validating models, relationships, security, perfo### 💾 **Data Preservation**
 - **Compressed Exports**: Export all table data to compressed `.sql.gz` files
-- **Space Efficient**: Dramatically reduce file sizes for large databases
+- **Space Efficient**: Dramatically reduce file sizes for large databases (typically 70-90% compression)
+- **Performance**: Faster export/import for large datasets
 - **Foreign Key Management**: Handle constraints during export/import
 - **Backward Compatible**: Can import both compressed and uncompressed filese, and code quality across your entire Laravel application.
 
@@ -153,6 +154,7 @@ When your `database/migrations/` files no longer match your actual database stru
 # 📤 STEP 1: Export Current Data
 php artisan model:schema-check --export-data
 # Creates: database/exports/data_export_2025-10-15_14-30-00.sql.gz
+# 💡 Compressed format saves 70-90% disk space for large databases
 
 # 🔄 STEP 2: Generate Fresh Migrations
 php artisan model:schema-check --sync-migrations
