@@ -3,6 +3,7 @@
 namespace NDEstates\LaravelModelSchemaChecker;
 
 use Illuminate\Support\ServiceProvider;
+use NDEstates\LaravelModelSchemaChecker\Commands\ModelSchemaCheckCommand;
 
 class ModelSchemaCheckerServiceProvider extends ServiceProvider
 {
@@ -11,7 +12,11 @@ class ModelSchemaCheckerServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        // Register any package services here
+        // Merge configuration
+        $this->mergeConfigFrom(
+            __DIR__ . '/../config/model-schema-checker.php',
+            'model-schema-checker'
+        );
     }
 
     /**
@@ -24,9 +29,10 @@ class ModelSchemaCheckerServiceProvider extends ServiceProvider
             __DIR__ . '/../config/model-schema-checker.php' => config_path('model-schema-checker.php'),
         ], 'config');
 
+        // Register console commands
         if ($this->app->runningInConsole()) {
             $this->commands([
-                // Add console commands here if needed
+                ModelSchemaCheckCommand::class,
             ]);
         }
     }
