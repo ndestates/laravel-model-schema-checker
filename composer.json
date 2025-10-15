@@ -1,6 +1,6 @@
 {
     "name": "ndestates/laravel-model-schema-checker",
-    "description": "A comprehensive Laravel tool for validating model fillable properties against database schema and checking Filament relationship integrity",
+    "description": "A comprehensive Laravel application validator for security, performance, relationships, migrations, and code quality",
     "type": "library",
     "license": "MIT",
     "authors": [
