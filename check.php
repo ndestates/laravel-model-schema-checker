@@ -40,22 +40,22 @@ if (realpath($_SERVER['SCRIPT_FILENAME'] ?? '') === __FILE__) {
 }
 
 // Load classes directly
-require_once __DIR__ . '/config/CheckConfig.php';
-require_once __DIR__ . '/utils/Logger.php';
-require_once __DIR__ . '/utils/FileHelper.php';
-require_once __DIR__ . '/utils/PatternMatcher.php';
-require_once __DIR__ . '/services/ModelAnalyzer.php';
-require_once __DIR__ . '/services/DatabaseAnalyzer.php';
-require_once __DIR__ . '/services/RelationshipAnalyzer.php';
-require_once __DIR__ . '/services/MigrationGenerator.php';
-require_once __DIR__ . '/services/CommandRunner.php';
-require_once __DIR__ . '/commands/CompareCommand.php';
-require_once __DIR__ . '/commands/FixCommand.php';
-require_once __DIR__ . '/commands/GenerateMigrationsCommand.php';
-require_once __DIR__ . '/commands/AnalyzeCommand.php';
-require_once __DIR__ . '/commands/GenerateSchemaCommand.php';
-require_once __DIR__ . '/commands/GenerateSchemaSqlCommand.php';
-require_once __DIR__ . '/commands/CheckFilamentRelationshipsCommand.php';
+require_once __DIR__ . '/check/config/CheckConfig.php';
+require_once __DIR__ . '/check/utils/Logger.php';
+require_once __DIR__ . '/check/utils/FileHelper.php';
+require_once __DIR__ . '/check/utils/PatternMatcher.php';
+require_once __DIR__ . '/check/services/ModelAnalyzer.php';
+require_once __DIR__ . '/check/services/DatabaseAnalyzer.php';
+require_once __DIR__ . '/check/services/RelationshipAnalyzer.php';
+require_once __DIR__ . '/check/services/MigrationGenerator.php';
+require_once __DIR__ . '/check/services/CommandRunner.php';
+require_once __DIR__ . '/check/commands/CompareCommand.php';
+require_once __DIR__ . '/check/commands/FixCommand.php';
+require_once __DIR__ . '/check/commands/GenerateMigrationsCommand.php';
+require_once __DIR__ . '/check/commands/AnalyzeCommand.php';
+require_once __DIR__ . '/check/commands/GenerateSchemaCommand.php';
+require_once __DIR__ . '/check/commands/GenerateSchemaSqlCommand.php';
+require_once __DIR__ . '/check/commands/CheckFilamentRelationshipsCommand.php';
 
 use Check\Config\CheckConfig;
 use Check\Services\ModelAnalyzer;
