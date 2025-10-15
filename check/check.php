@@ -1,7 +1,19 @@
 <?php
 
 /**
- * Larave// Function to bootstrap Laravel - detects Laravel project automatically
+ * Laravel Model Schema Checker
+ *
+ * This script validates Laravel model fillable properties against database schema
+ * and checks Filament relationship integrity.
+ *
+ * Usage:
+ *   php check.php --generate-migrations  # Generate Laravel migrations
+ *   php check.php --backup           # Create database backup recommendations
+ */
+
+require_once __DIR__ . '/../vendor/autoload.php';
+
+// Function to bootstrap Laravel - detects Laravel project automatically
 function bootstrapLaravel() {
     // When installed in a Laravel project, bootstrap from project root
     $projectBootstrap = getcwd() . '/bootstrap/app.php';
@@ -10,7 +22,7 @@ function bootstrapLaravel() {
         $app->make('Illuminate\Contracts\Console\Kernel')->bootstrap();
         return $app;
     }
-    
+
     // Fallback: check package directory (for development)
     $packageBootstrap = __DIR__ . '/../bootstrap/app.php';
     if (file_exists($packageBootstrap)) {
@@ -18,46 +30,10 @@ function bootstrapLaravel() {
         $app->make('Illuminate\Contracts\Console\Kernel')->bootstrap();
         return $app;
     }
-    
+
     // Laravel not found
-    echo "Warning: Laravel application not detected. This tool requires a Laravel project.\n";
+    echo "Warning: Laravel application not detected. Some features may not work.\n";
     return null;
-}ema Checker
- *
- * This script is a launcher for the modular checker.
- * All logic is now contained in /check/check.php.
- */
-
-// Include the modular checker directly
-require_once __DIR__ . '/check/check.php';
-
-
-
- *   php check.php --generate-migrations  # Generate Laravel migrations
- *   php check.php --backup           # Create database backup recommendations
- */
-
-require_once __DIR__ . '/../vendor/autoload.php';
-
-// Function to bootstrap Laravel - only call this when actually running the checker
-function bootstrapLaravel() {
-    $bootstrapPath = __DIR__ . '/../bootstrap/app.php';
-    if (file_exists($bootstrapPath)) {
-        $app = require_once $bootstrapPath;
-        $app->make('Illuminate\Contracts\Console\Kernel')->bootstrap();
-        return $app;
-    } else {
-        // Running as standalone package - look for Laravel in current directory
-        $laravelBootstrap = getcwd() . '/bootstrap/app.php';
-        if (file_exists($laravelBootstrap)) {
-            $app = require_once $laravelBootstrap;
-            $app->make('Illuminate\Contracts\Console\Kernel')->bootstrap();
-            return $app;
-        } else {
-            echo "Warning: Laravel application not detected. Some features may not work.\n";
-            return null;
-        }
-    }
 }
 
 // Only bootstrap if this file is being executed directly (not just included)
@@ -80,8 +56,8 @@ require_once __DIR__ . '/commands/FixCommand.php';
 require_once __DIR__ . '/commands/GenerateMigrationsCommand.php';
 require_once __DIR__ . '/commands/AnalyzeCommand.php';
 require_once __DIR__ . '/commands/GenerateSchemaCommand.php';
-require_once __DIR__ . '/commands/GenerateSchemaSqlCommand.php'; // Ensure SQL command is also loaded if used
-require_once __DIR__ . '/commands/CheckFilamentRelationshipsCommand.php'; // New command for Filament relationships
+require_once __DIR__ . '/commands/GenerateSchemaSqlCommand.php';
+require_once __DIR__ . '/commands/CheckFilamentRelationshipsCommand.php';
 
 use Check\Config\CheckConfig;
 use Check\Services\ModelAnalyzer;
@@ -98,17 +74,15 @@ use Check\Utils\Logger;
 
 try {
     // Only execute when run directly, not when required as a library
-    // Allow execution when included from the main check.php launcher
     $isMainScript = realpath(__FILE__) === realpath($_SERVER['SCRIPT_FILENAME']);
-    $isFromLauncher = basename($_SERVER['SCRIPT_FILENAME']) === 'check.php';
-    
-    if (!$isMainScript && !$isFromLauncher) {
+
+    if (!$isMainScript) {
         return;
     }
 
     // Try to bootstrap Laravel if available
     $app = bootstrapLaravel();
-    
+
     // Initialize configuration
     $config = new CheckConfig();
     $logger = new Logger($config->getLogFile());
@@ -125,9 +99,9 @@ try {
         'analyze' => in_array('--analyze', $argv),
         'help' => in_array('--help', $argv) || in_array('-h', $argv),
         'generate_schema' => in_array('--generate-schema', $argv),
-        'generate_schema_sql' => in_array('--generate-schema-sql', $argv), // New flag
-        'check_filament' => in_array('--check-filament', $argv), // New flag for Filament check
-        'check_all' => in_array('--check-all', $argv), // New flag for running all checks
+        'generate_schema_sql' => in_array('--generate-schema-sql', $argv),
+        'check_filament' => in_array('--check-filament', $argv),
+        'check_all' => in_array('--check-all', $argv),
     ];
 
     // Show help if requested
@@ -177,19 +151,19 @@ try {
     } elseif ($flags['check_all']) {
         echo "=== RUNNING ALL CHECKS ===\n";
         $logger->section("RUNNING ALL CHECKS");
-        
+
         // Run model comparison
         echo "Running model-database comparison...\n";
         $logger->info("Running model-database comparison...");
         $command = new CompareCommand($config, $logger, $modelAnalyzer, $dbAnalyzer);
         $command->execute($flags);
-        
+
         // Run Filament relationships check
         echo "Running Filament relationships check...\n";
         $logger->info("Running Filament relationships check...");
         $command = new CheckFilamentRelationshipsCommand($config, $logger);
         $command->execute();
-        
+
         echo "All checks completed. Check the log file for details.\n";
         $logger->success("All checks completed");
     } else {
@@ -207,7 +181,7 @@ try {
 
 function showHelp(): void
 {
-    echo "Laravel Model-Database Schema Checker (Modular Version)\n\n";
+    echo "Laravel Model-Database Schema Checker\n\n";
     echo "USAGE:\n";
     echo "  php check.php [options]\n";
     echo "  ./run-checker.sh [options]  # Auto-detects environment\n\n";
