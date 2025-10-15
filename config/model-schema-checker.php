@@ -27,6 +27,8 @@ return [
         'updated_by',
         'deleted_by',
         'deleted_at',
+        'email_verified_at',
+        'remember_token',
     ],
 
     /*

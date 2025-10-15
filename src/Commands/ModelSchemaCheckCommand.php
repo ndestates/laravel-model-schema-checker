@@ -32,7 +32,8 @@ class ModelSchemaCheckCommand extends Command
             'models_dir' => app_path('Models'),
             'excluded_fields' => [
                 'id', 'created_at', 'updated_at', 'created_by', 
-                'updated_by', 'deleted_by', 'deleted_at'
+                'updated_by', 'deleted_by', 'deleted_at',
+                'email_verified_at', 'remember_token'
             ],
             'database_connection' => env('DB_CONNECTION', 'mysql'),
         ]);
