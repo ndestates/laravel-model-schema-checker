@@ -11,8 +11,6 @@
  *   php check.php --backup           # Create database backup recommendations
  */
 
-require_once __DIR__ . '/../vendor/autoload.php';
-
 // Function to bootstrap Laravel - detects Laravel project automatically
 function bootstrapLaravel() {
     // When installed in a Laravel project, bootstrap from project root
