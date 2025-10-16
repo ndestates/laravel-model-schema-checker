@@ -232,15 +232,6 @@ class ModelSchemaCheckCommand extends Command
         }
     }
 
-    protected function getTableColumns(string $tableName): array
-    {
-        try {
-            return DB::getSchemaBuilder()->getColumnListing($tableName);
-        } catch (\Exception $e) {
-            return [];
-        }
-    }
-
     protected function addIssue(string $model, string $type, array $data): void
     {
         $this->issues[] = [
