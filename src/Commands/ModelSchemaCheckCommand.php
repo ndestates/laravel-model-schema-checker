@@ -2144,11 +2144,13 @@ class ModelSchemaCheckCommand extends Command
         $fixedCount = 0;
 
         // Fix class naming issues
-        foreach ($this->issues as $key => $issue) {
-            if ($issue['type'] === 'invalid_class_name' && isset($issue['data']['file'])) {
-                if ($this->fixClassName($issue['data']['file'], $issue['data']['class'])) {
-                    $fixedCount++;
-                    unset($this->issues[$key]); // Remove from issues array
+        if ($this->config['code_quality']['check_class_naming'] ?? true) {
+            foreach ($this->issues as $key => $issue) {
+                if ($issue['type'] === 'invalid_class_name' && isset($issue['data']['file'])) {
+                    if ($this->fixClassName($issue['data']['file'], $issue['data']['class'])) {
+                        $fixedCount++;
+                        unset($this->issues[$key]); // Remove from issues array
+                    }
                 }
             }
         }
@@ -2269,15 +2271,18 @@ class ModelSchemaCheckCommand extends Command
                     $className = $file->getFilenameWithoutExtension();
 
                     // Check class naming (PascalCase)
-                    if (!preg_match('/^class\s+[A-Z][a-zA-Z0-9]*(\s+extends|\s+implements|\s*\{)/', $content)) {
-                        $this->addIssue('Code Quality', 'invalid_class_name', [
-                            'file' => $file->getPathname(),
-                            'class' => $className,
-                            'message' => "Class name '{$className}' should use PascalCase naming convention"
-                        ]);
+                    if ($this->config['code_quality']['check_class_naming'] ?? true) {
+                        if (!preg_match('/^class\s+[A-Z][a-zA-Z0-9]*(\s+extends|\s+implements|\s*\{)/', $content)) {
+                            $this->addIssue('Code Quality', 'invalid_class_name', [
+                                'file' => $file->getPathname(),
+                                'class' => $className,
+                                'message' => "Class name '{$className}' should use PascalCase naming convention"
+                            ]);
+                        }
                     }
 
                     // Check method naming (camelCase)
+                    if ($this->config['code_quality']['check_method_naming'] ?? true) {
                     if (preg_match_all('/public\s+function\s+([A-Z_][a-zA-Z0-9_]*)\(/', $content, $matches)) {
                         foreach ($matches[1] as $methodName) {
                             if (!preg_match('/^[a-z][a-zA-Z0-9]*$/', $methodName)) {

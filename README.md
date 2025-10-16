@@ -35,8 +35,10 @@ php artisan vendor:publish --provider="NDEstates\LaravelModelSchemaChecker\Model
 This will create a `config/model-schema-checker.php` file where you can customize:
 - Model directory
 - Excluded fields
+- Security excluded fields
 - Database connection
 - Migration directory
+- Code quality checks (enable/disable class and method naming validation)
 - Other settings
 
 ## Usage
@@ -322,6 +324,17 @@ Enforced Laravel best practices:
 - **Modern PHP**: Avoids deprecated features
 - **Code Smells**: Detects long methods and duplicate code
 - **Automatic Fixes**: Use `--fix` to automatically correct class naming violations (converts to PascalCase)
+
+### Code Quality Configuration
+
+You can disable specific code quality checks by modifying the `config/model-schema-checker.php` file:
+
+```php
+'code_quality' => [
+    'check_class_naming' => false,  // Disable PascalCase class name validation (default: false)
+    'check_method_naming' => true,  // Keep camelCase method validation enabled (default: true)
+],
+```
 
 ## Requirements
 
