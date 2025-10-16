@@ -33,6 +33,26 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Security Excluded Fields
+    |--------------------------------------------------------------------------
+    |
+    | Fields that should be excluded from fillable property checks for security reasons.
+    | These fields typically contain sensitive information and should not be mass-assignable.
+    |
+    */
+    'security_excluded_fields' => [
+        'email_verified_at',
+        'remember_token',
+        'password',
+        'password_confirmation',
+        'api_token',
+        'access_token',
+        'refresh_token',
+        'verification_token',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Database Connection
     |--------------------------------------------------------------------------
     |
