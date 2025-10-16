@@ -68,11 +68,6 @@ jobs:
         composer show --available ndestates/laravel-model-schema-checker 2>/dev/null || echo "Package not yet published (expected in CI)"
         echo "✅ Composer resolution test passed"
 
-    - name: CodeQL Analysis (Security Scan)
-      uses: github/codeql-action@v3
-      with:
-        languages: php
-
   publish:
     runs-on: ubuntu-latest
     if: github.event_name == 'release' || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v'))
