@@ -47,38 +47,58 @@ jobs:
       run: composer install --no-progress --prefer-dist --optimize-autoloader
 
     - name: Run PHPUnit tests
-      run: composer test
+      run: vendor/bin/phpunit
 
     - name: Validate package structure
       run: |
         echo "Validating package structure..."
         # Check that all required files exist
         [ -f "src/ModelSchemaCheckerServiceProvider.php" ] && echo "✅ Service Provider exists" || (echo "❌ Service Provider missing" && exit 1)
-        [ -f "check/check.php" ] && echo "✅ Check script exists" || (echo "❌ Check script missing" && exit 1)
-        [ -f "bin/laravel-model-schema-checker" ] && echo "✅ Binary exists" || (echo "❌ Binary missing" && exit 1)
         [ -d "src/Commands" ] && echo "✅ Commands directory exists" || (echo "❌ Commands directory missing" && exit 1)
+        [ -f "src/Commands/ModelSchemaCheckCommand.php" ] && echo "✅ Main command exists" || (echo "❌ Main command missing" && exit 1)
         echo "✅ Package structure validation passed"
 
-    - name: Test package installation
+    - name: Test composer.json validity
+      run: composer validate --strict --no-check-all
+
+    - name: Test package in Laravel project
       run: |
-        echo "Testing package installation..."
-        # Create a minimal Laravel project to test installation
-        composer create-project laravel/laravel test-project --prefer-dist --no-progress --no-scripts --quiet --no-dev
-        cd test-project
+        echo "Testing package in Laravel project..."
+        # Create a Laravel project for testing
+        composer create-project laravel/laravel test-app --prefer-dist --no-progress --no-scripts --quiet
+        cd test-app
         
-        # Test installing the package (this will fail in CI since it's not published yet, but validates composer.json)
-        if composer require ndestates/laravel-model-schema-checker *@dev --no-scripts --quiet 2>/dev/null; then
-          echo "✅ Package installation successful"
-          
-          # Test that the command is registered
-          php artisan list | grep -q "model:schema-check" && echo "✅ Artisan command registered" || echo "⚠️  Artisan command not found (expected in CI)"
-          
-          # Test basic Laravel functionality
-          php artisan --version && echo "✅ Laravel working" || (echo "❌ Laravel not working" && exit 1)
+        # Configure Laravel
+        cp .env.example .env 2>/dev/null || echo "APP_KEY=" > .env
+        sed -i 's/DB_CONNECTION=mysql/DB_CONNECTION=sqlite/' .env
+        sed -i 's/DB_DATABASE=.*/DB_DATABASE=database\/database.sqlite/' .env
+        mkdir -p database
+        touch database/database.sqlite
+        
+        # Generate application key
+        php artisan key:generate --no-interaction --force
+        
+        # Install the package from local repository
+        composer config repositories.local path ../
+        composer require ndestates/laravel-model-schema-checker *@dev --no-scripts --quiet
+        
+        # Test that the artisan command is registered
+        if php artisan list | grep -q "model:schema-check"; then
+          echo "✅ Artisan command 'model:schema-check' registered"
         else
-          echo "⚠️  Package installation failed (expected in CI before publishing)"
-          echo "This is normal - package will be tested after publishing"
+          echo "❌ Artisan command 'model:schema-check' not registered"
+          exit 1
         fi
+        
+        # Test that the command can run (basic functionality)
+        if php artisan model:schema-check --help > /dev/null 2>&1; then
+          echo "✅ Command help works"
+        else
+          echo "❌ Command help failed"
+          exit 1
+        fi
+        
+        echo "✅ Package integration test passed"
 
     - name: CodeQL Analysis (Security Scan)
       uses: github/codeql-action@v3
@@ -122,37 +142,52 @@ jobs:
         fi
         echo "✅ Version validation passed"
 
-    - name: Test package installation
+    - name: Test published package
       run: |
-        echo "Testing package installation..."
-        # Create a temporary Laravel project to test installation
-        composer create-project laravel/laravel test-install --prefer-dist --no-progress --no-scripts --quiet
-        cd test-install
+        echo "Testing published package..."
+        # Create a Laravel project for testing the published package
+        composer create-project laravel/laravel test-published --prefer-dist --no-progress --no-scripts --quiet
+        cd test-published
         
-        # Configure for testing
+        # Configure Laravel
         cp .env.example .env 2>/dev/null || echo "APP_KEY=" > .env
         sed -i 's/DB_CONNECTION=mysql/DB_CONNECTION=sqlite/' .env
         sed -i 's/DB_DATABASE=.*/DB_DATABASE=database\/database.sqlite/' .env
-        php artisan key:generate --no-interaction --force 2>/dev/null || true
+        mkdir -p database
         touch database/database.sqlite
         
-        # Test installing the package from the repository
-        if composer require ndestates/laravel-model-schema-checker *@dev --no-scripts --quiet; then
-          echo "✅ Package installation successful"
-          
-          # Test that the command is registered
-          php artisan list | grep -q "model:schema-check" && echo "✅ Artisan command registered" || echo "❌ Artisan command not registered"
-          
-          # Test basic Laravel functionality
-          php artisan --version && echo "✅ Laravel working" || echo "❌ Laravel not working"
-          
-          # Test that the package files are installed
-          [ -f "vendor/ndestates/laravel-model-schema-checker/src/ModelSchemaCheckerServiceProvider.php" ] && echo "✅ Package files installed" || echo "❌ Package files missing"
-          
+        # Generate application key
+        php artisan key:generate --no-interaction --force
+        
+        # Install the published package
+        VERSION=$(echo "${{ github.event.release.tag_name }}" | sed 's/^v//')
+        composer require ndestates/laravel-model-schema-checker:$VERSION --no-scripts --quiet
+        
+        # Test that the artisan command is registered
+        if php artisan list | grep -q "model:schema-check"; then
+          echo "✅ Published artisan command 'model:schema-check' registered"
         else
-          echo "❌ Package installation failed"
+          echo "❌ Published artisan command 'model:schema-check' not registered"
           exit 1
         fi
+        
+        # Test basic command functionality
+        if php artisan model:schema-check --help > /dev/null 2>&1; then
+          echo "✅ Published command help works"
+        else
+          echo "❌ Published command help failed"
+          exit 1
+        fi
+        
+        # Test that the command can run (with dry-run to avoid actual operations)
+        if php artisan model:schema-check --dry-run > /dev/null 2>&1; then
+          echo "✅ Published command runs successfully"
+        else
+          echo "❌ Published command failed to run"
+          exit 1
+        fi
+        
+        echo "✅ Published package test passed"
 
     - name: Publish to Packagist
       if: success()

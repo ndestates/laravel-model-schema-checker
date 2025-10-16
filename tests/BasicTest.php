@@ -11,18 +11,18 @@ class BasicTest extends TestCase
         $this->assertTrue(true, 'Package loaded successfully');
     }
 
-    public function test_check_script_exists()
+    public function test_service_provider_exists()
     {
-        $this->assertFileExists(__DIR__ . '/../check.php');
+        $this->assertFileExists(__DIR__ . '/../src/ModelSchemaCheckerServiceProvider.php');
     }
 
-    public function test_run_checker_script_exists()
+    public function test_command_exists()
     {
-        $this->assertFileExists(__DIR__ . '/../run-checker.sh');
+        $this->assertFileExists(__DIR__ . '/../src/Commands/ModelSchemaCheckCommand.php');
     }
 
-    public function test_check_directory_exists()
+    public function test_commands_directory_exists()
     {
-        $this->assertDirectoryExists(__DIR__ . '/../check');
+        $this->assertDirectoryExists(__DIR__ . '/../src/Commands');
     }
 }
