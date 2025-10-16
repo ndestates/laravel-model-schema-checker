@@ -46,8 +46,12 @@ class ModelSchemaCheckCommand extends Command
             'models_dir' => app_path('Models'),
             'excluded_fields' => [
                 'id', 'created_at', 'updated_at', 'created_by', 
-                'updated_by', 'deleted_by', 'deleted_at',
-                'email_verified_at', 'remember_token'
+                'updated_by', 'deleted_by', 'deleted_at'
+            ],
+            'security_excluded_fields' => [
+                'email_verified_at', 'remember_token', 'password', 
+                'password_confirmation', 'api_token', 'access_token',
+                'refresh_token', 'verification_token'
             ],
             'database_connection' => env('DB_CONNECTION', 'mysql'),
         ]);
@@ -184,7 +188,7 @@ class ModelSchemaCheckCommand extends Command
     protected function checkModelFillableProperties($model, string $className): void
     {
         $tableName = $model->getTable();
-        
+
         if (!$this->tableExists($tableName)) {
             $this->addIssue($className, 'missing_table', [
                 'table' => $tableName,
@@ -196,6 +200,7 @@ class ModelSchemaCheckCommand extends Command
         $fillable = $model->getFillable();
         $tableColumns = $this->getTableColumns($tableName);
         $excludedFields = $this->config['excluded_fields'];
+        $securityExcludedFields = $this->config['security_excluded_fields'];
 
         // Remove excluded fields from table columns for comparison
         $relevantColumns = array_diff($tableColumns, $excludedFields);
@@ -212,10 +217,25 @@ class ModelSchemaCheckCommand extends Command
         // Check for database columns not in fillable
         $missingFillable = array_diff($relevantColumns, $fillable);
         if (!empty($missingFillable)) {
-            $this->addIssue($className, 'missing_fillable', [
-                'fields' => $missingFillable,
-                'message' => 'Database columns not in fillable array'
-            ]);
+            // Separate security-sensitive fields from regular missing fields
+            $securityFields = array_intersect($missingFillable, $securityExcludedFields);
+            $regularMissingFields = array_diff($missingFillable, $securityExcludedFields);
+
+            // Report regular missing fields that should be in fillable
+            if (!empty($regularMissingFields)) {
+                $this->addIssue($className, 'missing_fillable', [
+                    'fields' => $regularMissingFields,
+                    'message' => 'Database columns not in fillable array (should be mass-assignable)'
+                ]);
+            }
+
+            // Report security-sensitive fields that are correctly excluded
+            if (!empty($securityFields)) {
+                $this->addIssue($className, 'security_excluded', [
+                    'fields' => $securityFields,
+                    'message' => 'Security-sensitive fields correctly excluded from fillable array (should NOT be mass-assignable)'
+                ]);
+            }
         }
 
         if ($this->option('fix') && !$this->option('dry-run')) {
@@ -232,15 +252,6 @@ class ModelSchemaCheckCommand extends Command
         }
     }
 
-    protected function getTableColumns(string $tableName): array
-    {
-        try {
-            return DB::getSchemaBuilder()->getColumnListing($tableName);
-        } catch (\Exception $e) {
-            return [];
-        }
-    }
-
     protected function addIssue(string $model, string $type, array $data): void
     {
         $this->issues[] = [
@@ -248,7 +259,11 @@ class ModelSchemaCheckCommand extends Command
             'type' => $type,
             'data' => $data
         ];
-        $this->stats['issues_found']++;
+        
+        // Don't count security_excluded as issues since they're intentionally excluded
+        if ($type !== 'security_excluded') {
+            $this->stats['issues_found']++;
+        }
     }
 
     protected function fixModelFillable(string $className, array $columns): void
@@ -380,6 +395,14 @@ class ModelSchemaCheckCommand extends Command
                 
                 if (isset($issue['data']['file'])) {
                     $this->line("  File: {$issue['data']['file']}:{$issue['data']['line']}");
+                }
+            } elseif ($issue['type'] === 'security_excluded') {
+                $this->info("✅ Security Check: {$issue['model']}");
+                $this->line("  Type: {$issue['type']}");
+                $this->line("  Message: {$issue['data']['message']}");
+                
+                if (isset($issue['data']['fields'])) {
+                    $this->line("  Fields: " . implode(', ', $issue['data']['fields']));
                 }
             } else {
                 $this->warn("Model: {$issue['model']}");
