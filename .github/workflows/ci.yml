@@ -3,6 +3,7 @@ name: CI/CD Pipeline
 on:
   push:
     branches: [ main, master ]
+    tags: [ 'v*' ]
   pull_request:
     branches: [ main, master ]
   release:
@@ -78,7 +79,7 @@ jobs:
 
   publish:
     runs-on: ubuntu-latest
-    if: github.event_name == 'release'
+    if: github.event_name == 'release' || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v'))
     needs: test
 
     steps:
@@ -99,5 +100,58 @@ jobs:
     - name: Install dependencies
       run: composer install --no-progress --prefer-dist --optimize-autoloader
 
-    - name: Run tests
-      run: composer test
+    - name: Validate composer.json
+      run: composer validate --strict
+
+    - name: Validate tag matches composer.json version
+      if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+      run: |
+        TAG_VERSION=$(echo "${{ github.ref }}" | sed 's/refs\/tags\/v//')
+        COMPOSER_VERSION=$(php -r "echo json_decode(file_get_contents('composer.json'), true)['version'] ?? 'none';")
+        if [ "$COMPOSER_VERSION" != "none" ] && [ "$TAG_VERSION" != "$COMPOSER_VERSION" ]; then
+          echo "❌ Tag version ($TAG_VERSION) does not match composer.json version ($COMPOSER_VERSION)"
+          exit 1
+        fi
+        echo "✅ Version validation passed"
+
+    - name: Test package installation
+      run: |
+        echo "Testing package installation..."
+        # Create a temporary Laravel project to test installation
+        composer create-project laravel/laravel test-install --prefer-dist --no-progress --no-scripts --quiet
+        cd test-install
+        composer config repositories.local path ../
+        composer require ndestates/laravel-model-schema-checker *@dev --no-scripts --quiet
+        echo "✅ Package installation successful"
+
+    - name: Publish to Packagist
+      if: success()
+      env:
+        PACKAGIST_USERNAME: ${{ secrets.PACKAGIST_USERNAME }}
+        PACKAGIST_API_TOKEN: ${{ secrets.PACKAGIST_API_TOKEN }}
+      run: |
+        # Extract version from tag (remove 'v' prefix if present)
+        VERSION=$(echo "${{ github.event.release.tag_name }}" | sed 's/^v//')
+        echo "Publishing version: $VERSION"
+
+        # Check if Packagist credentials are available
+        if [ -z "$PACKAGIST_USERNAME" ] || [ -z "$PACKAGIST_API_TOKEN" ]; then
+          echo "Packagist credentials not configured. Skipping Packagist update."
+          echo "Package will be auto-discovered by Packagist when the tag is pushed."
+          exit 0
+        fi
+
+        # Use Packagist API to update package
+        echo "Updating package on Packagist..."
+        RESPONSE=$(curl -s -X POST \
+          -H "Content-Type: application/json" \
+          -d "{\"repository\":{\"url\":\"https://github.com/${{ github.repository }}\"}}" \
+          "https://packagist.org/api/update-package?username=$PACKAGIST_USERNAME&apiToken=$PACKAGIST_API_TOKEN")
+
+        # Check if the request was successful
+        if echo "$RESPONSE" | grep -q '"status":"success"'; then
+          echo "✅ Successfully updated package on Packagist"
+        else
+          echo "⚠️  Packagist update response: $RESPONSE"
+          echo "Package should still be auto-discovered by Packagist"
+        fi
