@@ -404,6 +404,18 @@ class ModelSchemaCheckCommand extends Command
                 if (isset($issue['data']['fields'])) {
                     $this->line("  Fields: " . implode(', ', $issue['data']['fields']));
                 }
+            } elseif ($issue['model'] === 'Code Quality') {
+                $this->warn("Code Quality: {$issue['type']}");
+                $this->line("  File: {$issue['data']['file']}");
+                $this->line("  Message: {$issue['data']['message']}");
+                
+                if (isset($issue['data']['class'])) {
+                    $this->line("  Class: {$issue['data']['class']}");
+                }
+                
+                if (isset($issue['data']['method'])) {
+                    $this->line("  Method: {$issue['data']['method']}");
+                }
             } else {
                 $this->warn("Model: {$issue['model']}");
                 $this->line("  Type: {$issue['type']}");
@@ -2115,6 +2127,70 @@ class ModelSchemaCheckCommand extends Command
 
         // Check for code smells
         $this->checkCodeSmells();
+
+        // Apply fixes if requested
+
+        if ($this->option('fix') && !$this->option('dry-run')) {
+            $this->fixCodeQualityIssues();
+        }
+    }
+
+    protected function fixCodeQualityIssues(): void
+    {
+        $this->info('');
+        $this->info('Fixing Code Quality Issues');
+        $this->info('===========================');
+
+        $fixedCount = 0;
+
+        // Fix class naming issues
+        foreach ($this->issues as $key => $issue) {
+            if ($issue['type'] === 'invalid_class_name' && isset($issue['data']['file'])) {
+                if ($this->fixClassName($issue['data']['file'], $issue['data']['class'])) {
+                    $fixedCount++;
+                    unset($this->issues[$key]); // Remove from issues array
+                }
+            }
+        }
+
+        if ($fixedCount > 0) {
+            $this->info("Fixed {$fixedCount} class naming issues");
+            $this->stats['fixes_applied'] += $fixedCount;
+        }
+    }
+
+    protected function fixClassName(string $filePath, string $currentClassName): bool
+    {
+        try {
+            $content = file_get_contents($filePath);
+
+            // Convert to PascalCase
+            $pascalCaseName = Str::studly($currentClassName);
+
+            if ($pascalCaseName === $currentClassName) {
+                // Already in PascalCase
+                return false;
+            }
+
+            // Replace class declaration
+            $pattern = '/(class\s+)' . preg_quote($currentClassName, '/') . '(\s+extends|\s+implements|\s*\{)/';
+            $replacement = '${1}' . $pascalCaseName . '${2}';
+
+            if (preg_match($pattern, $content)) {
+                $newContent = preg_replace($pattern, $replacement, $content);
+
+                if ($newContent !== $content) {
+                    file_put_contents($filePath, $newContent);
+                    $this->line("  ✅ Fixed class name: {$currentClassName} → {$pascalCaseName} in {$filePath}");
+                    return true;
+                }
+            }
+
+            return false;
+        } catch (\Exception $e) {
+            $this->error("Failed to fix class name in {$filePath}: " . $e->getMessage());
+            return false;
+        }
     }
 
     protected function checkNamespaces(): void

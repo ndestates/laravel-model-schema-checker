@@ -54,7 +54,7 @@ php artisan model:schema-check
 #### Core Options
 - `--help` - Show help information
 - `--dry-run` - Show what would be changed without making changes
-- `--fix` - Fix model fillable properties
+- `--fix` - Fix model fillable properties and code quality issues (class naming, etc.)
 - `--generate-migrations` - Generate Laravel migrations
 - `--json` - Output results in JSON format
 
@@ -208,7 +208,7 @@ php artisan model:schema-check --performance
 # Check relationships and foreign keys
 php artisan model:schema-check --relationships
 
-# Fix model fillable properties
+# Fix model fillable properties and code quality issues
 php artisan model:schema-check --fix
 
 # Generate migrations for schema differences
@@ -255,10 +255,11 @@ php artisan model:schema-check --generate-migrations --dry-run
 
 ### 🎯 **Code Quality Assurance**
 - Namespace validation
-- Naming convention enforcement
+- Naming convention enforcement (PascalCase classes, camelCase methods)
 - Deprecated feature detection
 - Code smell identification
 - Unused import detection
+- **Automatic fixes** for naming convention violations
 
 ### 🎨 **Laravel-Specific Features**
 - Filament form and relationship validation
@@ -320,6 +321,7 @@ Enforced Laravel best practices:
 - **Laravel Conventions**: Proper facade usage
 - **Modern PHP**: Avoids deprecated features
 - **Code Smells**: Detects long methods and duplicate code
+- **Automatic Fixes**: Use `--fix` to automatically correct class naming violations (converts to PascalCase)
 
 ## Requirements
 
