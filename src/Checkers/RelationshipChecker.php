@@ -1,0 +1,269 @@
+<?php
+
+namespace NDEstates\LaravelModelSchemaChecker\Checkers;
+
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
+
+class RelationshipChecker extends BaseChecker
+{
+    public function getName(): string
+    {
+        return 'Relationship Checker';
+    }
+
+    public function getDescription(): string
+    {
+        return 'Validate model relationships and foreign keys';
+    }
+
+    public function check(): array
+    {
+        $this->info('');
+        $this->info('Checking Model Relationships');
+        $this->info('===========================');
+
+        $modelsPath = app_path('Models');
+
+        if (!File::exists($modelsPath)) {
+            $this->warn("Models directory not found: {$modelsPath}");
+            return $this->issues;
+        }
+
+        $modelFiles = File::allFiles($modelsPath);
+
+        foreach ($modelFiles as $file) {
+            if ($file->getExtension() === 'php') {
+                $this->checkModelRelationshipsForFile($file);
+            }
+        }
+
+        return $this->issues;
+    }
+
+    protected function checkModelRelationshipsForFile($file): void
+    {
+        $namespace = $this->getNamespaceFromFile($file->getPathname());
+        $className = $namespace . '\\' . $file->getFilenameWithoutExtension();
+
+        if (!class_exists($className)) {
+            return;
+        }
+
+        try {
+            $reflection = new \ReflectionClass($className);
+            $content = file_get_contents($file->getPathname());
+
+            // Check for relationship methods
+            $this->checkRelationshipMethods($reflection, $content, $file->getPathname());
+
+            // Check foreign key constraints
+            $this->checkForeignKeyConstraints($className, $file->getPathname());
+
+            // Check relationship naming conventions
+            $this->checkRelationshipNaming($reflection, $content, $file->getPathname());
+
+        } catch (\Exception $e) {
+            $this->addIssue('reflection_error', [
+                'file' => $file->getPathname(),
+                'model' => $className,
+                'error' => $e->getMessage(),
+                'message' => "Could not analyze model relationships due to reflection error"
+            ]);
+        }
+    }
+
+    protected function checkRelationshipMethods(\ReflectionClass $reflection, string $content, string $filePath): void
+    {
+        $relationshipPatterns = [
+            '/public function (belongsTo|hasOne|hasMany|belongsToMany|morphTo|morphOne|morphMany|morphToMany)\(/',
+            '/public function (belongsTo|hasOne|hasMany|belongsToMany)\w*\(/',
+        ];
+
+        $foundRelationships = [];
+
+        foreach ($relationshipPatterns as $pattern) {
+            if (preg_match_all($pattern, $content, $matches)) {
+                foreach ($matches[1] as $relationshipType) {
+                    $foundRelationships[] = $relationshipType;
+                }
+            }
+        }
+
+        if (empty($foundRelationships)) {
+            return; // No relationships to check
+        }
+
+        // Check if relationships return proper relationship instances
+        $this->checkRelationshipReturnTypes($reflection, $content, $filePath);
+
+        // Check for missing inverse relationships
+        $this->checkInverseRelationships($reflection, $foundRelationships, $filePath);
+    }
+
+    protected function checkRelationshipReturnTypes(\ReflectionClass $reflection, string $content, string $filePath): void
+    {
+        $modelName = $reflection->getShortName();
+
+        // Look for relationship methods that don't return relationship instances
+        if (preg_match_all('/public function (\w+)\([^}]*return\s+([^;]+);/s', $content, $matches)) {
+            for ($i = 0; $i < count($matches[0]); $i++) {
+                $methodName = $matches[1][$i];
+                $returnValue = trim($matches[2][$i]);
+
+                // Check if it's a relationship method but doesn't return a relationship
+                if (in_array($methodName, ['belongsTo', 'hasOne', 'hasMany', 'belongsToMany', 'morphTo', 'morphOne', 'morphMany', 'morphToMany'])) {
+                    if (!preg_match('/\$this->(belongsTo|hasOne|hasMany|belongsToMany|morphTo|morphOne|morphMany|morphToMany)\(/', $returnValue)) {
+                        $this->addIssue('invalid_relationship_return', [
+                            'file' => $filePath,
+                            'model' => $modelName,
+                            'method' => $methodName,
+                            'return_value' => $returnValue,
+                            'message' => "Relationship method '{$methodName}' should return a relationship instance, not '{$returnValue}'"
+                        ]);
+                    }
+                }
+            }
+        }
+    }
+
+    protected function checkInverseRelationships(\ReflectionClass $reflection, array $relationships, string $filePath): void
+    {
+        $modelName = $reflection->getShortName();
+
+        // This is a simplified check - in a real implementation, you'd need to analyze
+        // the related models to check for inverse relationships
+        $hasManyRelationships = array_filter($relationships, function($rel) {
+            return in_array($rel, ['hasMany', 'belongsToMany', 'morphMany', 'morphToMany']);
+        });
+
+        if (!empty($hasManyRelationships)) {
+            $this->addIssue('missing_inverse_check', [
+                'file' => $filePath,
+                'model' => $modelName,
+                'relationships' => implode(', ', $hasManyRelationships),
+                'message' => "Consider checking for inverse relationships in related models for " . implode(', ', $hasManyRelationships)
+            ]);
+        }
+    }
+
+    protected function checkForeignKeyConstraints(string $className, string $filePath): void
+    {
+        try {
+            $model = new $className();
+            $tableName = $model->getTable();
+
+            // Get foreign key constraints from database
+            $foreignKeys = $this->getForeignKeyConstraints($tableName);
+
+            foreach ($foreignKeys as $fk) {
+                // Check if the foreign key column exists in fillable/guarded
+                $fillable = $model->getFillable();
+                $guarded = $model->getGuarded();
+
+                if (!empty($guarded) && !in_array('*', $guarded)) {
+                    if (in_array($fk['column'], $guarded)) {
+                        $this->addIssue('guarded_foreign_key', [
+                            'file' => $filePath,
+                            'model' => $className,
+                            'table' => $tableName,
+                            'column' => $fk['column'],
+                            'references' => $fk['references'],
+                            'message' => "Foreign key column '{$fk['column']}' is guarded. Consider adding it to fillable for proper relationship handling."
+                        ]);
+                    }
+                } elseif (!empty($fillable)) {
+                    if (!in_array($fk['column'], $fillable)) {
+                        $this->addIssue('missing_foreign_key_fillable', [
+                            'file' => $filePath,
+                            'model' => $className,
+                            'table' => $tableName,
+                            'column' => $fk['column'],
+                            'references' => $fk['references'],
+                            'message' => "Foreign key column '{$fk['column']}' should be in fillable array for proper mass assignment."
+                        ]);
+                    }
+                }
+            }
+
+        } catch (\Exception $e) {
+            // Skip if model can't be instantiated or table doesn't exist
+        }
+    }
+
+    protected function checkRelationshipNaming(\ReflectionClass $reflection, string $content, string $filePath): void
+    {
+        $modelName = $reflection->getShortName();
+
+        // Check for relationship methods with poor naming
+        if (preg_match_all('/public function ([a-zA-Z_][a-zA-Z0-9_]*)\(/', $content, $matches)) {
+            foreach ($matches[1] as $methodName) {
+                // Skip standard relationship types
+                if (in_array($methodName, ['belongsTo', 'hasOne', 'hasMany', 'belongsToMany', 'morphTo', 'morphOne', 'morphMany', 'morphToMany'])) {
+                    continue;
+                }
+
+                // Check naming conventions
+                if (strlen($methodName) < 3) {
+                    $this->addIssue('poor_relationship_naming', [
+                        'file' => $filePath,
+                        'model' => $modelName,
+                        'method' => $methodName,
+                        'message' => "Relationship method name '{$methodName}' is too short. Use descriptive names like 'user', 'posts', 'comments'."
+                    ]);
+                }
+
+                if (!preg_match('/^[a-z][a-zA-Z0-9]*$/', $methodName)) {
+                    $this->addIssue('invalid_relationship_naming', [
+                        'file' => $filePath,
+                        'model' => $modelName,
+                        'method' => $methodName,
+                        'message' => "Relationship method name '{$methodName}' should use camelCase naming convention."
+                    ]);
+                }
+            }
+        }
+    }
+
+    protected function getForeignKeyConstraints(string $tableName): array
+    {
+        try {
+            $databaseName = DB::getDatabaseName();
+            $constraints = [];
+
+            // This is database-specific - simplified for common databases
+            if (DB::getDriverName() === 'mysql') {
+                $results = DB::select("
+                    SELECT
+                        COLUMN_NAME as column_name,
+                        REFERENCED_TABLE_NAME as referenced_table,
+                        REFERENCED_COLUMN_NAME as referenced_column
+                    FROM information_schema.KEY_COLUMN_USAGE
+                    WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND REFERENCED_TABLE_NAME IS NOT NULL
+                ", [$databaseName, $tableName]);
+
+                foreach ($results as $result) {
+                    $constraints[] = [
+                        'column' => $result->column_name,
+                        'references' => $result->referenced_table . '.' . $result->referenced_column
+                    ];
+                }
+            }
+
+            return $constraints;
+        } catch (\Exception $e) {
+            return [];
+        }
+    }
+
+    protected function getNamespaceFromFile(string $filePath): string
+    {
+        $content = File::get($filePath);
+
+        if (preg_match('/namespace\s+([^;]+);/i', $content, $matches)) {
+            return $matches[1];
+        }
+
+        return '';
+    }
+}

@@ -22,6 +22,8 @@ class ModelSchemaCheckCommand extends Command
                             {--generate-schema : Generate schema documentation}
                             {--generate-schema-sql : Generate schema SQL}
                             {--check-filament : Check Filament relationships}
+                            {--check-security : Check for security vulnerabilities}
+                            {--check-relationships : Check model relationships and foreign keys}
                             {--check-all : Run all available checks (alias for --all)}';
 
     protected $description = 'Laravel Model Schema Checker v3.0 - Modular Architecture';
@@ -72,6 +74,14 @@ class ModelSchemaCheckCommand extends Command
 
         if ($this->option('check-filament')) {
             return $this->handleCheckFilament();
+        }
+
+        if ($this->option('check-security')) {
+            return $this->handleCheckSecurity();
+        }
+
+        if ($this->option('check-relationships')) {
+            return $this->handleCheckRelationships();
         }
 
         // Default: run model checks
@@ -316,9 +326,55 @@ class ModelSchemaCheckCommand extends Command
     protected function handleCheckFilament(): int
     {
         $this->info('Checking Filament relationships...');
-        $this->warn('⚠️  Filament checking not yet implemented in v3.0');
-        $this->info('This feature will be available in a future update.');
-        return Command::SUCCESS;
+
+        $checker = $this->checkerManager->getChecker('filament');
+        if (!$checker) {
+            $this->error('FilamentChecker not found. Make sure it is properly registered.');
+            return Command::FAILURE;
+        }
+
+        $issues = $checker->check();
+        $this->issueManager->addIssues($issues);
+
+        $this->displayResults();
+
+        return $this->issueManager->hasIssues() ? Command::FAILURE : Command::SUCCESS;
+    }
+
+    protected function handleCheckSecurity(): int
+    {
+        $this->info('Checking for security vulnerabilities...');
+
+        $checker = $this->checkerManager->getChecker('security');
+        if (!$checker) {
+            $this->error('SecurityChecker not found. Make sure it is properly registered.');
+            return Command::FAILURE;
+        }
+
+        $issues = $checker->check();
+        $this->issueManager->addIssues($issues);
+
+        $this->displayResults();
+
+        return $this->issueManager->hasIssues() ? Command::FAILURE : Command::SUCCESS;
+    }
+
+    protected function handleCheckRelationships(): int
+    {
+        $this->info('Checking model relationships...');
+
+        $checker = $this->checkerManager->getChecker('relationship');
+        if (!$checker) {
+            $this->error('RelationshipChecker not found. Make sure it is properly registered.');
+            return Command::FAILURE;
+        }
+
+        $issues = $checker->check();
+        $this->issueManager->addIssues($issues);
+
+        $this->displayResults();
+
+        return $this->issueManager->hasIssues() ? Command::FAILURE : Command::SUCCESS;
     }
 
     protected function displayResults(): void

@@ -4,6 +4,9 @@ namespace NDEstates\LaravelModelSchemaChecker\Services;
 
 use Illuminate\Console\Command;
 use NDEstates\LaravelModelSchemaChecker\Checkers\ModelChecker;
+use NDEstates\LaravelModelSchemaChecker\Checkers\FilamentChecker;
+use NDEstates\LaravelModelSchemaChecker\Checkers\SecurityChecker;
+use NDEstates\LaravelModelSchemaChecker\Checkers\RelationshipChecker;
 use NDEstates\LaravelModelSchemaChecker\Contracts\CheckerInterface;
 
 class CheckerManager
@@ -33,9 +36,10 @@ class CheckerManager
     protected function registerDefaultCheckers(): void
     {
         $this->register(new ModelChecker($this->config));
+        $this->register(new FilamentChecker($this->config));
+        $this->register(new SecurityChecker($this->config));
+        $this->register(new RelationshipChecker($this->config));
         // TODO: Register other checkers as they are created
-        // $this->register(new SecurityChecker($this->config));
-        // $this->register(new RelationshipChecker($this->config));
         // $this->register(new PerformanceChecker($this->config));
         // etc.
     }
@@ -88,6 +92,16 @@ class CheckerManager
         }
 
         return $allIssues;
+    }
+
+    public function getChecker(string $name): ?CheckerInterface
+    {
+        foreach ($this->checkers as $checker) {
+            if (strtolower($checker->getName()) === strtolower($name)) {
+                return $checker;
+            }
+        }
+        return null;
     }
 
     public function runCheck(string $checkerName): array
