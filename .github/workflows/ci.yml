@@ -105,35 +105,6 @@ jobs:
         fi
         echo "✅ Version validation passed"
 
-    - name: Test published package
-      run: |
-        echo "Testing published package installation..."
-        # Extract version from tag (remove 'v' prefix if present)
-        if [ "${{ github.event_name }}" = "release" ]; then
-          VERSION=$(echo "${{ github.event.release.tag_name }}" | sed 's/^v//')
-        else
-          VERSION=$(echo "${{ github.ref }}" | sed 's/refs\/tags\/v//')
-        fi
-        
-        echo "Testing package version: $VERSION"
-        
-        # Test that the published package can be found and installed
-        if composer show ndestates/laravel-model-schema-checker:$VERSION --available 2>/dev/null; then
-          echo "✅ Published package version $VERSION is available on Packagist"
-        else
-          echo "❌ Published package version $VERSION not found on Packagist"
-          echo "This may take a few minutes after publishing"
-          # Don't fail here as Packagist indexing can be delayed
-        fi
-
-        # Test basic composer resolution
-        if composer require ndestates/laravel-model-schema-checker:$VERSION --dry-run --no-scripts --quiet 2>/dev/null; then
-          echo "✅ Package dependencies can be resolved"
-        else
-          echo "❌ Package dependency resolution failed"
-          exit 1
-        fi
-
     - name: Publish to Packagist
       if: success()
       env:
@@ -146,7 +117,7 @@ jobs:
         else
           VERSION=$(echo "${{ github.ref }}" | sed 's/refs\/tags\/v//')
         fi
-
+        
         echo "Publishing version: $VERSION"
 
         # Check if Packagist credentials are available
@@ -192,4 +163,33 @@ jobs:
           echo "ℹ️  Package should still be auto-discovered by Packagist"
           # Don't fail the build - auto-discovery will handle it
           exit 0
+        fi
+
+    - name: Test published package
+      run: |
+        echo "Testing published package installation..."
+        # Extract version from tag (remove 'v' prefix if present)
+        if [ "${{ github.event_name }}" = "release" ]; then
+          VERSION=$(echo "${{ github.event.release.tag_name }}" | sed 's/^v//')
+        else
+          VERSION=$(echo "${{ github.ref }}" | sed 's/refs\/tags\/v//')
+        fi
+        
+        echo "Testing package version: $VERSION"
+        
+        # Test that the published package can be found and installed
+        if composer show ndestates/laravel-model-schema-checker:$VERSION --available 2>/dev/null; then
+          echo "✅ Published package version $VERSION is available on Packagist"
+        else
+          echo "❌ Published package version $VERSION not found on Packagist"
+          echo "This may take a few minutes after publishing"
+          # Don't fail here as Packagist indexing can be delayed
+        fi
+
+        # Test basic composer resolution
+        if composer require ndestates/laravel-model-schema-checker:$VERSION --dry-run --no-scripts --quiet 2>/dev/null; then
+          echo "✅ Package dependencies can be resolved"
+        else
+          echo "❌ Package dependency resolution failed"
+          exit 1
         fi
