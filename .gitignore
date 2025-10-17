@@ -19,6 +19,9 @@ test_results/
 outputs/
 logs/
 
+# CI/CD
+.github/workflows/ci.yml
+
 # Temporary files
 *.tmp
 *.bak
