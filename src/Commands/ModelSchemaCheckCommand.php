@@ -142,7 +142,7 @@ class ModelSchemaCheckCommand extends Command
         }
     }
 
-    protected function checkModel($file): void
+    protected function checkModel(\SplFileInfo $file): void
     {
         $namespace = $this->getNamespaceFromFile($file->getPathname());
         $className = $namespace . '\\' . $file->getFilenameWithoutExtension();
@@ -170,7 +170,7 @@ class ModelSchemaCheckCommand extends Command
         }
     }
 
-    protected function getNamespaceFromFile($filePath): string
+    protected function getNamespaceFromFile(string $filePath): string
     {
         $content = File::get($filePath);
         
@@ -181,7 +181,7 @@ class ModelSchemaCheckCommand extends Command
         return 'App\\Models';
     }
 
-    protected function checkModelFillableProperties($model, string $className): void
+    protected function checkModelFillableProperties(\Illuminate\Database\Eloquent\Model $model, string $className): void
     {
         $tableName = $model->getTable();
         
@@ -244,6 +244,12 @@ class ModelSchemaCheckCommand extends Command
 
     protected function fixModelFillable(string $className, array $columns): void
     {
+        // Assert that the class exists before using ReflectionClass
+        if (!class_exists($className)) {
+            $this->error("Class {$className} does not exist");
+            return;
+        }
+
         $reflection = new ReflectionClass($className);
         $filePath = $reflection->getFileName();
         
@@ -273,9 +279,13 @@ class ModelSchemaCheckCommand extends Command
             );
         }
 
-        File::put($filePath, $content);
-        $this->info("Fixed fillable array for: {$className}");
-        $this->stats['fixes_applied']++;
+        if ($content !== null) {
+            File::put($filePath, $content);
+            $this->info("Fixed fillable array for: {$className}");
+            $this->stats['fixes_applied']++;
+        } else {
+            $this->error("Failed to update fillable array for: {$className}");
+        }
     }
 
     protected function generateFillableString(array $columns): string
@@ -397,7 +407,12 @@ class ModelSchemaCheckCommand extends Command
             'issues' => $this->issues
         ];
         
-        $this->line(json_encode($output, JSON_PRETTY_PRINT));
+        $jsonOutput = json_encode($output, JSON_PRETTY_PRINT);
+        if ($jsonOutput !== false) {
+            $this->line($jsonOutput);
+        } else {
+            $this->error('Failed to encode JSON output');
+        }
     }
 
     protected function generateMigrations(): void
@@ -426,8 +441,10 @@ class ModelSchemaCheckCommand extends Command
 
         // Check if a specific resource is requested
         $specificResource = $this->option('filament-resource');
-        
+
         if ($specificResource) {
+            // Ensure specificResource is a string
+            $specificResource = (string) $specificResource;
             // Handle different resource name formats
             if (!str_contains($specificResource, '\\')) {
                 // If no backslashes, assume it's just the class name in the standard Filament location
@@ -475,7 +492,8 @@ class ModelSchemaCheckCommand extends Command
             try {
                 $class = $this->getClassFromFile($file->getPathname());
                 if ($class && class_exists($class, false)) { // Don't autoload
-                    if (is_subclass_of($class, \Filament\Resources\Resource::class)) {
+                    // Check if Filament is available before checking subclass
+                    if (class_exists(\Filament\Resources\Resource::class) && is_subclass_of($class, \Filament\Resources\Resource::class)) {
                         $resources[] = $class;
                     }
                 } else {
@@ -492,7 +510,19 @@ class ModelSchemaCheckCommand extends Command
 
     protected function checkFilamentResource(string $resourceClass): void
     {
+        // Check if Filament is available
+        if (!class_exists(\Filament\Resources\Resource::class)) {
+            $this->warn("Filament not installed, skipping resource check for {$resourceClass}");
+            return;
+        }
+
         try {
+            // Assert that the class exists before using ReflectionClass
+            if (!class_exists($resourceClass)) {
+                $this->error("Filament resource class {$resourceClass} does not exist");
+                return;
+            }
+
             // Use reflection to get the model class without instantiating the resource
             $reflection = new \ReflectionClass($resourceClass);
             $getModelMethod = $reflection->getMethod('getModel');
