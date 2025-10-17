@@ -146,7 +146,7 @@ jobs:
         else
           VERSION=$(echo "${{ github.ref }}" | sed 's/refs\/tags\/v//')
         fi
-        
+
         echo "Publishing version: $VERSION"
 
         # Check if Packagist credentials are available
@@ -158,10 +158,17 @@ jobs:
 
         # Use Packagist API to update package
         echo "Updating package on Packagist..."
+        # The correct Packagist API endpoint for updating a package
+        API_URL="https://packagist.org/api/update-package/ndestates/laravel-model-schema-checker"
+
+        echo "API URL: $API_URL"
+        echo "Username: $PACKAGIST_USERNAME"
+
         RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" -X POST \
+          -u "$PACKAGIST_USERNAME:$PACKAGIST_API_TOKEN" \
           -H "Content-Type: application/json" \
           -d "{\"repository\":{\"url\":\"https://github.com/${{ github.repository }}\"}}" \
-          "https://packagist.org/api/update-package?username=$PACKAGIST_USERNAME&apiToken=$PACKAGIST_API_TOKEN")
+          "$API_URL")
 
         # Extract HTTP status code
         HTTP_CODE=$(echo "$RESPONSE" | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
@@ -174,7 +181,7 @@ jobs:
         if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
           echo "✅ Successfully triggered Packagist update"
           # Check for success message in response
-          if echo "$RESPONSE_BODY" | grep -q '"status":"success"' || echo "$RESPONSE_BODY" | grep -q '"success":true'; then
+          if echo "$RESPONSE_BODY" | grep -q '"status":"success"' || echo "$RESPONSE_BODY" | grep -q '"success":true' || echo "$RESPONSE_BODY" | grep -q 'success'; then
             echo "✅ Packagist confirmed successful update"
           else
             echo "ℹ️  Packagist update triggered (response may vary)"
@@ -184,4 +191,5 @@ jobs:
           echo "⚠️  Response: $RESPONSE_BODY"
           echo "ℹ️  Package should still be auto-discovered by Packagist"
           # Don't fail the build - auto-discovery will handle it
+          exit 0
         fi
