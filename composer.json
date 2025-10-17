@@ -17,7 +17,10 @@
     },
     "require-dev": {
         "phpunit/phpunit": "^10.0|^11.0",
-        "orchestra/testbench": "^8.0|^9.0|^10.0"
+        "orchestra/testbench": "^8.0|^9.0|^10.0",
+        "phpstan/phpstan": "^1.10",
+        "squizlabs/php_codesniffer": "^3.7",
+        "phpmd/phpmd": "^2.13"
     },
     "autoload": {
         "psr-4": {
@@ -33,7 +36,17 @@
         "bin/laravel-model-schema-checker"
     ],
     "scripts": {
-        "test": "phpunit"
+        "test": "phpunit",
+        "test:all": [
+            "@test",
+            "@cs",
+            "@stan",
+            "@md"
+        ],
+        "cs": "phpcs",
+        "cs:fix": "phpcbf",
+        "stan": "phpstan analyse",
+        "md": "phpmd src text codesize,unusedcode,naming"
     },
     "extra": {
         "laravel": {

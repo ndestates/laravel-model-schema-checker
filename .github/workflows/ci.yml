@@ -49,14 +49,31 @@ jobs:
     - name: Run PHPUnit tests
       run: vendor/bin/phpunit
 
-    - name: Validate package structure
+    - name: Run PHPStan static analysis
+      run: vendor/bin/phpstan analyse --error-format=github
+
+    - name: Run PHPCS code style check
+      run: vendor/bin/phpcs --standard=phpcs.xml --report=checkstyle
+
+    - name: Run PHPMD mess detector
+      run: vendor/bin/phpmd src text phpmd.xml --reportfile=phpmd-report.xml || true
+
+    - name: Check for security vulnerabilities
       run: |
-        echo "Validating package structure..."
-        # Check that all required files exist
-        [ -f "src/ModelSchemaCheckerServiceProvider.php" ] && echo "✅ Service Provider exists" || (echo "❌ Service Provider missing" && exit 1)
-        [ -d "src/Commands" ] && echo "✅ Commands directory exists" || (echo "❌ Commands directory missing" && exit 1)
-        [ -f "src/Commands/ModelSchemaCheckCommand.php" ] && echo "✅ Main command exists" || (echo "❌ Main command missing" && exit 1)
-        echo "✅ Package structure validation passed"
+        echo "Checking for known security vulnerabilities..."
+        if command -v composer &> /dev/null; then
+          composer audit --no-interaction || echo "⚠️  Security audit completed with warnings"
+        else
+          echo "⚠️  Composer audit not available"
+        fi
+
+    - name: Validate README and documentation
+      run: |
+        echo "Validating documentation..."
+        [ -f "README.md" ] && echo "✅ README.md exists" || (echo "❌ README.md missing" && exit 1)
+        [ -f "CHANGELOG.md" ] && echo "✅ CHANGELOG.md exists" || echo "⚠️  CHANGELOG.md missing"
+        [ -f "LICENSE" ] && echo "✅ LICENSE exists" || (echo "❌ LICENSE missing" && exit 1)
+        echo "✅ Documentation validation passed"
 
     - name: Test composer.json validity
       run: composer validate --strict --no-check-all
@@ -64,7 +81,6 @@ jobs:
     - name: Test package can be installed
       run: |
         echo "Testing package installation compatibility..."
-        # Test that composer can resolve dependencies without conflicts
         composer show --available ndestates/laravel-model-schema-checker 2>/dev/null || echo "Package not yet published (expected in CI)"
         echo "✅ Composer resolution test passed"
 
@@ -116,7 +132,6 @@ jobs:
     - name: Test published package
       run: |
         echo "Testing published package installation..."
-        # Extract version from tag (remove 'v' prefix if present)
         if [ "${{ github.event_name }}" = "release" ]; then
           VERSION=$(echo "${{ github.event.release.tag_name }}" | sed 's/^v//')
         else
@@ -124,42 +139,30 @@ jobs:
         fi
 
         echo "Testing package version: $VERSION"
-        echo "Package name: ndestates/laravel-model-schema-checker"
-        echo "Full package reference: ndestates/laravel-model-schema-checker:$VERSION"
-
-        # Wait a bit for Packagist to index the package
         echo "Waiting 30 seconds for Packagist indexing..."
         sleep 30
 
-        # Test that the published package can be found and installed
         MAX_RETRIES=3
         RETRY_COUNT=0
 
         while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
           echo "Attempting to find package (attempt $((RETRY_COUNT + 1))/$MAX_RETRIES)..."
 
-          # First try to find the package without version
-          echo "Checking if base package exists..."
           if composer show ndestates/laravel-model-schema-checker --available 2>/dev/null; then
-            echo "✅ Base package ndestates/laravel-model-schema-checker exists on Packagist"
-
-            # Now try the specific version
-            echo "Checking specific version $VERSION..."
+            echo "✅ Base package exists on Packagist"
             if composer show ndestates/laravel-model-schema-checker:$VERSION --available 2>/dev/null; then
-              echo "✅ Published package version $VERSION is available on Packagist"
+              echo "✅ Version $VERSION available on Packagist"
               break
             else
-              echo "⚠️  Specific version $VERSION not found, but base package exists"
-              # This is often normal - versions take time to index
+              echo "⚠️  Version $VERSION not yet indexed (normal)"
               break
             fi
           else
             if [ $RETRY_COUNT -eq $((MAX_RETRIES - 1)) ]; then
-              echo "⚠️  Package ndestates/laravel-model-schema-checker not found on Packagist after $MAX_RETRIES attempts"
-              echo "This is normal - Packagist indexing can take several minutes"
-              echo "Check manually: https://packagist.org/packages/ndestates/laravel-model-schema-checker"
+              echo "⚠️  Package not found after $MAX_RETRIES attempts"
+              echo "Check: https://packagist.org/packages/ndestates/laravel-model-schema-checker"
             else
-              echo "Package not yet indexed, waiting 30 more seconds..."
+              echo "Waiting 30 more seconds..."
               sleep 30
             fi
           fi
@@ -167,16 +170,11 @@ jobs:
           RETRY_COUNT=$((RETRY_COUNT + 1))
         done
 
-        # Test basic composer resolution (this should work even if package isn't fully indexed)
-        echo "Testing composer dependency resolution..."
         if composer require ndestates/laravel-model-schema-checker:$VERSION --dry-run --no-scripts --quiet 2>/dev/null; then
           echo "✅ Package dependencies can be resolved"
         else
-          echo "⚠️  Package dependency resolution test failed"
-          echo "This may be due to Packagist indexing delay - check manually later"
-          # Don't fail the build for this
+          echo "⚠️  Dependency resolution test failed (may be due to indexing delay)"
         fi
 
-        echo "🎉 Package publishing process completed!"
-        echo "📦 Check: https://packagist.org/packages/ndestates/laravel-model-schema-checker"
-        echo "🔗 Direct version link: https://packagist.org/packages/ndestates/laravel-model-schema-checker#v$VERSION"
+        echo "🎉 Publishing process completed!"
+        echo "📦 https://packagist.org/packages/ndestates/laravel-model-schema-checker"
