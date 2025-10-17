@@ -23,7 +23,7 @@ composer require ndestates/laravel-model-schema-checker
 
 Check that the package is installed correctly:
 ```bash
-php vendor/ndestates/laravel-model-schema-checker/check.php --help
+php artisan model:schema-check --help
 ```
 
 ### Step 3: Optional Configuration
@@ -57,22 +57,22 @@ php artisan vendor:publish --provider="NDEstates\LaravelModelSchemaChecker\Model
 ### Basic Model Checking
 ```bash
 # Dry run (safe, shows what would change)
-php vendor/ndestates/laravel-model-schema-checker/check.php --dry-run
+php artisan model:schema-check --dry-run
 
 # Actually fix the models
-php vendor/ndestates/laravel-model-schema-checker/check.php --fix
+php artisan model:schema-check --fix
 ```
 
 ### Migration Generation
 ```bash
 # Generate migrations for schema differences
-php vendor/ndestates/laravel-model-schema-checker/check.php --generate-migrations
+php artisan model:schema-check --generate-migrations
 ```
 
 ### Analysis and Reporting
 ```bash
 # Full analysis with JSON output
-php vendor/ndestates/laravel-model-schema-checker/check.php --analyze --json
+php artisan model:schema-check --analyze --json
 ```
 
 ## Troubleshooting
@@ -86,7 +86,8 @@ composer dump-autoload
 ### Permission Issues
 If you get permission errors:
 ```bash
-chmod +x vendor/ndestates/laravel-model-schema-checker/check.php
+# Make sure artisan is executable
+chmod +x artisan
 ```
 
 ### Laravel Not Detected

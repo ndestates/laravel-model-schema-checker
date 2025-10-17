@@ -37,7 +37,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Or use the provided `install.sh` script for manual installation
 
 ### Usage
-- `php check.php` - Run basic validation
-- `php check.php --check-all` - Run comprehensive checks
-- `php check.php --fix` - Apply automatic fixes
-- `./run-checker.sh` - Environment-aware execution
+- `php artisan model:schema-check` - Run basic validation
+- `php artisan model:schema-check --check-all` - Run comprehensive checks
+- `php artisan model:schema-check --fix` - Apply automatic fixes

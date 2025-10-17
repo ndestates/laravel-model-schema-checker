@@ -252,8 +252,8 @@ class ModelSchemaCheckCommand extends Command
 
         $reflection = new ReflectionClass($className);
         $filePath = $reflection->getFileName();
-        
-        if (!$filePath || !File::exists($filePath)) {
+
+        if ($filePath === false || !File::exists($filePath)) {
             $this->warn("Could not locate file for model: {$className}");
             return;
         }
@@ -541,7 +541,7 @@ class ModelSchemaCheckCommand extends Command
         }
     }
 
-    protected function checkFilamentMethods(string $resourceClass, $model, array $methodNames): void
+    protected function checkFilamentMethods(string $resourceClass, \Illuminate\Database\Eloquent\Model $model, array $methodNames): void
     {
         $reflection = new \ReflectionClass($resourceClass);
 
@@ -558,9 +558,14 @@ class ModelSchemaCheckCommand extends Command
         }
     }
 
-    protected function findAndCheckRelationshipsInFilamentMethod(\ReflectionMethod $method, $model, string $resourceClass): void
+    protected function findAndCheckRelationshipsInFilamentMethod(\ReflectionMethod $method, \Illuminate\Database\Eloquent\Model $model, string $resourceClass): void
     {
         $filePath = $method->getFileName();
+        if ($filePath === false) {
+            $this->warn("Cannot get file path for method {$method->getName()}");
+            return;
+        }
+
         $startLine = $method->getStartLine();
         $endLine = $method->getEndLine();
         $lines = file($filePath);
@@ -589,7 +594,7 @@ class ModelSchemaCheckCommand extends Command
         }
     }
 
-    protected function validateFilamentRelationship($model, string $relationshipName, string $resourceClass, string $filePath, int $lineNumber): void
+    protected function validateFilamentRelationship(\Illuminate\Database\Eloquent\Model $model, string $relationshipName, string $resourceClass, string $filePath, int $lineNumber): void
     {
         $modelClass = get_class($model);
         if (!method_exists($model, $relationshipName)) {
@@ -625,7 +630,7 @@ class ModelSchemaCheckCommand extends Command
         }
     }
 
-    protected function validateFilamentSelectRelationship($model, string $relationshipName, string $fieldName, string $resourceClass, string $filePath, int $lineNumber, string $componentType = 'Select'): void
+    protected function validateFilamentSelectRelationship(\Illuminate\Database\Eloquent\Model $model, string $relationshipName, string $fieldName, string $resourceClass, string $filePath, int $lineNumber, string $componentType = 'Select'): void
     {
         $modelClass = get_class($model);
         
@@ -723,9 +728,14 @@ class ModelSchemaCheckCommand extends Command
         return substr_count(substr($content, 0, $offset), "\n") + 1;
     }
 
-    protected function checkFilamentFormFieldAlignment(\ReflectionMethod $method, $model, string $resourceClass): void
+    protected function checkFilamentFormFieldAlignment(\ReflectionMethod $method, \Illuminate\Database\Eloquent\Model $model, string $resourceClass): void
     {
         $filePath = $method->getFileName();
+        if ($filePath === false) {
+            $this->warn("Cannot get file path for method {$method->getName()}");
+            return;
+        }
+
         $startLine = $method->getStartLine();
         $endLine = $method->getEndLine();
         $lines = file($filePath);

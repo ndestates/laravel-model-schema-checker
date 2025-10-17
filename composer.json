@@ -32,9 +32,6 @@
             "NDEstates\\LaravelModelSchemaChecker\\Tests\\": "tests/"
         }
     },
-    "bin": [
-        "bin/laravel-model-schema-checker"
-    ],
     "scripts": {
         "test": "phpunit",
         "test:all": [

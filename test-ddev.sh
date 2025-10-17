@@ -85,7 +85,7 @@ echo "✅ Laravel configured"
 echo "📋 Step 7: Testing Package Commands..."
 
 # Test basic help
-ddev exec bash -c "cd /tmp/test-laravel-project && php vendor/ndestates/laravel-model-schema-checker/check.php --help"
+ddev exec bash -c "cd /tmp/test-laravel-project && php artisan model:schema-check --help"
 if [ $? -eq 0 ]; then
     echo "✅ Help command works"
 else
@@ -112,7 +112,7 @@ echo ""
 echo "📋 Manual Testing Commands (run these in the test project):"
 echo "ddev ssh"
 echo "cd /tmp/test-laravel-project"
-echo "php vendor/ndestates/laravel-model-schema-checker/check.php --dry-run"
+echo "php artisan model:schema-check --dry-run"
 echo ""
 echo "🚀 Publishing Steps:"
 echo "1. git add . && git commit -m 'Ready for release'"
