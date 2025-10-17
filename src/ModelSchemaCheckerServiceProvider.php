@@ -17,6 +17,11 @@ class ModelSchemaCheckerServiceProvider extends ServiceProvider
             __DIR__ . '/../config/model-schema-checker.php',
             'model-schema-checker'
         );
+
+        // Register services - IssueManager can be registered here as it's simple
+        $this->app->singleton(
+            \NDEstates\LaravelModelSchemaChecker\Services\IssueManager::class
+        );
     }
 
     /**
@@ -24,6 +29,16 @@ class ModelSchemaCheckerServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // Register CheckerManager in boot() when all services are available
+        $this->app->singleton(
+            \NDEstates\LaravelModelSchemaChecker\Services\CheckerManager::class,
+            function ($app) {
+                return new \NDEstates\LaravelModelSchemaChecker\Services\CheckerManager(
+                    config('model-schema-checker', [])
+                );
+            }
+        );
+
         // Publish configuration file
         $this->publishes([
             __DIR__ . '/../config/model-schema-checker.php' => config_path('model-schema-checker.php'),

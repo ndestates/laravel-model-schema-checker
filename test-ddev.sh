@@ -14,7 +14,7 @@ if ! command -v ddev &> /dev/null; then
 fi
 
 # Check if we're in the right directory
-if [ ! -f "composer.json" ] || [ ! -f "check.php" ]; then
+if [ ! -f "composer.json" ] || [ ! -d "src" ]; then
     echo "❌ Error: Please run this from the laravel-model-schema-checker root directory"
     exit 1
 fi
