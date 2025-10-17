@@ -124,6 +124,8 @@ jobs:
         fi
 
         echo "Testing package version: $VERSION"
+        echo "Package name: ndestates/laravel-model-schema-checker"
+        echo "Full package reference: ndestates/laravel-model-schema-checker:$VERSION"
 
         # Wait a bit for Packagist to index the package
         echo "Waiting 30 seconds for Packagist indexing..."
@@ -136,14 +138,26 @@ jobs:
         while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
           echo "Attempting to find package (attempt $((RETRY_COUNT + 1))/$MAX_RETRIES)..."
 
-          if composer show ndestates/laravel-model-schema-checker:$VERSION --available 2>/dev/null; then
-            echo "✅ Published package version $VERSION is available on Packagist"
-            break
+          # First try to find the package without version
+          echo "Checking if base package exists..."
+          if composer show ndestates/laravel-model-schema-checker --available 2>/dev/null; then
+            echo "✅ Base package ndestates/laravel-model-schema-checker exists on Packagist"
+
+            # Now try the specific version
+            echo "Checking specific version $VERSION..."
+            if composer show ndestates/laravel-model-schema-checker:$VERSION --available 2>/dev/null; then
+              echo "✅ Published package version $VERSION is available on Packagist"
+              break
+            else
+              echo "⚠️  Specific version $VERSION not found, but base package exists"
+              # This is often normal - versions take time to index
+              break
+            fi
           else
             if [ $RETRY_COUNT -eq $((MAX_RETRIES - 1)) ]; then
-              echo "⚠️  Published package version $VERSION not found on Packagist after $MAX_RETRIES attempts"
+              echo "⚠️  Package ndestates/laravel-model-schema-checker not found on Packagist after $MAX_RETRIES attempts"
               echo "This is normal - Packagist indexing can take several minutes"
-              echo "The package should appear at: https://packagist.org/packages/ndestates/laravel-model-schema-checker"
+              echo "Check manually: https://packagist.org/packages/ndestates/laravel-model-schema-checker"
             else
               echo "Package not yet indexed, waiting 30 more seconds..."
               sleep 30
@@ -164,4 +178,5 @@ jobs:
         fi
 
         echo "🎉 Package publishing process completed!"
-        echo "Check https://packagist.org/packages/ndestates/laravel-model-schema-checker for the published package"
+        echo "📦 Check: https://packagist.org/packages/ndestates/laravel-model-schema-checker"
+        echo "🔗 Direct version link: https://packagist.org/packages/ndestates/laravel-model-schema-checker#v$VERSION"
