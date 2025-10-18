@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\File;
 use NDEstates\LaravelModelSchemaChecker\Services\MigrationGenerator;
 use NDEstates\LaravelModelSchemaChecker\Services\DataExporter;
 use NDEstates\LaravelModelSchemaChecker\Services\DataImporter;
+use NDEstates\LaravelModelSchemaChecker\Services\MigrationCleanup;
 
 class ModelSchemaCheckCommand extends Command
 {
@@ -34,6 +35,7 @@ class ModelSchemaCheckCommand extends Command
                             {--sync-migrations : Generate fresh migrations from database schema}
                             {--export-data : Export database data to compressed SQL file}
                             {--import-data : Import database data from compressed SQL file}
+                            {--cleanup-migrations : Safely remove old migration files with backup}
                             {--check-all : Run all available checks (alias for --all)}';
 
     protected $description = 'Laravel Model Schema Checker v3.0 - Modular Architecture';
@@ -43,8 +45,9 @@ class ModelSchemaCheckCommand extends Command
     protected MigrationGenerator $migrationGenerator;
     protected DataExporter $dataExporter;
     protected DataImporter $dataImporter;
+    protected MigrationCleanup $migrationCleanup;
 
-    public function __construct(CheckerManager $checkerManager, IssueManager $issueManager, MigrationGenerator $migrationGenerator, DataExporter $dataExporter, DataImporter $dataImporter)
+    public function __construct(CheckerManager $checkerManager, IssueManager $issueManager, MigrationGenerator $migrationGenerator, DataExporter $dataExporter, DataImporter $dataImporter, MigrationCleanup $migrationCleanup)
     {
         parent::__construct();
         $this->checkerManager = $checkerManager;
@@ -52,6 +55,7 @@ class ModelSchemaCheckCommand extends Command
         $this->migrationGenerator = $migrationGenerator;
         $this->dataExporter = $dataExporter;
         $this->dataImporter = $dataImporter;
+        $this->migrationCleanup = $migrationCleanup;
     }
 
     public function handle(): int
@@ -130,6 +134,10 @@ class ModelSchemaCheckCommand extends Command
 
         if ($this->option('import-data')) {
             return $this->handleImportData();
+        }
+
+        if ($this->option('cleanup-migrations')) {
+            return $this->handleCleanupMigrations();
         }
 
         // Default: run model checks
@@ -658,6 +666,118 @@ class ModelSchemaCheckCommand extends Command
             $this->error("Import failed: {$e->getMessage()}");
             return Command::FAILURE;
         }
+    }
+
+    protected function handleCleanupMigrations(): int
+    {
+        $this->info('Migration cleanup utility');
+        $this->info('=======================');
+
+        // Get cleanup preview
+        $preview = $this->migrationCleanup->getCleanupPreview();
+
+        $this->info('Current migration status:');
+        $this->line("  - Total migration files: {$preview['total_migration_files']}");
+        $this->line("  - Files that can be cleaned: {$preview['files_to_delete']}");
+        $this->line("  - Space that can be saved: " . number_format($preview['total_size_to_save'] / 1024, 2) . " KB");
+
+        if ($preview['files_to_delete'] === 0) {
+            $this->info('No migration files need cleanup.');
+            return Command::SUCCESS;
+        }
+
+        // Show files that would be deleted
+        $this->info('Files to be cleaned up:');
+        foreach ($preview['files'] as $file) {
+            $this->line("  - {$file['filename']} (" . number_format($file['size'] / 1024, 2) . " KB)");
+        }
+
+        // Ask for cleanup options
+        $cleanupType = $this->choice(
+            'What type of cleanup would you like to perform?',
+            [
+                'preview' => 'Show detailed preview only',
+                'all' => 'Clean all eligible files',
+                'older_than' => 'Clean files older than specified days',
+                'larger_than' => 'Clean files larger than specified KB',
+                'custom' => 'Custom cleanup criteria'
+            ],
+            'preview'
+        );
+
+        $options = [];
+
+        switch ($cleanupType) {
+            case 'older_than':
+                $days = (int) $this->ask('Clean files older than how many days?', 30);
+                $options['older_than_days'] = $days;
+                break;
+
+            case 'larger_than':
+                $size = (int) $this->ask('Clean files larger than how many KB?', 100);
+                $options['larger_than_kb'] = $size;
+                break;
+
+            case 'custom':
+                if ($this->confirm('Include system tables (migrations, jobs, etc.)?', false)) {
+                    $options['include_system_tables'] = true;
+                }
+                if ($this->confirm('Skip backup creation?', false)) {
+                    $options['no_backup'] = true;
+                }
+                break;
+
+            case 'preview':
+                return Command::SUCCESS;
+
+            case 'all':
+            default:
+                // Use default options
+                break;
+        }
+
+        if ($cleanupType !== 'preview') {
+            if (!$this->confirm('Do you want to proceed with the cleanup?', false)) {
+                $this->info('Cleanup cancelled.');
+                return Command::SUCCESS;
+            }
+
+            if ($this->option('dry-run')) {
+                $options['dry_run'] = true;
+                $this->warn('Running in dry-run mode - no files will be deleted');
+            }
+
+            $this->info('Starting migration cleanup...');
+
+            try {
+                $result = $this->migrationCleanup->cleanupMigrationFiles($options);
+
+                $this->info('Cleanup completed!');
+                $this->line("  - Files backed up: {$result['files_backed_up']}");
+                $this->line("  - Files deleted: {$result['files_deleted']}");
+                $this->line("  - Space saved: " . number_format($result['total_size_saved'] / 1024, 2) . " KB");
+
+                if (!empty($result['warnings'])) {
+                    $this->warn('Warnings:');
+                    foreach ($result['warnings'] as $warning) {
+                        $this->line("  - {$warning}");
+                    }
+                }
+
+                if (!empty($result['errors'])) {
+                    $this->error('Errors:');
+                    foreach ($result['errors'] as $error) {
+                        $this->line("  - {$error}");
+                    }
+                }
+
+            } catch (\Exception $e) {
+                $this->error("Cleanup failed: {$e->getMessage()}");
+                return Command::FAILURE;
+            }
+        }
+
+        return Command::SUCCESS;
     }
 
     protected function displayResults(): void

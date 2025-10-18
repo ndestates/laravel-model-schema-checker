@@ -37,6 +37,11 @@ class ModelSchemaCheckerServiceProvider extends ServiceProvider
         $this->app->singleton(
             \NDEstates\LaravelModelSchemaChecker\Services\DataImporter::class
         );
+
+        // Register MigrationCleanup service
+        $this->app->singleton(
+            \NDEstates\LaravelModelSchemaChecker\Services\MigrationCleanup::class
+        );
     }
 
     /**
