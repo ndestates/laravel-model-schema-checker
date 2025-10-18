@@ -10,6 +10,7 @@ use NDEstates\LaravelModelSchemaChecker\Checkers\RelationshipChecker;
 use NDEstates\LaravelModelSchemaChecker\Checkers\MigrationChecker;
 use NDEstates\LaravelModelSchemaChecker\Checkers\ValidationChecker;
 use NDEstates\LaravelModelSchemaChecker\Checkers\PerformanceChecker;
+use NDEstates\LaravelModelSchemaChecker\Checkers\CodeQualityChecker;
 use NDEstates\LaravelModelSchemaChecker\Contracts\CheckerInterface;
 
 class CheckerManager
@@ -45,8 +46,9 @@ class CheckerManager
         $this->register(new MigrationChecker($this->config));
         $this->register(new ValidationChecker($this->config));
         $this->register(new PerformanceChecker($this->config));
+        $this->register(new CodeQualityChecker($this->config));
         // TODO: Register other checkers as they are created
-        // $this->register(new CodeQualityChecker($this->config));
+        // $this->register(new LaravelFormsChecker($this->config));
         // etc.
     }
 

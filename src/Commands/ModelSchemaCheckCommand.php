@@ -27,6 +27,7 @@ class ModelSchemaCheckCommand extends Command
                             {--check-migrations : Check migration consistency, indexes, and foreign keys}
                             {--check-validation : Check validation rules against database schema}
                             {--check-performance : Check for N+1 queries and optimization opportunities}
+                            {--check-code-quality : Check Laravel best practices and code quality}
                             {--check-all : Run all available checks (alias for --all)}';
 
     protected $description = 'Laravel Model Schema Checker v3.0 - Modular Architecture';
@@ -97,6 +98,10 @@ class ModelSchemaCheckCommand extends Command
 
         if ($this->option('check-performance')) {
             return $this->handleCheckPerformance();
+        }
+
+        if ($this->option('check-code-quality')) {
+            return $this->handleCheckCodeQuality();
         }
 
         // Default: run model checks
@@ -435,6 +440,24 @@ class ModelSchemaCheckCommand extends Command
         $checker = $this->checkerManager->getChecker('performance');
         if (!$checker) {
             $this->error('PerformanceChecker not found. Make sure it is properly registered.');
+            return Command::FAILURE;
+        }
+
+        $issues = $checker->check();
+        $this->issueManager->addIssues($issues);
+
+        $this->displayResults();
+
+        return $this->issueManager->hasIssues() ? Command::FAILURE : Command::SUCCESS;
+    }
+
+    protected function handleCheckCodeQuality(): int
+    {
+        $this->info('Checking code quality...');
+
+        $checker = $this->checkerManager->getChecker('code quality');
+        if (!$checker) {
+            $this->error('CodeQualityChecker not found. Make sure it is properly registered.');
             return Command::FAILURE;
         }
 
