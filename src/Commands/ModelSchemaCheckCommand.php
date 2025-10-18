@@ -4,8 +4,9 @@ namespace NDEstates\LaravelModelSchemaChecker\Commands;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
-use NDEstates\LaravelModelSchemaChecker\Services\CheckerManager;
-use NDEstates\LaravelModelSchemaChecker\Services\IssueManager;
+use Illuminate\Support\Facades\File;
+use NDEstates\LaravelModelSchemaChecker\Services\MigrationGenerator;
+use NDEstates\LaravelModelSchemaChecker\Services\DataExporter;
 
 class ModelSchemaCheckCommand extends Command
 {
@@ -29,18 +30,25 @@ class ModelSchemaCheckCommand extends Command
                             {--check-performance : Check for N+1 queries and optimization opportunities}
                             {--check-code-quality : Check Laravel best practices and code quality}
                             {--check-laravel-forms : Check Blade templates and Livewire forms}
+                            {--sync-migrations : Generate fresh migrations from database schema}
+                            {--export-data : Export database data to compressed SQL file}
+                            {--import-data : Import database data from compressed SQL file}
                             {--check-all : Run all available checks (alias for --all)}';
 
     protected $description = 'Laravel Model Schema Checker v3.0 - Modular Architecture';
 
     protected CheckerManager $checkerManager;
     protected IssueManager $issueManager;
+    protected MigrationGenerator $migrationGenerator;
+    protected DataExporter $dataExporter;
 
-    public function __construct(CheckerManager $checkerManager, IssueManager $issueManager)
+    public function __construct(CheckerManager $checkerManager, IssueManager $issueManager, MigrationGenerator $migrationGenerator, DataExporter $dataExporter)
     {
         parent::__construct();
         $this->checkerManager = $checkerManager;
         $this->issueManager = $issueManager;
+        $this->migrationGenerator = $migrationGenerator;
+        $this->dataExporter = $dataExporter;
     }
 
     public function handle(): int
@@ -107,6 +115,18 @@ class ModelSchemaCheckCommand extends Command
 
         if ($this->option('check-laravel-forms')) {
             return $this->handleCheckLaravelForms();
+        }
+
+        if ($this->option('sync-migrations')) {
+            return $this->handleSyncMigrations();
+        }
+
+        if ($this->option('export-data')) {
+            return $this->handleExportData();
+        }
+
+        if ($this->option('import-data')) {
+            return $this->handleImportData();
         }
 
         // Default: run model checks
@@ -490,6 +510,73 @@ class ModelSchemaCheckCommand extends Command
         $this->displayResults();
 
         return $this->issueManager->hasIssues() ? Command::FAILURE : Command::SUCCESS;
+    }
+
+    protected function handleSyncMigrations(): int
+    {
+        $this->info('Generating migrations from database schema...');
+
+        try {
+            $migrations = $this->migrationGenerator->generateMigrationsFromSchema();
+
+            if (empty($migrations)) {
+                $this->info('No new migrations needed. All tables already have corresponding migrations.');
+                return Command::SUCCESS;
+            }
+
+            $this->info("Generated " . count($migrations) . " migration(s):");
+
+            foreach ($migrations as $migration) {
+                $this->line("  - {$migration['filename']} (for table: {$migration['table']})");
+            }
+
+            if ($this->confirm('Do you want to save these migrations to disk?', true)) {
+                $savedFiles = $this->migrationGenerator->saveMigrations();
+
+                $this->info('Migrations saved successfully:');
+                foreach ($savedFiles as $file) {
+                    $this->line("  - {$file}");
+                }
+
+                $this->warn('Remember to review the generated migrations before running them!');
+            } else {
+                $this->info('Migrations were not saved. Use --sync-migrations again to save them.');
+            }
+
+            return Command::SUCCESS;
+
+        } catch (\Exception $e) {
+            $this->error("Failed to generate migrations: {$e->getMessage()}");
+            return Command::FAILURE;
+        }
+    }
+
+    protected function handleExportData(): int
+    {
+        $this->info('Exporting database data...');
+
+        try {
+            $exportFile = $this->dataExporter->exportDatabaseDataToCompressedFile();
+
+            $this->info('Database data exported successfully!');
+            $this->line("Export file: {$exportFile}");
+
+            $fileSize = File::size($exportFile);
+            $this->line("File size: " . number_format($fileSize / 1024 / 1024, 2) . " MB");
+
+            return Command::SUCCESS;
+
+        } catch (\Exception $e) {
+            $this->error("Failed to export database data: {$e->getMessage()}");
+            return Command::FAILURE;
+        }
+    }
+
+    protected function handleImportData(): int
+    {
+        $this->warn('Database import functionality is not yet implemented.');
+        $this->info('This feature will be available in a future update.');
+        return Command::SUCCESS;
     }
 
     protected function displayResults(): void
