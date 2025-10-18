@@ -69,6 +69,9 @@ class LaravelFormsChecker extends BaseChecker
 
         // Check for proper route model binding
         $this->checkRouteModelBinding($content, $fileName, $file->getPathname());
+
+        // Check for path traversal vulnerabilities
+        $this->checkPathTraversal($content, $fileName, $file->getPathname());
     }
 
     protected function checkCsrfProtection(string $content, string $fileName, string $filePath): void
@@ -172,6 +175,144 @@ class LaravelFormsChecker extends BaseChecker
         }
     }
 
+    protected function checkPathTraversal(string $content, string $fileName, string $filePath): void
+    {
+        // Check for file operations using user input (potential path traversal)
+        $this->checkFileOperationsForTraversal($content, $fileName, $filePath);
+
+        // Check for file upload handling that might allow path traversal
+        $this->checkFileUploadTraversal($content, $fileName, $filePath);
+
+        // Check for route parameters used in file paths
+        $this->checkRouteParameterTraversal($content, $fileName, $filePath);
+
+        // Check for direct file path construction from user input
+        $this->checkDirectPathConstruction($content, $fileName, $filePath);
+    }
+
+    protected function checkFileOperationsForTraversal(string $content, string $fileName, string $filePath): void
+    {
+        // Check for file operations using variables that could contain user input
+        $fileOperations = [
+            'file_get_contents',
+            'file_put_contents',
+            'fopen',
+            'include',
+            'require',
+            'include_once',
+            'require_once',
+            'Storage::get',
+            'Storage::put',
+            'Storage::disk',
+            'File::get',
+            'File::put'
+        ];
+
+        foreach ($fileOperations as $operation) {
+            // Look for file operations with variable parameters
+            if (preg_match("/{$operation}\s*\(\s*\$[a-zA-Z_][a-zA-Z0-9_]*(?:\s*\.\s*[^)]*)?\s*\)/", $content)) {
+                $this->issue(
+                    "File operation '{$operation}' in {$fileName} uses variable parameter - potential path traversal vulnerability. Validate and sanitize file paths.",
+                    'critical',
+                    $filePath
+                );
+            }
+
+            // Check for concatenation in file paths
+            if (preg_match("/{$operation}\s*\(\s*[^)]*\$\w+[^)]*\)/", $content)) {
+                $this->issue(
+                    "File operation '{$operation}' in {$fileName} constructs path from variables - potential path traversal. Use basename() and validate paths.",
+                    'high',
+                    $filePath
+                );
+            }
+        }
+    }
+
+    protected function checkFileUploadTraversal(string $content, string $fileName, string $filePath): void
+    {
+        // Check for file upload handling that might allow path traversal
+        if (preg_match('/\$request->file\(|request\(\)->file\(/', $content)) {
+            // Check if original filename is used directly
+            if (preg_match('/->getClientOriginalName\(\)|\.originalName/', $content)) {
+                $this->issue(
+                    "File upload in {$fileName} uses original filename - potential path traversal. Generate safe filenames instead.",
+                    'critical',
+                    $filePath
+                );
+            }
+
+            // Check for file storage without path validation
+            if (preg_match('/->store\(|->storeAs\(/', $content)) {
+                if (!preg_match('/basename\(|pathinfo\(|realpath\(/', $content)) {
+                    $this->issue(
+                        "File storage in {$fileName} may not validate paths - potential path traversal. Validate file paths before storage.",
+                        'high',
+                        $filePath
+                    );
+                }
+            }
+        }
+    }
+
+    protected function checkRouteParameterTraversal(string $content, string $fileName, string $filePath): void
+    {
+        // Check for route parameters used in file operations
+        if (preg_match('/\$request->\w+|\$request\[|\$_GET\[|\$_POST\[|\$_REQUEST\[/', $content)) {
+            // Look for file operations using request parameters
+            if (preg_match('/file_get_contents\(|fopen\(|Storage::|File::/', $content)) {
+                $this->issue(
+                    "Route parameters in {$fileName} used for file operations - potential path traversal. Validate and sanitize all file paths.",
+                    'critical',
+                    $filePath
+                );
+            }
+
+            // Check for directory traversal patterns
+            if (preg_match('/\.\.[\/\\\\]|\.\.[\/\\\\]/', $content)) {
+                $this->issue(
+                    "Directory traversal patterns ('../') detected in {$fileName} - critical path traversal vulnerability.",
+                    'critical',
+                    $filePath
+                );
+            }
+        }
+    }
+
+    protected function checkDirectPathConstruction(string $content, string $fileName, string $filePath): void
+    {
+        // Check for direct path construction from user input
+        $dangerousPatterns = [
+            '/\$\w+\s*\.\s*[\'"]\/[\'"]/',  // Variable . '/path'
+            '/[\'"]\/[\'"]\s*\.\s*\$\w+/',  // '/path' . variable
+            '/\$_\w+\[.*\]\s*\.\s*[\'"]/', // $_GET['param'] . '/'
+            '/[\'"]\/\.\.\//',              // /../ patterns
+            '/\\\\\.\./',                   // \.. patterns (Windows)
+        ];
+
+        foreach ($dangerousPatterns as $pattern) {
+            if (preg_match($pattern, $content)) {
+                $this->issue(
+                    "Direct path construction from user input detected in {$fileName} - potential path traversal vulnerability. Use secure path handling.",
+                    'critical',
+                    $filePath
+                );
+                break;
+            }
+        }
+
+        // Check for missing path validation functions
+        if (preg_match('/\$\w+\s*\.\s*[\'"]\//', $content)) {
+            if (!preg_match('/basename\(|realpath\(|pathinfo\(/', $content)) {
+                $this->issue(
+                    "Path construction in {$fileName} lacks validation functions - potential path traversal. Use basename() or realpath() for validation.",
+                    'high',
+                    $filePath
+                );
+            }
+        }
+    }
+
     protected function checkLivewireComponents(): void
     {
         $livewirePath = app_path('Livewire');
@@ -206,6 +347,9 @@ class LaravelFormsChecker extends BaseChecker
 
         // Check for proper property declarations
         $this->checkLivewireProperties($content, $className, $file->getPathname());
+
+        // Check for path traversal vulnerabilities in Livewire
+        $this->checkLivewirePathTraversal($content, $className, $file->getPathname());
     }
 
     protected function checkLivewireValidation(string $content, string $className, string $filePath): void
@@ -325,6 +469,117 @@ class LaravelFormsChecker extends BaseChecker
                     $filePath
                 );
             }
+        }
+    }
+
+    protected function checkLivewirePathTraversal(string $content, string $className, string $filePath): void
+    {
+        // Check for file operations in Livewire components that could allow path traversal
+        $this->checkLivewireFileOperations($content, $className, $filePath);
+
+        // Check for unsafe file upload handling in Livewire
+        $this->checkLivewireUploadTraversal($content, $className, $filePath);
+
+        // Check for property-based path construction
+        $this->checkLivewirePropertyTraversal($content, $className, $filePath);
+    }
+
+    protected function checkLivewireFileOperations(string $content, string $className, string $filePath): void
+    {
+        // Check for file operations using component properties
+        $fileOperations = [
+            'Storage::get', 'Storage::put', 'Storage::disk', 'Storage::delete',
+            'File::get', 'File::put', 'File::delete', 'File::exists',
+            'file_get_contents', 'file_put_contents', 'fopen', 'unlink'
+        ];
+
+        foreach ($fileOperations as $operation) {
+            // Check if file operations use $this-> properties
+            if (preg_match("/{$operation}\s*\(\s*\$this->\w+/", $content)) {
+                $this->issue(
+                    "Livewire component {$className} uses '{$operation}' with component property - potential path traversal. Validate file paths.",
+                    'critical',
+                    $filePath
+                );
+            }
+
+            // Check for concatenation with properties
+            if (preg_match("/{$operation}\s*\([^)]*\$this->\w+[^)]*\)/", $content)) {
+                $this->issue(
+                    "Livewire component {$className} constructs file paths using properties in '{$operation}' - validate for path traversal.",
+                    'high',
+                    $filePath
+                );
+            }
+        }
+    }
+
+    protected function checkLivewireUploadTraversal(string $content, string $className, string $filePath): void
+    {
+        // Check for WithFileUploads trait usage
+        if (preg_match('/use\s+WithFileUploads;/', $content)) {
+            // Check if temporary URLs are used without validation
+            if (preg_match('/temporaryUrl\(/', $content)) {
+                if (!preg_match('/validate\(|rules\(/', $content)) {
+                    $this->issue(
+                        "Livewire component {$className} uses temporaryUrl() without validation - potential path traversal via file uploads.",
+                        'high',
+                        $filePath
+                    );
+                }
+            }
+
+            // Check for direct file access using uploaded file properties
+            if (preg_match('/\$this->\w+->getRealPath\(\)|\$this->\w+->path/', $content)) {
+                $this->issue(
+                    "Livewire component {$className} accesses uploaded file paths directly - potential path traversal. Use validated paths only.",
+                    'critical',
+                    $filePath
+                );
+            }
+
+            // Check for storing files with user-controlled names
+            if (preg_match('/->storeAs\([^,]+,\s*\$this->/', $content)) {
+                $this->issue(
+                    "Livewire component {$className} stores files with user-controlled names - potential path traversal. Generate safe filenames.",
+                    'critical',
+                    $filePath
+                );
+            }
+        }
+    }
+
+    protected function checkLivewirePropertyTraversal(string $content, string $className, string $filePath): void
+    {
+        // Check for properties that might contain file paths
+        preg_match_all('/public\s+\$([a-zA-Z_][a-zA-Z0-9_]*)/', $content, $matches);
+
+        $pathRelatedNames = ['file', 'path', 'directory', 'dir', 'folder', 'upload', 'image', 'document', 'media'];
+        foreach ($matches[1] as $property) {
+            foreach ($pathRelatedNames as $pathName) {
+                if (stripos($property, $pathName) !== false) {
+                    // Check if this property is used in file operations
+                    if (preg_match("/\$this->{$property}/", $content)) {
+                        if (preg_match('/Storage::|File::|file_|fopen|unlink/', $content)) {
+                            $this->issue(
+                                "Livewire component {$className} property \${$property} used in file operations - validate for path traversal.",
+                                'high',
+                                $filePath
+                            );
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+
+        // Check for dynamic property access that could be dangerous
+        if (preg_match('/\$this->\{\$[^}]+\}/', $content)) {
+            $this->issue(
+                "Livewire component {$className} uses dynamic property access - potential path traversal if used for file operations.",
+                'medium',
+                $filePath
+            );
         }
     }
 
