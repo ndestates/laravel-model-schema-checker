@@ -24,6 +24,9 @@ class ModelSchemaCheckCommand extends Command
                             {--check-filament : Check Filament relationships}
                             {--check-security : Check for security vulnerabilities}
                             {--check-relationships : Check model relationships and foreign keys}
+                            {--check-migrations : Check migration consistency, indexes, and foreign keys}
+                            {--check-validation : Check validation rules against database schema}
+                            {--check-performance : Check for N+1 queries and optimization opportunities}
                             {--check-all : Run all available checks (alias for --all)}';
 
     protected $description = 'Laravel Model Schema Checker v3.0 - Modular Architecture';
@@ -82,6 +85,18 @@ class ModelSchemaCheckCommand extends Command
 
         if ($this->option('check-relationships')) {
             return $this->handleCheckRelationships();
+        }
+
+        if ($this->option('check-migrations')) {
+            return $this->handleCheckMigrations();
+        }
+
+        if ($this->option('check-validation')) {
+            return $this->handleCheckValidation();
+        }
+
+        if ($this->option('check-performance')) {
+            return $this->handleCheckPerformance();
         }
 
         // Default: run model checks
@@ -366,6 +381,60 @@ class ModelSchemaCheckCommand extends Command
         $checker = $this->checkerManager->getChecker('relationship');
         if (!$checker) {
             $this->error('RelationshipChecker not found. Make sure it is properly registered.');
+            return Command::FAILURE;
+        }
+
+        $issues = $checker->check();
+        $this->issueManager->addIssues($issues);
+
+        $this->displayResults();
+
+        return $this->issueManager->hasIssues() ? Command::FAILURE : Command::SUCCESS;
+    }
+
+    protected function handleCheckMigrations(): int
+    {
+        $this->info('Checking migration consistency...');
+
+        $checker = $this->checkerManager->getChecker('migration');
+        if (!$checker) {
+            $this->error('MigrationChecker not found. Make sure it is properly registered.');
+            return Command::FAILURE;
+        }
+
+        $issues = $checker->check();
+        $this->issueManager->addIssues($issues);
+
+        $this->displayResults();
+
+        return $this->issueManager->hasIssues() ? Command::FAILURE : Command::SUCCESS;
+    }
+
+    protected function handleCheckValidation(): int
+    {
+        $this->info('Checking validation rules...');
+
+        $checker = $this->checkerManager->getChecker('validation');
+        if (!$checker) {
+            $this->error('ValidationChecker not found. Make sure it is properly registered.');
+            return Command::FAILURE;
+        }
+
+        $issues = $checker->check();
+        $this->issueManager->addIssues($issues);
+
+        $this->displayResults();
+
+        return $this->issueManager->hasIssues() ? Command::FAILURE : Command::SUCCESS;
+    }
+
+    protected function handleCheckPerformance(): int
+    {
+        $this->info('Checking for performance issues...');
+
+        $checker = $this->checkerManager->getChecker('performance');
+        if (!$checker) {
+            $this->error('PerformanceChecker not found. Make sure it is properly registered.');
             return Command::FAILURE;
         }
 
