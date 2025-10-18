@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use NDEstates\LaravelModelSchemaChecker\Services\MigrationGenerator;
 use NDEstates\LaravelModelSchemaChecker\Services\DataExporter;
+use NDEstates\LaravelModelSchemaChecker\Services\DataImporter;
 
 class ModelSchemaCheckCommand extends Command
 {
@@ -41,14 +42,16 @@ class ModelSchemaCheckCommand extends Command
     protected IssueManager $issueManager;
     protected MigrationGenerator $migrationGenerator;
     protected DataExporter $dataExporter;
+    protected DataImporter $dataImporter;
 
-    public function __construct(CheckerManager $checkerManager, IssueManager $issueManager, MigrationGenerator $migrationGenerator, DataExporter $dataExporter)
+    public function __construct(CheckerManager $checkerManager, IssueManager $issueManager, MigrationGenerator $migrationGenerator, DataExporter $dataExporter, DataImporter $dataImporter)
     {
         parent::__construct();
         $this->checkerManager = $checkerManager;
         $this->issueManager = $issueManager;
         $this->migrationGenerator = $migrationGenerator;
         $this->dataExporter = $dataExporter;
+        $this->dataImporter = $dataImporter;
     }
 
     public function handle(): int
@@ -574,9 +577,87 @@ class ModelSchemaCheckCommand extends Command
 
     protected function handleImportData(): int
     {
-        $this->warn('Database import functionality is not yet implemented.');
-        $this->info('This feature will be available in a future update.');
-        return Command::SUCCESS;
+        $filePath = $this->ask('Enter the path to the SQL file to import');
+
+        if (!$filePath) {
+            $this->error('No file path provided.');
+            return Command::FAILURE;
+        }
+
+        if (!File::exists($filePath)) {
+            $this->error("File does not exist: {$filePath}");
+            return Command::FAILURE;
+        }
+
+        $this->info('Validating import file...');
+
+        try {
+            $validationIssues = $this->dataImporter->validateImportFile($filePath);
+
+            if (!empty($validationIssues)) {
+                $this->error('Import file validation failed:');
+                foreach ($validationIssues as $issue) {
+                    $this->line("  - {$issue}");
+                }
+                return Command::FAILURE;
+            }
+
+            $this->info('Getting import preview...');
+            $preview = $this->dataImporter->getImportPreview($filePath);
+
+            $this->info('Import Preview:');
+            $this->line("  - Total statements: {$preview['total_statements']}");
+            $this->line("  - Tables to create: " . implode(', ', $preview['tables_to_create']));
+            $this->line("  - Tables to import: " . implode(', ', $preview['tables_to_import']));
+            $this->line("  - Estimated rows: {$preview['estimated_rows']}");
+
+            if (!empty($preview['warnings'])) {
+                $this->warn('Warnings:');
+                foreach ($preview['warnings'] as $warning) {
+                    $this->line("  - {$warning}");
+                }
+            }
+
+            if (!$this->confirm('Do you want to proceed with the import?', false)) {
+                $this->info('Import cancelled.');
+                return Command::SUCCESS;
+            }
+
+            $this->info('Starting database import...');
+
+            $options = [];
+            if ($this->option('dry-run')) {
+                $options['dry_run'] = true;
+                $this->warn('Running in dry-run mode - no changes will be made');
+            }
+
+            $result = $this->dataImporter->importDatabaseData($filePath, $options);
+
+            if ($result['success']) {
+                $this->info('Import completed successfully!');
+                $this->line("  - Tables imported: {$result['tables_imported']}");
+                $this->line("  - Rows imported: {$result['rows_imported']}");
+
+                if (!empty($result['warnings'])) {
+                    $this->warn('Warnings:');
+                    foreach ($result['warnings'] as $warning) {
+                        $this->line("  - {$warning}");
+                    }
+                }
+            } else {
+                $this->error('Import failed:');
+                foreach ($result['errors'] as $error) {
+                    $this->line("  - {$error}");
+                }
+                return Command::FAILURE;
+            }
+
+            return Command::SUCCESS;
+
+        } catch (\Exception $e) {
+            $this->error("Import failed: {$e->getMessage()}");
+            return Command::FAILURE;
+        }
     }
 
     protected function displayResults(): void
