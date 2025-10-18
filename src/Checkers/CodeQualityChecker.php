@@ -63,21 +63,21 @@ class CodeQualityChecker extends BaseChecker
 
         // Check for proper namespace
         if (!preg_match('/namespace\s+App\\\\Models;/', $content)) {
-            $this->issue(
-                "Model {$className} should use App\\Models namespace",
-                'medium',
-                $file->getPathname()
-            );
+            $this->addIssue('code_quality', 'invalid_namespace', [
+                'file' => $file->getPathname(),
+                'model' => $className,
+                'message' => "Model {$className} should use App\\Models namespace"
+            ]);
         }
 
         // Check for fillable/mass assignment protection
         if (!preg_match('/protected\s+\$fillable\s*=/', $content) &&
             !preg_match('/protected\s+\$guarded\s*=/', $content)) {
-            $this->issue(
-                "Model {$className} should have fillable or guarded property for mass assignment protection",
-                'high',
-                $file->getPathname()
-            );
+            $this->addIssue('code_quality', 'missing_mass_assignment_protection', [
+                'file' => $file->getPathname(),
+                'model' => $className,
+                'message' => "Model {$className} should have fillable or guarded property for mass assignment protection"
+            ]);
         }
 
         // Check for proper relationship method naming
@@ -98,11 +98,12 @@ class CodeQualityChecker extends BaseChecker
         foreach ($matches[1] as $method) {
             // Check for proper relationship naming (should be camelCase)
             if (!preg_match('/^[a-z][a-zA-Z0-9]*$/', $method)) {
-                $this->issue(
-                    "Relationship method '{$method}' in {$className} should use camelCase naming",
-                    'low',
-                    $filePath
-                );
+                $this->addIssue('code_quality', 'invalid_relationship_naming', [
+                    'file' => $filePath,
+                    'model' => $className,
+                    'method' => $method,
+                    'message' => "Relationship method '{$method}' in {$className} should use camelCase naming"
+                ]);
             }
 
             // Check for common relationship patterns
@@ -123,11 +124,12 @@ class CodeQualityChecker extends BaseChecker
 
         foreach ($deprecatedPatterns as $pattern => $message) {
             if (preg_match("/{$pattern}/", $content)) {
-                $this->issue(
-                    "Deprecated method usage in {$className}: {$message}",
-                    'medium',
-                    $filePath
-                );
+                $this->addIssue('code_quality', 'deprecated_method_usage', [
+                    'file' => $filePath,
+                    'model' => $className,
+                    'pattern' => $pattern,
+                    'message' => "Deprecated method usage in {$className}: {$message}"
+                ]);
             }
         }
     }
@@ -140,11 +142,12 @@ class CodeQualityChecker extends BaseChecker
         foreach ($matches[1] as $scope) {
             // Check scope naming (should be CamelCase after 'scope')
             if (!preg_match('/^[A-Z][a-zA-Z0-9]*$/', $scope)) {
-                $this->issue(
-                    "Scope method 'scope{$scope}' in {$className} should use CamelCase naming",
-                    'low',
-                    $filePath
-                );
+                $this->addIssue('code_quality', 'invalid_scope_naming', [
+                    'file' => $filePath,
+                    'model' => $className,
+                    'scope' => $scope,
+                    'message' => "Scope method 'scope{$scope}' in {$className} should use CamelCase naming"
+                ]);
             }
         }
     }
@@ -186,11 +189,11 @@ class CodeQualityChecker extends BaseChecker
     {
         // Check if controller uses form requests for complex validation
         if (preg_match('/\$request->validate\(\s*\[[\s\S]*?\]\s*\)/', $content)) {
-            $this->issue(
-                "Controller {$className} uses inline validation - consider using Form Request classes for complex validation",
-                'medium',
-                $filePath
-            );
+            $this->addIssue('code_quality', 'inline_validation', [
+                'file' => $filePath,
+                'controller' => $className,
+                'message' => "Controller {$className} uses inline validation - consider using Form Request classes for complex validation"
+            ]);
         }
     }
 
@@ -198,11 +201,11 @@ class CodeQualityChecker extends BaseChecker
     {
         // Check for authorization usage
         if (!preg_match('/\$this->authorize\(|Gate::|policy\(\)/', $content)) {
-            $this->issue(
-                "Controller {$className} may be missing authorization checks",
-                'medium',
-                $filePath
-            );
+            $this->addIssue('code_quality', 'missing_authorization', [
+                'file' => $filePath,
+                'controller' => $className,
+                'message' => "Controller {$className} may be missing authorization checks"
+            ]);
         }
     }
 
@@ -210,11 +213,11 @@ class CodeQualityChecker extends BaseChecker
     {
         // Check for potential N+1 queries
         if (preg_match('/foreach\s*\([^)]*\)\s*\{[\s\S]*?->\w+\(\)/', $content)) {
-            $this->issue(
-                "Potential N+1 query detected in {$className} - consider using eager loading",
-                'high',
-                $filePath
-            );
+            $this->addIssue('code_quality', 'potential_n_plus_one', [
+                'file' => $filePath,
+                'controller' => $className,
+                'message' => "Potential N+1 query detected in {$className} - consider using eager loading"
+            ]);
         }
     }
 
@@ -253,20 +256,20 @@ class CodeQualityChecker extends BaseChecker
     {
         // Check for enum usage (should use proper enum types in Laravel 9+)
         if (preg_match('/->enum\(/', $content)) {
-            $this->issue(
-                "Migration {$fileName} uses enum - consider using native PHP enums or proper database enums",
-                'low',
-                $filePath
-            );
+            $this->addIssue('code_quality', 'enum_usage', [
+                'file' => $filePath,
+                'migration' => $fileName,
+                'message' => "Migration {$fileName} uses enum - consider using native PHP enums or proper database enums"
+            ]);
         }
 
         // Check for proper string length specifications
         if (preg_match('/->string\(\s*\'[^\']+\'\s*\)(?!->length\()/', $content)) {
-            $this->issue(
-                "Migration {$fileName} should specify string length for better database compatibility",
-                'medium',
-                $filePath
-            );
+            $this->addIssue('code_quality', 'missing_string_length', [
+                'file' => $filePath,
+                'migration' => $fileName,
+                'message' => "Migration {$fileName} should specify string length for better database compatibility"
+            ]);
         }
     }
 
@@ -275,11 +278,11 @@ class CodeQualityChecker extends BaseChecker
         // Check for indexed foreign keys
         if (preg_match('/->foreign\(\s*[\'"]\w+[\'"]\s*\)/', $content) &&
             !preg_match('/->index\(\s*\)/', $content)) {
-            $this->issue(
-                "Migration {$fileName} creates foreign key without index - foreign keys should be indexed",
-                'high',
-                $filePath
-            );
+            $this->addIssue('code_quality', 'unindexed_foreign_key', [
+                'file' => $filePath,
+                'migration' => $fileName,
+                'message' => "Migration {$fileName} creates foreign key without index - foreign keys should be indexed"
+            ]);
         }
     }
 
@@ -292,11 +295,12 @@ class CodeQualityChecker extends BaseChecker
             $expectedConstraintName = "{$table}_{$column}_foreign";
 
             if (!preg_match("/->name\(\s*['\"]{$expectedConstraintName}['\"]\s*\)/", $content)) {
-                $this->issue(
-                    "Migration {$fileName} should use consistent foreign key constraint naming",
-                    'low',
-                    $filePath
-                );
+                $this->addIssue('code_quality', 'inconsistent_foreign_key_naming', [
+                    'file' => $filePath,
+                    'migration' => $fileName,
+                    'expected_name' => $expectedConstraintName,
+                    'message' => "Migration {$fileName} should use consistent foreign key constraint naming"
+                ]);
             }
         }
     }
@@ -330,20 +334,20 @@ class CodeQualityChecker extends BaseChecker
 
                 // Check for use of config() helper instead of direct array access
                 if (preg_match('/config\(\s*\)\s*\[/', $content)) {
-                    $this->issue(
-                        "File {$file->getFilename()} uses array access on config() - use dot notation instead",
-                        'low',
-                        $file->getPathname()
-                    );
+                    $this->addIssue('code_quality', 'config_array_access', [
+                        'file' => $file->getPathname(),
+                        'filename' => $file->getFilename(),
+                        'message' => "File {$file->getFilename()} uses array access on config() - use dot notation instead"
+                    ]);
                 }
 
                 // Check for proper use of collect() helper
                 if (preg_match('/new\s+Collection\(/', $content)) {
-                    $this->issue(
-                        "File {$file->getFilename()} uses 'new Collection()' - use collect() helper instead",
-                        'low',
-                        $file->getPathname()
-                    );
+                    $this->addIssue('code_quality', 'new_collection_usage', [
+                        'file' => $file->getPathname(),
+                        'filename' => $file->getFilename(),
+                        'message' => "File {$file->getFilename()} uses 'new Collection()' - use collect() helper instead"
+                    ]);
                 }
             }
         }
@@ -367,11 +371,11 @@ class CodeQualityChecker extends BaseChecker
                 // Check for try-catch blocks in methods that might throw exceptions
                 if (preg_match('/public\s+function\s+\w+\s*\([^)]*\)\s*\{[\s\S]*?\$this->[^}]+}/', $content) &&
                     !preg_match('/try\s*\{[\s\S]*?}\s*catch\s*\(/', $content)) {
-                    $this->issue(
-                        "Controller method in {$file->getFilename()} may need exception handling",
-                        'medium',
-                        $file->getPathname()
-                    );
+                    $this->addIssue('code_quality', 'missing_exception_handling', [
+                        'file' => $file->getPathname(),
+                        'filename' => $file->getFilename(),
+                        'message' => "Controller method in {$file->getFilename()} may need exception handling"
+                    ]);
                 }
             }
         }
@@ -394,20 +398,20 @@ class CodeQualityChecker extends BaseChecker
 
                 // Check for use of dd() or dump() in production code
                 if (preg_match('/\bdd\(\s*\)|dump\(\s*\)/', $content)) {
-                    $this->issue(
-                        "File {$file->getFilename()} contains dd() or dump() calls - remove for production",
-                        'high',
-                        $file->getPathname()
-                    );
+                    $this->addIssue('code_quality', 'debug_calls_in_production', [
+                        'file' => $file->getPathname(),
+                        'filename' => $file->getFilename(),
+                        'message' => "File {$file->getFilename()} contains dd() or dump() calls - remove for production"
+                    ]);
                 }
 
                 // Check for proper log levels
                 if (preg_match('/Log::emergency\(|Log::alert\(|Log::critical\(/', $content)) {
-                    $this->issue(
-                        "File {$file->getFilename()} uses high-priority log levels - ensure appropriate usage",
-                        'medium',
-                        $file->getPathname()
-                    );
+                    $this->addIssue('code_quality', 'high_priority_logging', [
+                        'file' => $file->getPathname(),
+                        'filename' => $file->getFilename(),
+                        'message' => "File {$file->getFilename()} uses high-priority log levels - ensure appropriate usage"
+                    ]);
                 }
             }
         }
@@ -439,11 +443,12 @@ class CodeQualityChecker extends BaseChecker
         }
 
         if (!$found) {
-            $this->issue(
-                "Relationship method '{$methodName}' in {$className} may not return a proper relationship",
-                'medium',
-                $filePath
-            );
+            $this->addIssue('code_quality', 'invalid_relationship_return', [
+                'file' => $filePath,
+                'model' => $className,
+                'method' => $methodName,
+                'message' => "Relationship method '{$methodName}' in {$className} may not return a proper relationship"
+            ]);
         }
     }
 }

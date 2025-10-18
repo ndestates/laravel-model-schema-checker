@@ -95,7 +95,7 @@ class ValidationChecker extends BaseChecker
 
                     // Check if field exists in database
                     if (!isset($columns[$field])) {
-                        $this->addIssue('rule_for_nonexistent_field', [
+                        $this->addIssue('validation', 'rule_for_nonexistent_field', [
                             'file' => $filePath,
                             'model' => $className,
                             'field' => $field,
@@ -115,7 +115,7 @@ class ValidationChecker extends BaseChecker
                     !in_array($columnName, ['id', 'created_at', 'updated_at']) &&
                     !isset($rules[$columnName])) {
 
-                    $this->addIssue('missing_required_validation', [
+                    $this->addIssue('validation', 'missing_required_validation', [
                         'file' => $filePath,
                         'model' => $className,
                         'field' => $columnName,
@@ -146,7 +146,7 @@ class ValidationChecker extends BaseChecker
 
                 // Check if method has proper return type or throws validation exceptions
                 if (!preg_match("/function {$methodName}\([^}]*throws\s+ValidationException/", $content)) {
-                    $this->addIssue('validation_method_no_exception', [
+                    $this->addIssue('validation', 'validation_method_no_exception', [
                         'file' => $filePath,
                         'model' => $className,
                         'method' => $methodName,
@@ -173,7 +173,7 @@ class ValidationChecker extends BaseChecker
 
                 // Check if Form Request has rules method
                 if (!preg_match('/public function rules\(\)/', $content)) {
-                    $this->addIssue('missing_rules_method', [
+                    $this->addIssue('validation', 'missing_rules_method', [
                         'file' => $file->getPathname(),
                         'message' => "Form Request class should have a rules() method"
                     ]);
@@ -181,7 +181,7 @@ class ValidationChecker extends BaseChecker
 
                 // Check for authorization method
                 if (!preg_match('/public function authorize\(\)/', $content)) {
-                    $this->addIssue('missing_authorize_method', [
+                    $this->addIssue('validation', 'missing_authorize_method', [
                         'file' => $file->getPathname(),
                         'message' => "Form Request class should have an authorize() method"
                     ]);
@@ -210,7 +210,7 @@ class ValidationChecker extends BaseChecker
                         $offset = $match[1];
                         $lineNumber = $this->getLineNumberFromString($content, $offset);
 
-                        $this->addIssue('inline_validation', [
+                        $this->addIssue('validation', 'inline_validation', [
                             'file' => $file->getPathname(),
                             'line' => $lineNumber,
                             'message' => "Consider moving inline validation to a Form Request class for better organization and reusability"
@@ -234,7 +234,7 @@ class ValidationChecker extends BaseChecker
                     if (preg_match('/max:(\d+)/', $rule, $matches)) {
                         $maxLength = (int)$matches[1];
                         if ($maxLength > $columnInfo['length']) {
-                            $this->addIssue('max_length_exceeds_column', [
+                            $this->addIssue('validation', 'max_length_exceeds_column', [
                                 'file' => $filePath,
                                 'model' => $className,
                                 'field' => $field,
@@ -248,7 +248,7 @@ class ValidationChecker extends BaseChecker
             }
 
             if (!$hasMaxRule && in_array('string', $rules)) {
-                $this->addIssue('missing_max_length_validation', [
+                $this->addIssue('validation', 'missing_max_length_validation', [
                     'file' => $filePath,
                     'model' => $className,
                     'field' => $field,
@@ -261,7 +261,7 @@ class ValidationChecker extends BaseChecker
         // Check numeric validation for numeric columns
         if (in_array($columnInfo['type'], ['int', 'bigint', 'decimal', 'float', 'double'])) {
             if (!in_array('numeric', $rules) && !in_array('integer', $rules)) {
-                $this->addIssue('missing_numeric_validation', [
+                $this->addIssue('validation', 'missing_numeric_validation', [
                     'file' => $filePath,
                     'model' => $className,
                     'field' => $field,
@@ -274,7 +274,7 @@ class ValidationChecker extends BaseChecker
         // Check boolean validation
         if ($columnInfo['type'] === 'tinyint' && $columnInfo['length'] == 1) {
             if (!in_array('boolean', $rules)) {
-                $this->addIssue('missing_boolean_validation', [
+                $this->addIssue('validation', 'missing_boolean_validation', [
                     'file' => $filePath,
                     'model' => $className,
                     'field' => $field,

@@ -83,21 +83,21 @@ class LaravelFormsChecker extends BaseChecker
 
         // Check for CSRF token in forms
         if (!preg_match('/@csrf|\{\{\s*csrf_token\(\)\s*\}\}|\{\!\s*csrf_token\(\)\s*\!\}/', $content)) {
-            $this->issue(
-                "Form in {$fileName} is missing CSRF protection (@csrf directive or csrf_token())",
-                'high',
-                $filePath
-            );
+            $this->addIssue('forms', 'missing_csrf_protection', [
+                'file' => $filePath,
+                'filename' => $fileName,
+                'message' => "Form in {$fileName} is missing CSRF protection (@csrf directive or csrf_token())"
+            ]);
         }
 
         // Check for forms with method POST/PUT/PATCH/DELETE without CSRF
         if (preg_match('/<form[^>]*method\s*=\s*["\'](?:post|put|patch|delete)["\'][^>]*>/i', $content)) {
             if (!preg_match('/@csrf|\{\{\s*csrf_token\(\)\s*\}\}|\{\!\s*csrf_token\(\)\s*\!\}/', $content)) {
-                $this->issue(
-                    "POST/PUT/PATCH/DELETE form in {$fileName} is missing CSRF protection",
-                    'critical',
-                    $filePath
-                );
+                $this->addIssue('forms', 'missing_csrf_for_state_changing_methods', [
+                    'file' => $filePath,
+                    'filename' => $fileName,
+                    'message' => "POST/PUT/PATCH/DELETE form in {$fileName} is missing CSRF protection"
+                ]);
             }
         }
     }
@@ -107,22 +107,22 @@ class LaravelFormsChecker extends BaseChecker
         // Check for forms with validation errors display
         if (preg_match('/<form[^>]*>/i', $content)) {
             if (!preg_match('/@error|\$errors->|\{\{\s*\$errors->/', $content)) {
-                $this->issue(
-                    "Form in {$fileName} does not display validation errors",
-                    'medium',
-                    $filePath
-                );
+                $this->addIssue('forms', 'missing_validation_errors', [
+                    'file' => $filePath,
+                    'filename' => $fileName,
+                    'message' => "Form in {$fileName} does not display validation errors"
+                ]);
             }
         }
 
         // Check for old input preservation
         if (preg_match('/<input[^>]*type\s*=\s*["\'](?:text|email|password)["\'][^>]*>/i', $content)) {
             if (!preg_match('/old\(|@old|\{\{\s*old\(/', $content)) {
-                $this->issue(
-                    "Form inputs in {$fileName} do not preserve old input on validation failure",
-                    'low',
-                    $filePath
-                );
+                $this->addIssue('forms', 'missing_old_input_preservation', [
+                    'file' => $filePath,
+                    'filename' => $fileName,
+                    'message' => "Form inputs in {$fileName} do not preserve old input on validation failure"
+                ]);
             }
         }
     }
@@ -131,20 +131,20 @@ class LaravelFormsChecker extends BaseChecker
     {
         // Check for unescaped output that could lead to XSS
         if (preg_match('/\{\!\s*[^\}]+\!\}/', $content)) {
-            $this->issue(
-                "{$fileName} contains unescaped output {! !} which could lead to XSS vulnerabilities",
-                'high',
-                $filePath
-            );
+            $this->addIssue('forms', 'unescaped_output', [
+                'file' => $filePath,
+                'filename' => $fileName,
+                'message' => "{$fileName} contains unescaped output {! !} which could lead to XSS vulnerabilities"
+            ]);
         }
 
         // Check for proper escaping of user input
         if (preg_match('/\{\{\s*\$_(?:GET|POST|REQUEST|SERVER|COOKIE|SESSION)\[/', $content)) {
-            $this->issue(
-                "{$fileName} outputs superglobal data without proper sanitization",
-                'high',
-                $filePath
-            );
+            $this->addIssue('forms', 'unsanitized_superglobal_output', [
+                'file' => $filePath,
+                'filename' => $fileName,
+                'message' => "{$fileName} outputs superglobal data without proper sanitization"
+            ]);
         }
     }
 
@@ -152,11 +152,11 @@ class LaravelFormsChecker extends BaseChecker
     {
         // Check for mass assignment in forms (request()->all(), etc.)
         if (preg_match('/request\(\)\s*->\s*all\(\)|\$_POST|\$_REQUEST/i', $content)) {
-            $this->issue(
-                "{$fileName} may be vulnerable to mass assignment - ensure proper validation and fillable/guarded properties",
-                'high',
-                $filePath
-            );
+            $this->addIssue('forms', 'potential_mass_assignment', [
+                'file' => $filePath,
+                'filename' => $fileName,
+                'message' => "{$fileName} may be vulnerable to mass assignment - ensure proper validation and fillable/guarded properties"
+            ]);
         }
     }
 
@@ -166,11 +166,11 @@ class LaravelFormsChecker extends BaseChecker
         if (preg_match('/route\([^)]*\$[^\)]+\)/', $content)) {
             // This is generally good, but check if it's being used safely
             if (!preg_match('/@can\(|@cannot\(|Gate::|\$user->can\(/', $content)) {
-                $this->issue(
-                    "Route model binding in {$fileName} should include authorization checks",
-                    'medium',
-                    $filePath
-                );
+                $this->addIssue('forms', 'missing_authorization_route_binding', [
+                    'file' => $filePath,
+                    'filename' => $fileName,
+                    'message' => "Route model binding in {$fileName} should include authorization checks"
+                ]);
             }
         }
     }
@@ -211,20 +211,22 @@ class LaravelFormsChecker extends BaseChecker
         foreach ($fileOperations as $operation) {
             // Look for file operations with variable parameters
             if (preg_match("/{$operation}\s*\(\s*\$[a-zA-Z_][a-zA-Z0-9_]*(?:\s*\.\s*[^)]*)?\s*\)/", $content)) {
-                $this->issue(
-                    "File operation '{$operation}' in {$fileName} uses variable parameter - potential path traversal vulnerability. Validate and sanitize file paths.",
-                    'critical',
-                    $filePath
-                );
+                $this->addIssue('forms', 'file_operation_variable_parameter', [
+                    'file' => $filePath,
+                    'filename' => $fileName,
+                    'operation' => $operation,
+                    'message' => "File operation '{$operation}' in {$fileName} uses variable parameter - potential path traversal vulnerability. Validate and sanitize file paths."
+                ]);
             }
 
             // Check for concatenation in file paths
             if (preg_match("/{$operation}\s*\(\s*[^)]*\$\w+[^)]*\)/", $content)) {
-                $this->issue(
-                    "File operation '{$operation}' in {$fileName} constructs path from variables - potential path traversal. Use basename() and validate paths.",
-                    'high',
-                    $filePath
-                );
+                $this->addIssue('forms', 'file_path_concatenation', [
+                    'file' => $filePath,
+                    'filename' => $fileName,
+                    'operation' => $operation,
+                    'message' => "File operation '{$operation}' in {$fileName} constructs path from variables - potential path traversal. Use basename() and validate paths."
+                ]);
             }
         }
     }
@@ -235,21 +237,21 @@ class LaravelFormsChecker extends BaseChecker
         if (preg_match('/\$request->file\(|request\(\)->file\(/', $content)) {
             // Check if original filename is used directly
             if (preg_match('/->getClientOriginalName\(\)|\.originalName/', $content)) {
-                $this->issue(
-                    "File upload in {$fileName} uses original filename - potential path traversal. Generate safe filenames instead.",
-                    'critical',
-                    $filePath
-                );
+                $this->addIssue('forms', 'original_filename_usage', [
+                    'file' => $filePath,
+                    'filename' => $fileName,
+                    'message' => "File upload in {$fileName} uses original filename - potential path traversal. Generate safe filenames instead."
+                ]);
             }
 
             // Check for file storage without path validation
             if (preg_match('/->store\(|->storeAs\(/', $content)) {
                 if (!preg_match('/basename\(|pathinfo\(|realpath\(/', $content)) {
-                    $this->issue(
-                        "File storage in {$fileName} may not validate paths - potential path traversal. Validate file paths before storage.",
-                        'high',
-                        $filePath
-                    );
+                    $this->addIssue('forms', 'unvalidated_file_storage', [
+                        'file' => $filePath,
+                        'filename' => $fileName,
+                        'message' => "File storage in {$fileName} may not validate paths - potential path traversal. Validate file paths before storage."
+                    ]);
                 }
             }
         }
@@ -261,20 +263,20 @@ class LaravelFormsChecker extends BaseChecker
         if (preg_match('/\$request->\w+|\$request\[|\$_GET\[|\$_POST\[|\$_REQUEST\[/', $content)) {
             // Look for file operations using request parameters
             if (preg_match('/file_get_contents\(|fopen\(|Storage::|File::/', $content)) {
-                $this->issue(
-                    "Route parameters in {$fileName} used for file operations - potential path traversal. Validate and sanitize all file paths.",
-                    'critical',
-                    $filePath
-                );
+                $this->addIssue('forms', 'route_parameter_file_operations', [
+                    'file' => $filePath,
+                    'filename' => $fileName,
+                    'message' => "Route parameters in {$fileName} used for file operations - potential path traversal. Validate and sanitize all file paths."
+                ]);
             }
 
             // Check for directory traversal patterns
             if (preg_match('/\.\.[\/\\\\]|\.\.[\/\\\\]/', $content)) {
-                $this->issue(
-                    "Directory traversal patterns ('../') detected in {$fileName} - critical path traversal vulnerability.",
-                    'critical',
-                    $filePath
-                );
+                $this->addIssue('forms', 'directory_traversal_pattern', [
+                    'file' => $filePath,
+                    'filename' => $fileName,
+                    'message' => "Directory traversal patterns ('../') detected in {$fileName} - critical path traversal vulnerability."
+                ]);
             }
         }
     }
@@ -292,11 +294,12 @@ class LaravelFormsChecker extends BaseChecker
 
         foreach ($dangerousPatterns as $pattern) {
             if (preg_match($pattern, $content)) {
-                $this->issue(
-                    "Direct path construction from user input detected in {$fileName} - potential path traversal vulnerability. Use secure path handling.",
-                    'critical',
-                    $filePath
-                );
+                $this->addIssue('forms', 'direct_path_construction', [
+                    'file' => $filePath,
+                    'filename' => $fileName,
+                    'pattern' => $pattern,
+                    'message' => "Direct path construction from user input detected in {$fileName} - potential path traversal vulnerability. Use secure path handling."
+                ]);
                 break;
             }
         }
@@ -304,11 +307,11 @@ class LaravelFormsChecker extends BaseChecker
         // Check for missing path validation functions
         if (preg_match('/\$\w+\s*\.\s*[\'"]\//', $content)) {
             if (!preg_match('/basename\(|realpath\(|pathinfo\(/', $content)) {
-                $this->issue(
-                    "Path construction in {$fileName} lacks validation functions - potential path traversal. Use basename() or realpath() for validation.",
-                    'high',
-                    $filePath
-                );
+                $this->addIssue('forms', 'missing_path_validation', [
+                    'file' => $filePath,
+                    'filename' => $fileName,
+                    'message' => "Path construction in {$fileName} lacks validation functions - potential path traversal. Use basename() or realpath() for validation."
+                ]);
             }
         }
     }
@@ -357,11 +360,11 @@ class LaravelFormsChecker extends BaseChecker
         // Check for validation rules
         if (!preg_match('/protected\s+\$rules\s*=/', $content) &&
             !preg_match('/public\s+function\s+rules\(\)/', $content)) {
-            $this->issue(
-                "Livewire component {$className} should define validation rules",
-                'medium',
-                $filePath
-            );
+            $this->addIssue('forms', 'missing_livewire_validation_rules', [
+                'file' => $filePath,
+                'component' => $className,
+                'message' => "Livewire component {$className} should define validation rules"
+            ]);
         }
 
         // Check for validation method
@@ -374,11 +377,12 @@ class LaravelFormsChecker extends BaseChecker
                 $businessLogicPos = strpos($methodContent, '$this->');
 
                 if ($validatePos !== false && $businessLogicPos !== false && $businessLogicPos < $validatePos) {
-                    $this->issue(
-                        "Livewire component {$className} method {$methodName} should validate before executing business logic",
-                        'medium',
-                        $filePath
-                    );
+                    $this->addIssue('forms', 'validation_after_business_logic', [
+                        'file' => $filePath,
+                        'component' => $className,
+                        'method' => $methodName,
+                        'message' => "Livewire component {$className} method {$methodName} should validate before executing business logic"
+                    ]);
                 }
             }
         }
@@ -389,11 +393,11 @@ class LaravelFormsChecker extends BaseChecker
         // Check for mount method with parameters (potential authorization issue)
         if (preg_match('/public\s+function\s+mount\s*\([^)]+\$[a-zA-Z_]/', $content)) {
             if (!preg_match('/\$this->authorize\(|Gate::|policy\(|@can\(|@cannot\(/', $content)) {
-                $this->issue(
-                    "Livewire component {$className} mount method should include authorization checks for bound models",
-                    'high',
-                    $filePath
-                );
+                $this->addIssue('forms', 'missing_mount_authorization', [
+                    'file' => $filePath,
+                    'component' => $className,
+                    'message' => "Livewire component {$className} mount method should include authorization checks for bound models"
+                ]);
             }
         }
 
@@ -406,11 +410,12 @@ class LaravelFormsChecker extends BaseChecker
 
             $methodContent = $this->getMethodContent($content, $method);
             if ($methodContent && !preg_match('/authorize\(|Gate::|policy\(|@can\(|@cannot\(/', $methodContent)) {
-                $this->issue(
-                    "Livewire component {$className} action method {$method} may need authorization checks",
-                    'medium',
-                    $filePath
-                );
+                $this->addIssue('forms', 'missing_action_authorization', [
+                    'file' => $filePath,
+                    'component' => $className,
+                    'method' => $method,
+                    'message' => "Livewire component {$className} action method {$method} may need authorization checks"
+                ]);
             }
         }
     }
@@ -448,11 +453,12 @@ class LaravelFormsChecker extends BaseChecker
         foreach ($matches[1] as $property) {
             foreach ($sensitivePatterns as $pattern) {
                 if (stripos($property, $pattern) !== false) {
-                    $this->issue(
-                        "Livewire component {$className} has public property \${$property} that may contain sensitive data",
-                        'high',
-                        $filePath
-                    );
+                    $this->addIssue('forms', 'sensitive_public_property', [
+                        'file' => $filePath,
+                        'component' => $className,
+                        'property' => $property,
+                        'message' => "Livewire component {$className} has public property \${$property} that may contain sensitive data"
+                    ]);
                     break;
                 }
             }
@@ -463,11 +469,12 @@ class LaravelFormsChecker extends BaseChecker
             $property = $matches[1];
             if (!preg_match("/\\\$this->{$property}\s*=\s*[^;]+;/", $content) &&
                 !preg_match("/public\s+function\s+mount\s*\([^)]*\)\s*\{[\s\S]*?\\\$this->{$property}/", $content)) {
-                $this->issue(
-                    "Livewire component {$className} property \${$property} is not initialized",
-                    'low',
-                    $filePath
-                );
+                $this->addIssue('forms', 'uninitialized_property', [
+                    'file' => $filePath,
+                    'component' => $className,
+                    'property' => $property,
+                    'message' => "Livewire component {$className} property \${$property} is not initialized"
+                ]);
             }
         }
     }
@@ -496,20 +503,22 @@ class LaravelFormsChecker extends BaseChecker
         foreach ($fileOperations as $operation) {
             // Check if file operations use $this-> properties
             if (preg_match("/{$operation}\s*\(\s*\$this->\w+/", $content)) {
-                $this->issue(
-                    "Livewire component {$className} uses '{$operation}' with component property - potential path traversal. Validate file paths.",
-                    'critical',
-                    $filePath
-                );
+                $this->addIssue('forms', 'file_operation_with_property', [
+                    'file' => $filePath,
+                    'component' => $className,
+                    'operation' => $operation,
+                    'message' => "Livewire component {$className} uses '{$operation}' with component property - potential path traversal. Validate file paths."
+                ]);
             }
 
             // Check for concatenation with properties
             if (preg_match("/{$operation}\s*\([^)]*\$this->\w+[^)]*\)/", $content)) {
-                $this->issue(
-                    "Livewire component {$className} constructs file paths using properties in '{$operation}' - validate for path traversal.",
-                    'high',
-                    $filePath
-                );
+                $this->addIssue('forms', 'property_path_construction', [
+                    'file' => $filePath,
+                    'component' => $className,
+                    'operation' => $operation,
+                    'message' => "Livewire component {$className} constructs file paths using properties in '{$operation}' - validate for path traversal."
+                ]);
             }
         }
     }
@@ -521,30 +530,30 @@ class LaravelFormsChecker extends BaseChecker
             // Check if temporary URLs are used without validation
             if (preg_match('/temporaryUrl\(/', $content)) {
                 if (!preg_match('/validate\(|rules\(/', $content)) {
-                    $this->issue(
-                        "Livewire component {$className} uses temporaryUrl() without validation - potential path traversal via file uploads.",
-                        'high',
-                        $filePath
-                    );
+                    $this->addIssue('forms', 'unvalidated_temporary_url', [
+                        'file' => $filePath,
+                        'component' => $className,
+                        'message' => "Livewire component {$className} uses temporaryUrl() without validation - potential path traversal via file uploads."
+                    ]);
                 }
             }
 
             // Check for direct file access using uploaded file properties
             if (preg_match('/\$this->\w+->getRealPath\(\)|\$this->\w+->path/', $content)) {
-                $this->issue(
-                    "Livewire component {$className} accesses uploaded file paths directly - potential path traversal. Use validated paths only.",
-                    'critical',
-                    $filePath
-                );
+                $this->addIssue('forms', 'direct_file_path_access', [
+                    'file' => $filePath,
+                    'component' => $className,
+                    'message' => "Livewire component {$className} accesses uploaded file paths directly - potential path traversal. Use validated paths only."
+                ]);
             }
 
             // Check for storing files with user-controlled names
             if (preg_match('/->storeAs\([^,]+,\s*\$this->/', $content)) {
-                $this->issue(
-                    "Livewire component {$className} stores files with user-controlled names - potential path traversal. Generate safe filenames.",
-                    'critical',
-                    $filePath
-                );
+                $this->addIssue('forms', 'user_controlled_filename', [
+                    'file' => $filePath,
+                    'component' => $className,
+                    'message' => "Livewire component {$className} stores files with user-controlled names - potential path traversal. Generate safe filenames."
+                ]);
             }
         }
     }
@@ -561,11 +570,12 @@ class LaravelFormsChecker extends BaseChecker
                     // Check if this property is used in file operations
                     if (preg_match("/\$this->{$property}/", $content)) {
                         if (preg_match('/Storage::|File::|file_|fopen|unlink/', $content)) {
-                            $this->issue(
-                                "Livewire component {$className} property \${$property} used in file operations - validate for path traversal.",
-                                'high',
-                                $filePath
-                            );
+                            $this->addIssue('forms', 'path_property_file_operations', [
+                                'file' => $filePath,
+                                'component' => $className,
+                                'property' => $property,
+                                'message' => "Livewire component {$className} property \${$property} used in file operations - validate for path traversal."
+                            ]);
                         }
                     }
                     break;
@@ -575,11 +585,11 @@ class LaravelFormsChecker extends BaseChecker
 
         // Check for dynamic property access that could be dangerous
         if (preg_match('/\$this->\{\$[^}]+\}/', $content)) {
-            $this->issue(
-                "Livewire component {$className} uses dynamic property access - potential path traversal if used for file operations.",
-                'medium',
-                $filePath
-            );
+            $this->addIssue('forms', 'dynamic_property_access', [
+                'file' => $filePath,
+                'component' => $className,
+                'message' => "Livewire component {$className} uses dynamic property access - potential path traversal if used for file operations."
+            ]);
         }
     }
 

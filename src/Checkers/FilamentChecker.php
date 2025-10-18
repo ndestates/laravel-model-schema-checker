@@ -85,7 +85,7 @@ class FilamentChecker extends BaseChecker
         try {
             // Assert that the class exists before using ReflectionClass
             if (!class_exists($resourceClass)) {
-                $this->addIssue('filament_resource_not_found', [
+                $this->addIssue('filament', 'filament_resource_not_found', [
                     'resource_class' => $resourceClass,
                     'message' => "Filament resource class {$resourceClass} does not exist"
                 ]);
@@ -102,13 +102,13 @@ class FilamentChecker extends BaseChecker
 
                 $this->checkFilamentMethods($resourceClass, $model, ['form', 'table']);
             } else {
-                $this->addIssue('filament_invalid_resource', [
+                $this->addIssue('filament', 'filament_invalid_resource', [
                     'resource_class' => $resourceClass,
                     'message' => "Cannot check resource {$resourceClass}: getModel() is not static"
                 ]);
             }
         } catch (\Throwable $e) {
-            $this->addIssue('filament_resource_error', [
+            $this->addIssue('filament', 'filament_resource_error', [
                 'resource_class' => $resourceClass,
                 'message' => "Cannot check resource {$resourceClass}: " . $e->getMessage()
             ]);
@@ -173,7 +173,7 @@ class FilamentChecker extends BaseChecker
     {
         $modelClass = get_class($model);
         if (!method_exists($model, $relationshipName)) {
-            $this->addIssue('filament_broken_relationship', [
+            $this->addIssue('filament', 'filament_broken_relationship', [
                 'relationship' => $relationshipName,
                 'model' => $modelClass,
                 'resource_class' => $resourceClass,
@@ -187,7 +187,7 @@ class FilamentChecker extends BaseChecker
         try {
             $relation = $model->$relationshipName();
             if (!$relation instanceof \Illuminate\Database\Eloquent\Relations\Relation) {
-                $this->addIssue('filament_invalid_relationship', [
+                $this->addIssue('filament', 'filament_invalid_relationship', [
                     'relationship' => $relationshipName,
                     'model' => $modelClass,
                     'resource_class' => $resourceClass,
@@ -197,7 +197,7 @@ class FilamentChecker extends BaseChecker
                 ]);
             }
         } catch (\Throwable $e) {
-            $this->addIssue('filament_relationship_error', [
+            $this->addIssue('filament', 'filament_relationship_error', [
                 'relationship' => $relationshipName,
                 'model' => $modelClass,
                 'resource_class' => $resourceClass,
@@ -214,7 +214,7 @@ class FilamentChecker extends BaseChecker
 
         // First check if the relationship method exists
         if (!method_exists($model, $relationshipName)) {
-            $this->addIssue('filament_select_broken_relationship', [
+            $this->addIssue('filament', 'filament_select_broken_relationship', [
                 'component_type' => $componentType,
                 'field' => $fieldName,
                 'relationship' => $relationshipName,
@@ -232,7 +232,7 @@ class FilamentChecker extends BaseChecker
 
             // Check if relationship returns null
             if ($relation === null) {
-                $this->addIssue('filament_null_relationship', [
+                $this->addIssue('filament', 'filament_null_relationship', [
                     'component_type' => $componentType,
                     'field' => $fieldName,
                     'relationship' => $relationshipName,
@@ -247,7 +247,7 @@ class FilamentChecker extends BaseChecker
 
             // Check if it's a valid Relation instance
             if (!$relation instanceof \Illuminate\Database\Eloquent\Relations\Relation) {
-                $this->addIssue('filament_invalid_select_relationship', [
+                $this->addIssue('filament', 'filament_invalid_select_relationship', [
                     'component_type' => $componentType,
                     'field' => $fieldName,
                     'relationship' => $relationshipName,
@@ -261,7 +261,7 @@ class FilamentChecker extends BaseChecker
             }
 
         } catch (\Throwable $e) {
-            $this->addIssue('filament_select_relationship_error', [
+            $this->addIssue('filament', 'filament_select_relationship_error', [
                 'component_type' => $componentType,
                 'field' => $fieldName,
                 'relationship' => $relationshipName,
@@ -320,7 +320,7 @@ class FilamentChecker extends BaseChecker
     {
         // Check if field exists in database
         if (!in_array($fieldName, $tableColumns)) {
-            $this->addIssue('filament_field_not_in_database', [
+            $this->addIssue('filament', 'filament_field_not_in_database', [
                 'field' => $fieldName,
                 'model' => $modelClass,
                 'resource_class' => $resourceClass,
@@ -334,7 +334,7 @@ class FilamentChecker extends BaseChecker
 
         // Check if field is in fillable array (for mass assignment)
         if (!in_array($fieldName, $fillable)) {
-            $this->addIssue('filament_field_not_fillable', [
+            $this->addIssue('filament', 'filament_field_not_fillable', [
                 'field' => $fieldName,
                 'model' => $modelClass,
                 'resource_class' => $resourceClass,

@@ -101,7 +101,7 @@ class SecurityChecker extends BaseChecker
                 if (preg_match_all('/<form[^>]*>/i', $content, $matches)) {
                     foreach ($matches[0] as $formTag) {
                         if (!preg_match('/@csrf|\{\{\s*csrf_token\s*\}\}/', $content)) {
-                            $this->addIssue('csrf_missing', [
+                            $this->addIssue('security', 'csrf_missing', [
                                 'file' => $file->getPathname(),
                                 'form_tag' => $formTag,
                                 'message' => 'Form found without CSRF token protection'
@@ -128,7 +128,7 @@ class SecurityChecker extends BaseChecker
                 // Check for unescaped output that could lead to XSS
                 if (preg_match_all('/\{\{\{\s*\$[^}]+\s*\}\}\}/', $content, $matches)) {
                     foreach ($matches[0] as $match) {
-                        $this->addIssue('xss_unescaped_output', [
+                        $this->addIssue('security', 'xss_unescaped_output', [
                             'file' => $file->getPathname(),
                             'unescaped_output' => $match,
                             'message' => 'Triple braces {{{ }}} allow unescaped HTML output - potential XSS vulnerability'
@@ -164,7 +164,7 @@ class SecurityChecker extends BaseChecker
                                 $offset = $match[1];
                                 $lineNumber = $this->getLineNumberFromString($content, $offset);
 
-                                $this->addIssue('sql_injection_risk', [
+                                $this->addIssue('security', 'sql_injection_risk', [
                                     'file' => $file->getPathname(),
                                     'line' => $lineNumber,
                                     'query_type' => str_replace(['DB::', '('], '', $match[0]),
@@ -194,7 +194,7 @@ class SecurityChecker extends BaseChecker
                             $offset = $match[1];
                             $lineNumber = $this->getLineNumberFromString($content, $offset);
 
-                            $this->addIssue('sql_injection_string_concat', [
+                            $this->addIssue('security', 'sql_injection_string_concat', [
                                 'file' => $file->getPathname(),
                                 'line' => $lineNumber,
                                 'code' => trim($match[0]),
@@ -235,7 +235,7 @@ class SecurityChecker extends BaseChecker
                                     $offset = $match[1];
                                     $lineNumber = $this->getLineNumberFromString($content, $offset);
 
-                                    $this->addIssue('path_traversal_risk', [
+                                    $this->addIssue('security', 'path_traversal_risk', [
                                         'file' => $file->getPathname(),
                                         'line' => $lineNumber,
                                         'operation' => trim($match[0]),
@@ -264,7 +264,7 @@ class SecurityChecker extends BaseChecker
                     if (preg_match('/\$request->file\(|\$_FILES/', $content)) {
                         // Check if file validation is present
                         if (!preg_match('/validate\(|rules\(/', $content)) {
-                            $this->addIssue('upload_validation_missing', [
+                            $this->addIssue('security', 'upload_validation_missing', [
                                 'file' => $file->getPathname(),
                                 'message' => "File upload detected without validation rules. Implement file type, size, and name validation to prevent security issues."
                             ]);
@@ -272,7 +272,7 @@ class SecurityChecker extends BaseChecker
 
                         // Check for original filename usage (potential path traversal)
                         if (preg_match('/getClientOriginalName\(|originalName/', $content)) {
-                            $this->addIssue('original_filename_usage', [
+                            $this->addIssue('security', 'original_filename_usage', [
                                 'file' => $file->getPathname(),
                                 'message' => "Using original filename from upload - potential path traversal. Generate safe filenames instead."
                             ]);

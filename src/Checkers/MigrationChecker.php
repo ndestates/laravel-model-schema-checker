@@ -67,7 +67,7 @@ class MigrationChecker extends BaseChecker
         if (preg_match_all('/\$table->foreignId\(([^\)]+)\)->nullable\(\)/', $content, $matches)) {
             foreach ($matches[1] as $columnDef) {
                 if (!preg_match('/default\(/', $columnDef)) {
-                    $this->addIssue('nullable_foreign_key_no_default', [
+                    $this->addIssue('migration', 'nullable_foreign_key_no_default', [
                         'file' => $filePath,
                         'table' => $tableName,
                         'column' => trim($columnDef, "'\""),
@@ -81,7 +81,7 @@ class MigrationChecker extends BaseChecker
         if (preg_match_all('/\$table->string\(([^,)]+)\)/', $content, $matches)) {
             foreach ($matches[1] as $columnName) {
                 if (!preg_match('/\d+/', $columnName)) {
-                    $this->addIssue('string_without_length', [
+                    $this->addIssue('migration', 'string_without_length', [
                         'file' => $filePath,
                         'table' => $tableName,
                         'column' => trim($columnName, "'\""),
@@ -93,7 +93,7 @@ class MigrationChecker extends BaseChecker
 
         // Check for boolean columns with default null
         if (preg_match('/\$table->boolean\([^)]+\)->nullable\(\)/', $content)) {
-            $this->addIssue('boolean_nullable', [
+            $this->addIssue('migration', 'boolean_nullable', [
                 'file' => $filePath,
                 'table' => $tableName,
                 'message' => "Boolean columns should not be nullable. Use ->default(false) instead."
@@ -102,7 +102,7 @@ class MigrationChecker extends BaseChecker
 
         // Check for missing timestamps
         if (!preg_match('/\$table->timestamps\(\)/', $content)) {
-            $this->addIssue('missing_timestamps', [
+            $this->addIssue('migration', 'missing_timestamps', [
                 'file' => $filePath,
                 'table' => $tableName,
                 'message' => "Consider adding timestamps() for created_at and updated_at columns"
@@ -144,7 +144,7 @@ class MigrationChecker extends BaseChecker
                         ", [$databaseName, $tableName, $columnName]);
 
                         if (empty($hasIndex)) {
-                            $this->addIssue('missing_foreign_key_index', [
+                            $this->addIssue('migration', 'missing_foreign_key_index', [
                                 'table' => $tableName,
                                 'column' => $columnName,
                                 'message' => "Foreign key column '{$columnName}' in table '{$tableName}' should have an index for performance"
@@ -165,7 +165,7 @@ class MigrationChecker extends BaseChecker
 
             // Check naming convention: YYYY_MM_DD_HHMMSS_description.php
             if (!preg_match('/^\d{4}_\d{2}_\d{2}_\d{6}_[a-z][a-z0-9_]*\.php$/', $fileName)) {
-                $this->addIssue('invalid_migration_name', [
+                $this->addIssue('migration', 'invalid_migration_name', [
                     'file' => $file->getPathname(),
                     'filename' => $fileName,
                     'message' => "Migration filename should follow convention: YYYY_MM_DD_HHMMSS_description.php"
@@ -177,7 +177,7 @@ class MigrationChecker extends BaseChecker
             $description = preg_replace('/\.php$/', '', $description);
 
             if (strlen($description) < 5) {
-                $this->addIssue('poor_migration_description', [
+                $this->addIssue('migration', 'poor_migration_description', [
                     'file' => $file->getPathname(),
                     'description' => $description,
                     'message' => "Migration description '{$description}' is too short. Use descriptive names like 'create_users_table' or 'add_email_to_users'"

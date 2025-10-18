@@ -73,7 +73,7 @@ class PerformanceChecker extends BaseChecker
                     $lineNumber = $this->getLineNumberFromString($content, $offset);
                     $codeSnippet = trim(substr($content, $offset, 100));
 
-                    $this->addIssue('potential_n_plus_one', [
+                    $this->addIssue('performance', 'potential_n_plus_one', [
                         'file' => $filePath,
                         'line' => $lineNumber,
                         'code' => $codeSnippet,
@@ -89,7 +89,7 @@ class PerformanceChecker extends BaseChecker
                 $offset = $match[1];
                 $lineNumber = $this->getLineNumberFromString($content, $offset);
 
-                $this->addIssue('n_plus_one_in_each', [
+                $this->addIssue('performance', 'n_plus_one_in_each', [
                     'file' => $filePath,
                     'line' => $lineNumber,
                     'code' => trim(substr($content, $offset, 80)),
@@ -139,7 +139,7 @@ class PerformanceChecker extends BaseChecker
                     // Check if this query is followed by relationship access
                     $remainingContent = substr($content, $offset + strlen($match[0]));
                     if (preg_match('/^\s*[^}]*->[a-zA-Z_][a-zA-Z0-9_]*\s*;/', $remainingContent)) {
-                        $this->addIssue('missing_eager_loading', [
+                        $this->addIssue('performance', 'missing_eager_loading', [
                             'file' => $filePath,
                             'line' => $lineNumber,
                             'query' => $queryLine,
@@ -195,7 +195,7 @@ class PerformanceChecker extends BaseChecker
 
                 // If table has only primary key index, it might need more
                 if ($indexCount <= 1) {
-                    $this->addIssue('potential_missing_indexes', [
+                    $this->addIssue('performance', 'potential_missing_indexes', [
                         'table' => $tableName,
                         'message' => "Large table '{$tableName}' has minimal indexes. Consider adding indexes on frequently queried columns"
                     ]);
@@ -238,9 +238,9 @@ class PerformanceChecker extends BaseChecker
     {
         // Look for SELECT * patterns
         $selectAllPatterns = [
-            '/select\(/\s*\*\s*\)/',
-            '/DB::select\([^)]*\*\s*/',
-            '/->get\(\s*\*\s*\)/',
+            '/select\(\s*\\\*\s*\)/',
+            '/DB::select\([^)]*\\\*\s*/',
+            '/->get\(\s*\\\*\s*\)/',
         ];
 
         foreach ($selectAllPatterns as $pattern) {
@@ -249,7 +249,7 @@ class PerformanceChecker extends BaseChecker
                     $offset = $match[1];
                     $lineNumber = $this->getLineNumberFromString($content, $offset);
 
-                    $this->addIssue('select_all_query', [
+                    $this->addIssue('performance', 'select_all_query', [
                         'file' => $filePath,
                         'line' => $lineNumber,
                         'code' => trim(substr($content, $offset, 60)),
@@ -277,7 +277,7 @@ class PerformanceChecker extends BaseChecker
                     $offset = $match[1];
                     $lineNumber = $this->getLineNumberFromString($content, $offset);
 
-                    $this->addIssue('query_in_loop', [
+                    $this->addIssue('performance', 'query_in_loop', [
                         'file' => $filePath,
                         'line' => $lineNumber,
                         'code' => trim(substr($content, $offset, 80)),

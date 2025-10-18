@@ -64,7 +64,7 @@ class RelationshipChecker extends BaseChecker
             $this->checkRelationshipNaming($reflection, $content, $file->getPathname());
 
         } catch (\Exception $e) {
-            $this->addIssue('reflection_error', [
+            $this->addIssue('relationship', 'reflection_error', [
                 'file' => $file->getPathname(),
                 'model' => $className,
                 'error' => $e->getMessage(),
@@ -114,7 +114,7 @@ class RelationshipChecker extends BaseChecker
                 // Check if it's a relationship method but doesn't return a relationship
                 if (in_array($methodName, ['belongsTo', 'hasOne', 'hasMany', 'belongsToMany', 'morphTo', 'morphOne', 'morphMany', 'morphToMany'])) {
                     if (!preg_match('/\$this->(belongsTo|hasOne|hasMany|belongsToMany|morphTo|morphOne|morphMany|morphToMany)\(/', $returnValue)) {
-                        $this->addIssue('invalid_relationship_return', [
+                        $this->addIssue('relationship', 'invalid_relationship_return', [
                             'file' => $filePath,
                             'model' => $modelName,
                             'method' => $methodName,
@@ -138,7 +138,7 @@ class RelationshipChecker extends BaseChecker
         });
 
         if (!empty($hasManyRelationships)) {
-            $this->addIssue('missing_inverse_check', [
+            $this->addIssue('relationship', 'missing_inverse_check', [
                 'file' => $filePath,
                 'model' => $modelName,
                 'relationships' => implode(', ', $hasManyRelationships),
@@ -163,7 +163,7 @@ class RelationshipChecker extends BaseChecker
 
                 if (!empty($guarded) && !in_array('*', $guarded)) {
                     if (in_array($fk['column'], $guarded)) {
-                        $this->addIssue('guarded_foreign_key', [
+                        $this->addIssue('relationship', 'guarded_foreign_key', [
                             'file' => $filePath,
                             'model' => $className,
                             'table' => $tableName,
@@ -174,7 +174,7 @@ class RelationshipChecker extends BaseChecker
                     }
                 } elseif (!empty($fillable)) {
                     if (!in_array($fk['column'], $fillable)) {
-                        $this->addIssue('missing_foreign_key_fillable', [
+                        $this->addIssue('relationship', 'missing_foreign_key_fillable', [
                             'file' => $filePath,
                             'model' => $className,
                             'table' => $tableName,
@@ -205,7 +205,7 @@ class RelationshipChecker extends BaseChecker
 
                 // Check naming conventions
                 if (strlen($methodName) < 3) {
-                    $this->addIssue('poor_relationship_naming', [
+                    $this->addIssue('relationship', 'poor_relationship_naming', [
                         'file' => $filePath,
                         'model' => $modelName,
                         'method' => $methodName,
@@ -214,7 +214,7 @@ class RelationshipChecker extends BaseChecker
                 }
 
                 if (!preg_match('/^[a-z][a-zA-Z0-9]*$/', $methodName)) {
-                    $this->addIssue('invalid_relationship_naming', [
+                    $this->addIssue('relationship', 'invalid_relationship_naming', [
                         'file' => $filePath,
                         'model' => $modelName,
                         'method' => $methodName,

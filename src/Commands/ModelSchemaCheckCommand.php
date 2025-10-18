@@ -5,6 +5,8 @@ namespace NDEstates\LaravelModelSchemaChecker\Commands;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
+use NDEstates\LaravelModelSchemaChecker\Services\CheckerManager;
+use NDEstates\LaravelModelSchemaChecker\Services\IssueManager;
 use NDEstates\LaravelModelSchemaChecker\Services\MigrationGenerator;
 use NDEstates\LaravelModelSchemaChecker\Services\DataExporter;
 use NDEstates\LaravelModelSchemaChecker\Services\DataImporter;
@@ -37,10 +39,6 @@ class ModelSchemaCheckCommand extends Command
                             {--import-data : Import database data from compressed SQL file}
                             {--cleanup-migrations : Safely remove old migration files with backup}
                             {--check-all : Run all available checks (alias for --all)}';
-
-    protected $description = 'Laravel Model Schema Checker v3.0 - Modular Architecture';
-
-    protected CheckerManager $checkerManager;
     protected IssueManager $issueManager;
     protected MigrationGenerator $migrationGenerator;
     protected DataExporter $dataExporter;
@@ -58,7 +56,7 @@ class ModelSchemaCheckCommand extends Command
         $this->migrationCleanup = $migrationCleanup;
     }
 
-    public function handle(): int
+    public function handle()
     {
         $this->info('Laravel Model Schema Checker v3.0');
         $this->info('=====================================');
