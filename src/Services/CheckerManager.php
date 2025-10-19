@@ -106,7 +106,7 @@ class CheckerManager
     public function getChecker(string $name): ?CheckerInterface
     {
         foreach ($this->checkers as $checker) {
-            if (strtolower($checker->getName()) === strtolower($name)) {
+            if (str_contains(strtolower($checker->getName()), strtolower($name))) {
                 return $checker;
             }
         }
