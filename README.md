@@ -1,11 +1,6 @@
 # Laravel Model Schema Checker
 
-A comprehensive Laravel tool for validating models, relationships, security, perfo### 💾 **Data Preservation**
-- **Compressed Exports**: Export all table data to compressed `.sql.gz` files
-- **Space Efficient**: Dramatically reduce file sizes for large databases (typically 70-90% compression)
-- **Performance**: Faster export/import for large datasets
-- **Foreign Key Management**: Handle constraints during export/import
-- **Backward Compatible**: Can import both compressed and uncompressed filese, and code quality across your entire Laravel application.
+A comprehensive Laravel tool for validating models, relationships, security, performance, code quality, and **form amendment suggestions** across your entire Laravel application.
 
 ## Compatibility
 
@@ -67,7 +62,7 @@ php artisan model:schema-check
 - `--filament` - Check Filament forms and relationships
 - `--filament-resource=` - Check specific Filament resource
 - `--security` - Check for XSS and CSRF vulnerabilities
-- `--laravel-forms` - Check Laravel forms (Blade templates, Livewire)
+- `--laravel-forms` - Check Laravel forms (Blade templates, Livewire) and suggest amendments
 
 #### Migration Synchronization
 - `--sync-migrations` - Generate fresh migrations from current database schema
@@ -211,6 +206,12 @@ php artisan model:schema-check --relationships
 # Fix model fillable properties
 php artisan model:schema-check --fix
 
+# Check Laravel forms and get amendment suggestions
+php artisan model:schema-check --laravel-forms
+
+# Check forms with automatic fixing (interactive)
+php artisan model:schema-check --laravel-forms --fix
+
 # Generate migrations for schema differences
 php artisan model:schema-check --generate-migrations --dry-run
 ```
@@ -265,6 +266,93 @@ php artisan model:schema-check --generate-migrations --dry-run
 - Blade template security checks
 - Livewire component validation
 - API resource validation
+- **Form Amendment Suggestions**: Automatic form improvement recommendations
+
+### 📝 **Form Amendment Suggestions**
+- **Missing Field Detection**: Identifies required fields missing from forms
+- **Field Requirement Validation**: Checks for incorrect required field markings
+- **Input Type Optimization**: Suggests better input types (email, password, number, date)
+- **Model-Form Synchronization**: Compares forms against model definitions
+- **Livewire Component Analysis**: Validates Livewire properties and validation rules
+- **Automatic Form Updates**: Interactive option to automatically fix form issues
+
+## Form Amendment Suggestions
+
+The Laravel Model Schema Checker now includes intelligent form analysis and amendment suggestions to help you create better, more complete forms.
+
+### 🔍 **Form Analysis Features**
+
+#### **Model-Form Synchronization**
+- Automatically identifies which model a form is associated with
+- Compares form fields against model fillable properties
+- Validates form fields against model validation rules
+- Detects missing required fields in create/update/delete forms
+
+#### **Field Requirement Validation**
+- Identifies fields marked as required when they shouldn't be
+- Finds required fields missing the HTML `required` attribute
+- Suggests proper field requirements based on model validation rules
+
+#### **Input Type Optimization**
+- Recommends `type="email"` for email fields
+- Suggests `type="password"` for password inputs
+- Advises `type="number"` for numeric database columns
+- Recommends `type="date"` for date/time fields
+- Suggests `<textarea>` for longer text content
+
+#### **Livewire Component Support**
+- Analyzes Livewire component properties against model requirements
+- Validates Livewire validation rules
+- Suggests missing component properties and validation rules
+
+### 📋 **Amendment Suggestion Examples**
+
+**Missing Required Field:**
+```
+Required field 'email' is missing from the form.
+Suggestion: Add: <input type="text" name="email" value="{{ old('email') }}" required>
+```
+
+**Incorrect Field Type:**
+```
+Field 'email' appears to be an email field.
+Suggestion: Consider using input type='email' for better validation and UX.
+```
+
+**Livewire Property Missing:**
+```
+Fillable property 'title' is missing from Livewire component.
+Suggestion: Add: public $title; to the component properties.
+```
+
+### 🔧 **Automatic Form Updates**
+
+The checker can offer to automatically apply form amendments:
+
+```bash
+# Check forms and get amendment suggestions
+# Check Laravel forms and get amendment suggestions
+php artisan model:schema-check --laravel-forms
+
+# Check forms with automatic fixing (interactive)
+php artisan model:schema-check --laravel-forms --fix
+
+# The checker will prompt:
+# "Would you like me to automatically fix these form issues? (y/n)"
+```
+
+When you choose to auto-fix, the checker will:
+- Add missing required fields to forms
+- Correct field requirement attributes
+- Optimize input types based on database schema
+- Add missing Livewire component properties
+- Update validation rules in Livewire components
+
+### 🛡️ **Safety Features**
+- **Backup Creation**: Automatic backup of form files before changes
+- **Dry Run Support**: Preview changes without applying them
+- **Confirmation Prompts**: Interactive confirmation for each change
+- **Rollback Capability**: Restore from backups if needed
 
 ## Output & Reporting
 
@@ -277,6 +365,7 @@ The checker provides detailed reports categorized by issue type:
 - **Code Quality**: Best practice violations
 - **Migrations**: Schema consistency issues
 - **Validation**: Rule validation problems
+- **Forms**: Form completeness and amendment suggestions
 
 Each issue includes:
 - File location and line number

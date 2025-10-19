@@ -17,6 +17,7 @@ class ModelSchemaCheckCommand extends Command
     protected $signature = 'model:schema-check
                             {--dry-run : Show what would be changed without making changes}
                             {--fix : Fix model fillable properties}
+                            {--fix-forms : Automatically fix form issues}
                             {--json : Output results in JSON format}
                             {--all : Run all available checks}
                             {--generate-migrations : Generate Laravel migrations}
