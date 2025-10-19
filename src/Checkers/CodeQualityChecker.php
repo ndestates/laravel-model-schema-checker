@@ -7,6 +7,9 @@ use Illuminate\Support\Str;
 
 class CodeQualityChecker extends BaseChecker
 {
+    protected array $includePaths = [];
+    protected array $excludePaths = [];
+
     public function getName(): string
     {
         return 'Code Quality Checker';
@@ -15,6 +18,41 @@ class CodeQualityChecker extends BaseChecker
     public function getDescription(): string
     {
         return 'Check Laravel best practices and code quality';
+    }
+
+    public function setPathFilters(array $includePaths = [], array $excludePaths = []): self
+    {
+        $this->includePaths = $includePaths;
+        $this->excludePaths = $excludePaths;
+        return $this;
+    }
+
+    protected function shouldCheckPath(string $path): bool
+    {
+        // If no include paths specified, check everything except excluded paths
+        if (empty($this->includePaths)) {
+            foreach ($this->excludePaths as $excludePath) {
+                if (str_contains($path, $excludePath)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        // If include paths specified, only check paths that match includes and don't match excludes
+        foreach ($this->includePaths as $includePath) {
+            if (str_contains($path, $includePath)) {
+                // Check if it's also excluded
+                foreach ($this->excludePaths as $excludePath) {
+                    if (str_contains($path, $excludePath)) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public function check(): array
@@ -41,6 +79,11 @@ class CodeQualityChecker extends BaseChecker
     protected function checkModelQuality(): void
     {
         $modelPath = app_path('Models');
+
+        if (!$this->shouldCheckPath($modelPath)) {
+            $this->info("Skipping models directory (path filter): {$modelPath}");
+            return;
+        }
 
         if (!File::exists($modelPath)) {
             $this->warn("Models directory not found: {$modelPath}");
@@ -156,6 +199,11 @@ class CodeQualityChecker extends BaseChecker
     {
         $controllerPath = app_path('Http/Controllers');
 
+        if (!$this->shouldCheckPath($controllerPath)) {
+            $this->info("Skipping controllers directory (path filter): {$controllerPath}");
+            return;
+        }
+
         if (!File::exists($controllerPath)) {
             $this->warn("Controllers directory not found: {$controllerPath}");
             return;
@@ -224,6 +272,11 @@ class CodeQualityChecker extends BaseChecker
     protected function checkMigrationQuality(): void
     {
         $migrationPath = database_path('migrations');
+
+        if (!$this->shouldCheckPath($migrationPath)) {
+            $this->info("Skipping migrations directory (path filter): {$migrationPath}");
+            return;
+        }
 
         if (!File::exists($migrationPath)) {
             return;
@@ -322,6 +375,11 @@ class CodeQualityChecker extends BaseChecker
         // This would require scanning all PHP files in the app
         $appPath = app_path();
 
+        if (!$this->shouldCheckPath($appPath)) {
+            $this->info("Skipping app directory for Laravel helpers check (path filter): {$appPath}");
+            return;
+        }
+
         if (!File::exists($appPath)) {
             return;
         }
@@ -358,6 +416,11 @@ class CodeQualityChecker extends BaseChecker
         // Check for proper exception handling in controllers
         $controllerPath = app_path('Http/Controllers');
 
+        if (!$this->shouldCheckPath($controllerPath)) {
+            $this->info("Skipping controllers directory for exception handling check (path filter): {$controllerPath}");
+            return;
+        }
+
         if (!File::exists($controllerPath)) {
             return;
         }
@@ -385,6 +448,11 @@ class CodeQualityChecker extends BaseChecker
     {
         // Check for proper logging levels
         $appPath = app_path();
+
+        if (!$this->shouldCheckPath($appPath)) {
+            $this->info("Skipping app directory for logging practices check (path filter): {$appPath}");
+            return;
+        }
 
         if (!File::exists($appPath)) {
             return;

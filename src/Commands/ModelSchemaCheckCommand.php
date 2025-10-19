@@ -34,6 +34,8 @@ class ModelSchemaCheckCommand extends Command
                             {--check-validation : Check validation rules against database schema}
                             {--check-performance : Check for N+1 queries and optimization opportunities}
                             {--check-code-quality : Check Laravel best practices and code quality}
+                            {--check-code-quality-path=* : Specify paths to check for code quality (can be used multiple times)}
+                            {--check-code-quality-exclude=* : Exclude specific paths from code quality checks (can be used multiple times)}
                             {--check-laravel-forms : Check Blade templates and Livewire forms}
                             {--sync-migrations : Generate fresh migrations from database schema}
                             {--export-data : Export database data to compressed SQL file}
@@ -494,6 +496,14 @@ class ModelSchemaCheckCommand extends Command
         if (!$checker) {
             $this->error('CodeQualityChecker not found. Make sure it is properly registered.');
             return Command::FAILURE;
+        }
+
+        // Set path filtering options
+        $includePaths = $this->option('check-code-quality-path') ?: [];
+        $excludePaths = $this->option('check-code-quality-exclude') ?: [];
+
+        if (!empty($includePaths) || !empty($excludePaths)) {
+            $checker->setPathFilters($includePaths, $excludePaths);
         }
 
         $issues = $checker->check();
