@@ -36,6 +36,18 @@ class IssueManager
     }
 
     /**
+     * Add multiple issues to the collection
+     */
+    public function addIssues(array $issues): void
+    {
+        foreach ($issues as $issue) {
+            if (isset($issue['category']) && isset($issue['type'])) {
+                $this->addIssue($issue['category'], $issue['type'], $issue);
+            }
+        }
+    }
+
+    /**
      * Get all issues
      */
     public function getIssues(): array
