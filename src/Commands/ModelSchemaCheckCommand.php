@@ -14,6 +14,8 @@ use NDEstates\LaravelModelSchemaChecker\Services\MigrationCleanup;
 
 class ModelSchemaCheckCommand extends Command
 {
+        protected $description = 'Comprehensive Laravel application validation: models, relationships, security, performance, code quality, and form analysis with amendment suggestions';
+
     protected $signature = 'model:schema-check
                             {--dry-run : Show what would be changed without making changes}
                             {--fix : Fix model fillable properties}
@@ -36,6 +38,12 @@ class ModelSchemaCheckCommand extends Command
                             {--check-code-quality : Check Laravel best practices and code quality}
                             {--check-code-quality-path=* : Specify paths to check for code quality (can be used multiple times)}
                             {--check-code-quality-exclude=* : Exclude specific paths from code quality checks (can be used multiple times)}
+                            {--check-models : Check model quality (fillable, relationships, etc.)}
+                            {--check-models-exclude=* : Exclude specific model files from checks (can be used multiple times)}
+                            {--check-controllers : Check controller quality and best practices}
+                            {--check-controllers-exclude=* : Exclude specific controller files from checks (can be used multiple times)}
+                            {--check-migrations-quality : Check migration file quality and best practices}
+                            {--check-migrations-quality-exclude=* : Exclude specific migration files from quality checks (can be used multiple times)}
                             {--check-laravel-forms : Check Blade templates and Livewire forms}
                             {--sync-migrations : Generate fresh migrations from database schema}
                             {--export-data : Export database data to compressed SQL file}
@@ -119,6 +127,18 @@ class ModelSchemaCheckCommand extends Command
 
         if ($this->option('check-code-quality')) {
             return $this->handleCheckCodeQuality();
+        }
+
+        if ($this->option('check-models')) {
+            return $this->handleCheckModels();
+        }
+
+        if ($this->option('check-controllers')) {
+            return $this->handleCheckControllers();
+        }
+
+        if ($this->option('check-migrations-quality')) {
+            return $this->handleCheckMigrationsQuality();
         }
 
         if ($this->option('check-laravel-forms')) {
@@ -505,6 +525,72 @@ class ModelSchemaCheckCommand extends Command
         if (!empty($includePaths) || !empty($excludePaths)) {
             $checker->setPathFilters($includePaths, $excludePaths);
         }
+
+        $issues = $checker->check();
+        $this->issueManager->addIssues($issues);
+
+        $this->displayResults();
+
+        return $this->issueManager->hasIssues() ? Command::FAILURE : Command::SUCCESS;
+    }
+
+    protected function handleCheckModels(): int
+    {
+        $this->info('Checking model quality...');
+
+        $checker = $this->checkerManager->getChecker('code quality');
+        if (!$checker) {
+            $this->error('CodeQualityChecker not found. Make sure it is properly registered.');
+            return Command::FAILURE;
+        }
+
+        // Automatically include Models path and handle excludes
+        $excludePaths = $this->option('check-models-exclude') ?: [];
+        $checker->setPathFilters(['Models'], $excludePaths);
+
+        $issues = $checker->check();
+        $this->issueManager->addIssues($issues);
+
+        $this->displayResults();
+
+        return $this->issueManager->hasIssues() ? Command::FAILURE : Command::SUCCESS;
+    }
+
+    protected function handleCheckControllers(): int
+    {
+        $this->info('Checking controller quality...');
+
+        $checker = $this->checkerManager->getChecker('code quality');
+        if (!$checker) {
+            $this->error('CodeQualityChecker not found. Make sure it is properly registered.');
+            return Command::FAILURE;
+        }
+
+        // Automatically include Controllers path and handle excludes
+        $excludePaths = $this->option('check-controllers-exclude') ?: [];
+        $checker->setPathFilters(['Http/Controllers'], $excludePaths);
+
+        $issues = $checker->check();
+        $this->issueManager->addIssues($issues);
+
+        $this->displayResults();
+
+        return $this->issueManager->hasIssues() ? Command::FAILURE : Command::SUCCESS;
+    }
+
+    protected function handleCheckMigrationsQuality(): int
+    {
+        $this->info('Checking migration quality...');
+
+        $checker = $this->checkerManager->getChecker('code quality');
+        if (!$checker) {
+            $this->error('CodeQualityChecker not found. Make sure it is properly registered.');
+            return Command::FAILURE;
+        }
+
+        // Automatically include migrations path and handle excludes
+        $excludePaths = $this->option('check-migrations-quality-exclude') ?: [];
+        $checker->setPathFilters(['migrations'], $excludePaths);
 
         $issues = $checker->check();
         $this->issueManager->addIssues($issues);

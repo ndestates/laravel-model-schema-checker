@@ -59,6 +59,12 @@ php artisan model:schema-check
 - `--validation` - Check validation rules against schema
 - `--performance` - Check for N+1 queries and optimization opportunities
 - `--quality` - Check code quality and Laravel best practices
+- `--check-models` - Check model quality (fillable, relationships, etc.)
+- `--check-models-exclude=*` - Exclude specific model files from checks
+- `--check-controllers` - Check controller quality and best practices
+- `--check-controllers-exclude=*` - Exclude specific controller files from checks
+- `--check-migrations-quality` - Check migration file quality and best practices
+- `--check-migrations-quality-exclude=*` - Exclude specific migration files from quality checks
 - `--filament` - Check Filament forms and relationships
 - `--filament-resource=` - Check specific Filament resource
 - `--security` - Check for XSS and CSRF vulnerabilities
@@ -212,6 +218,21 @@ php artisan model:schema-check --laravel-forms
 # Check forms with automatic fixing (interactive)
 php artisan model:schema-check --laravel-forms --fix
 
+# Check model quality only
+php artisan model:schema-check --check-models
+
+# Check controller quality only
+php artisan model:schema-check --check-controllers
+
+# Check migration quality only
+php artisan model:schema-check --check-migrations-quality
+
+# Check models excluding API models
+php artisan model:schema-check --check-models --check-models-exclude="**/Api/**"
+
+# Check controllers excluding resource controllers
+php artisan model:schema-check --check-controllers --check-controllers-exclude="**/ResourceController.php"
+
 # Generate migrations for schema differences
 php artisan model:schema-check --generate-migrations --dry-run
 ```
@@ -260,6 +281,48 @@ php artisan model:schema-check --generate-migrations --dry-run
 - Deprecated feature detection
 - Code smell identification
 - Unused import detection
+- **Granular Code Quality Checks**: Dedicated commands for models, controllers, and migrations
+- **Path-Based Filtering**: Include/exclude specific files or directories
+- **Targeted Analysis**: Run quality checks on specific application components
+
+### 🔍 **Granular Code Quality Checks**
+
+The Laravel Model Schema Checker provides dedicated commands for targeted code quality analysis, allowing you to focus on specific parts of your application:
+
+#### **Model Quality Checks (`--check-models`)**
+- Validates model fillable properties and mass assignment protection
+- Checks relationship method implementations
+- Analyzes scope method usage and efficiency
+- Detects deprecated Eloquent methods
+- Validates model naming conventions
+
+#### **Controller Quality Checks (`--check-controllers`)**
+- Validates controller method signatures and naming
+- Checks validation usage in controller methods
+- Analyzes authorization implementation
+- Detects query efficiency issues
+- Reviews controller structure and organization
+
+#### **Migration Quality Checks (`--check-migrations-quality`)**
+- Validates migration file naming conventions
+- Checks column type definitions and constraints
+- Analyzes index usage and foreign key constraints
+- Detects potential migration issues
+- Reviews migration file organization
+
+#### **Path-Based Filtering**
+All granular checks support path filtering for precise control:
+
+```bash
+# Check only API models
+php artisan model:schema-check --check-models --check-models-exclude="**/User.php"
+
+# Check only web controllers, exclude API controllers
+php artisan model:schema-check --check-controllers --check-controllers-exclude="**/Api/**"
+
+# Check specific migration files
+php artisan model:schema-check --check-migrations-quality --check-migrations-quality-exclude="*_create_sessions_table.php"
+```
 
 ### 🎨 **Laravel-Specific Features**
 - Filament form and relationship validation

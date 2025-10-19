@@ -61,26 +61,48 @@ class CodeQualityChecker extends BaseChecker
         $this->info('Checking Code Quality');
         $this->info('====================');
 
-        // Check model files
-        $this->checkModelQuality();
-
-        // Check controller files
-        $this->checkControllerQuality();
-
-        // Check migration files
-        $this->checkMigrationQuality();
-
-        // Check general PHP/Laravel best practices
-        $this->checkGeneralBestPractices();
+        // If specific paths are included, only run relevant checks
+        if (!empty($this->includePaths)) {
+            $this->runTargetedChecks();
+        } else {
+            // Run all checks
+            $this->checkModelQuality();
+            $this->checkControllerQuality();
+            $this->checkMigrationQuality();
+            $this->checkGeneralBestPractices();
+        }
 
         return $this->issues;
+    }
+
+    protected function runTargetedChecks(): void
+    {
+        // Check which specific checks to run based on include paths
+        foreach ($this->includePaths as $includePath) {
+            if (str_contains(strtolower($includePath), 'model')) {
+                $this->checkModelQuality();
+            }
+            if (str_contains(strtolower($includePath), 'controller')) {
+                $this->checkControllerQuality();
+            }
+            if (str_contains(strtolower($includePath), 'migration')) {
+                $this->checkMigrationQuality();
+            }
+        }
+
+        // Always run general best practices if app path is included
+        if ($this->shouldCheckPath(app_path())) {
+            $this->checkGeneralBestPractices();
+        }
     }
 
     protected function checkModelQuality(): void
     {
         $modelPath = app_path('Models');
 
-        if (!$this->shouldCheckPath($modelPath)) {
+        // If we have include paths set, we've already filtered at the top level
+        // Only skip if we're in general mode and path filtering excludes this
+        if (empty($this->includePaths) && !$this->shouldCheckPath($modelPath)) {
             $this->info("Skipping models directory (path filter): {$modelPath}");
             return;
         }
@@ -199,7 +221,9 @@ class CodeQualityChecker extends BaseChecker
     {
         $controllerPath = app_path('Http/Controllers');
 
-        if (!$this->shouldCheckPath($controllerPath)) {
+        // If we have include paths set, we've already filtered at the top level
+        // Only skip if we're in general mode and path filtering excludes this
+        if (empty($this->includePaths) && !$this->shouldCheckPath($controllerPath)) {
             $this->info("Skipping controllers directory (path filter): {$controllerPath}");
             return;
         }
@@ -273,7 +297,9 @@ class CodeQualityChecker extends BaseChecker
     {
         $migrationPath = database_path('migrations');
 
-        if (!$this->shouldCheckPath($migrationPath)) {
+        // If we have include paths set, we've already filtered at the top level
+        // Only skip if we're in general mode and path filtering excludes this
+        if (empty($this->includePaths) && !$this->shouldCheckPath($migrationPath)) {
             $this->info("Skipping migrations directory (path filter): {$migrationPath}");
             return;
         }
