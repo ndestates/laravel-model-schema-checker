@@ -56,6 +56,13 @@ class ModelChecker extends BaseChecker
         }
 
         try {
+            // Check if the class is abstract before trying to instantiate it
+            $reflection = new \ReflectionClass($className);
+            if ($reflection->isAbstract()) {
+                // Skip abstract classes as they cannot be instantiated
+                return;
+            }
+
             $model = new $className();
 
             if (!$model instanceof \Illuminate\Database\Eloquent\Model) {
