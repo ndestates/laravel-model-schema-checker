@@ -1050,7 +1050,7 @@ class ModelSchemaCheckCommand extends Command
                             'recommended_size' => $recommendedMinSize,
                             'message' => "Encrypted field '{$columnName}' in table '{$tableName}' has insufficient size ({$maxLength} chars). Encrypted data requires at least {$recommendedMinSize} characters.",
                             'fix_explanation' => 'Laravel encryption adds significant overhead. Encrypted data can be 2-3x larger than plaintext due to base64 encoding and encryption metadata.',
-                            'security_note' => 'Encrypt sensitive data at the model level using $casts or mutators, not in controllers or views, to ensure data is never exposed in transit.'
+                            'security_note' => 'Always encrypt sensitive data before storing. Use Laravel\'s encrypt() helper or model casts for automatic encryption/decryption. Encrypt at the model level using $casts or mutators, not in controllers or views, to ensure data is never exposed in transit.'
                         ]);
                     } elseif ($dataType === 'text' && in_array(strtolower($columnType), ['tinytext', 'text'])) {
                         $this->issueManager->addIssue('Encrypted Fields', 'suboptimal_field_type', [
@@ -1060,7 +1060,7 @@ class ModelSchemaCheckCommand extends Command
                             'recommended_type' => 'MEDIUMTEXT or LONGTEXT',
                             'message' => "Encrypted field '{$columnName}' in table '{$tableName}' uses '{$columnType}' which may be too small for encrypted data.",
                             'fix_explanation' => 'Use MEDIUMTEXT (16MB) or LONGTEXT (4GB) for encrypted fields to accommodate variable encrypted data sizes.',
-                            'security_note' => 'Always encrypt sensitive data before storing. Use Laravel\'s encrypt() helper or model casts for automatic encryption/decryption.'
+                            'security_note' => 'Always encrypt sensitive data before storing. Use Laravel\'s encrypt() helper or model casts for automatic encryption/decryption. Use MEDIUMTEXT (16MB) or LONGTEXT (4GB) for encrypted fields to accommodate variable encrypted data sizes.'
                         ]);
                     }
                 }
@@ -1150,7 +1150,7 @@ class ModelSchemaCheckCommand extends Command
                         'file' => $file->getPathname(),
                         'message' => "Controller '{$className}' contains direct encryption calls, which is a security risk.",
                         'fix_explanation' => 'Move encryption logic to model mutators/accessors or use encrypted casts. Controllers should never handle raw encrypted data.',
-                        'security_note' => 'Encrypting in controllers exposes sensitive data in transit between model and view. Always encrypt at the model level.'
+                        'security_note' => 'Always encrypt sensitive data before storing. Use Laravel\'s encrypt() helper or model casts for automatic encryption/decryption. Encrypting in controllers exposes sensitive data in transit between model and view. Always encrypt at the model level.'
                     ]);
                 }
 
@@ -1161,7 +1161,7 @@ class ModelSchemaCheckCommand extends Command
                         'file' => $file->getPathname(),
                         'message' => "Controller '{$className}' contains direct decryption calls.",
                         'fix_explanation' => 'Use model accessors or encrypted casts for automatic decryption. Avoid manual decrypt operations in controllers.',
-                        'security_note' => 'Data should be decrypted as close to usage as possible, preferably in models or accessors, not controllers.'
+                        'security_note' => 'Always encrypt sensitive data before storing. Use Laravel\'s encrypt() helper or model casts for automatic encryption/decryption. Data should be decrypted as close to usage as possible, preferably in models or accessors, not controllers.'
                     ]);
                 }
 
@@ -1179,7 +1179,7 @@ class ModelSchemaCheckCommand extends Command
                             'file' => $file->getPathname(),
                             'message' => "Controller '{$className}' appears to be passing sensitive data to views.",
                             'fix_explanation' => 'Ensure sensitive data is encrypted before storage and decrypted only when needed. Never pass raw sensitive data to views.',
-                            'security_note' => 'Views should never receive sensitive data. Use encrypted casts in models to handle encryption/decryption automatically.'
+                            'security_note' => 'Always encrypt sensitive data before storing. Use Laravel\'s encrypt() helper or model casts for automatic encryption/decryption. Views should never receive sensitive data. Use encrypted casts in models to handle encryption/decryption automatically.'
                         ]);
                         break; // Only report once per controller
                     }
@@ -1211,7 +1211,7 @@ class ModelSchemaCheckCommand extends Command
                         'file' => $file->getPathname(),
                         'message' => "View '{$relativePath}' contains decryption calls, exposing sensitive data.",
                         'fix_explanation' => 'Never decrypt sensitive data in views. Use model accessors or encrypted casts to decrypt data before it reaches the view.',
-                        'security_note' => 'Views are client-side code. Decrypting in views exposes encryption keys and sensitive data to users.'
+                        'security_note' => 'Always encrypt sensitive data before storing. Use Laravel\'s encrypt() helper or model casts for automatic encryption/decryption. Views are client-side code. Decrypting in views exposes encryption keys and sensitive data to users.'
                     ]);
                 }
 
@@ -1228,7 +1228,7 @@ class ModelSchemaCheckCommand extends Command
                             'file' => $file->getPathname(),
                             'message' => "View '{$relativePath}' appears to contain sensitive data fields.",
                             'fix_explanation' => 'Ensure sensitive data is properly encrypted and only decrypted when absolutely necessary. Consider using masked or redacted values in views.',
-                            'security_note' => 'Sensitive data in views can be exposed to users through browser dev tools, network inspection, or page source.'
+                            'security_note' => 'Always encrypt sensitive data before storing. Use Laravel\'s encrypt() helper or model casts for automatic encryption/decryption. Sensitive data in views can be exposed to users through browser dev tools, network inspection, or page source.'
                         ]);
                         break; // Only report once per view
                     }
