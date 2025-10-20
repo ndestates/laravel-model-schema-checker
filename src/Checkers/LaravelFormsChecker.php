@@ -660,6 +660,13 @@ class LaravelFormsChecker extends BaseChecker
         }
 
         try {
+            // Check if the class is abstract before trying to instantiate it
+            $reflection = new \ReflectionClass($className);
+            if ($reflection->isAbstract()) {
+                // Skip abstract classes as they cannot be instantiated
+                return null;
+            }
+
             $model = new $className();
             $content = file_get_contents($file->getPathname());
 
