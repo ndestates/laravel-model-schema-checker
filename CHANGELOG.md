@@ -25,7 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Documentation**: Updated README.md with new command options and usage examples
 
 ### Fixed
-- **LaravelFormsChecker**: Fixed undefined method error when calling `$this->issue()`
+- **LaravelFormsChecker**: Fixed undefined method error when calling `$this->issue()` (commit: af880da)
   - Replaced incorrect `$this->issue()` calls with proper `$this->addIssue()` method calls
   - Updated method signatures to match BaseChecker interface requirements
   - Fixed `--check-laravel-forms` command execution errors
