@@ -1207,7 +1207,8 @@ class LaravelFormsChecker extends BaseChecker
 
         // Check for validation rules that don't match model requirements
         foreach ($rules as $field => $ruleString) {
-            $fieldRules = explode('|', $ruleString);
+            // Handle both string and array rule formats
+            $fieldRules = is_array($ruleString) ? $ruleString : explode('|', $ruleString);
 
             if (in_array('required', $fieldRules) && !in_array($field, $requiredFields)) {
                 $this->addIssue('forms', 'unnecessary_livewire_validation', [
