@@ -33,6 +33,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added ReflectionClass check to skip abstract model classes before instantiation
   - Prevents "Cannot instantiate abstract class" errors during model scanning
   - Abstract model base classes are now properly handled without causing exceptions
+- **RelationshipChecker, LaravelFormsChecker, ValidationChecker**: Fixed abstract class instantiation errors (commit: 79bd645)
+  - Added ReflectionClass abstract checks to all checkers that instantiate model classes
+  - Prevents "Cannot instantiate abstract class" errors across all analysis methods
+  - Abstract model classes are now properly skipped in relationship, form, and validation analysis
 
 ## [1.0.0] - 2024-12-19
 
