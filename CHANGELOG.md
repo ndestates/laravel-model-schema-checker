@@ -1,6 +1,16 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
+All notable changes to- **ModelChecker, LaravelFormsChecker, ValidationChecker**: Fixed abstract class instantiation errors (commit: 79bd645)
+  - Added ReflectionClass abstract checks to all checkers that instantiate model classes
+  - Prevents "Cannot instantiate abstract class" errors across all analysis methods
+  - Abstract model classes are now properly skipped in relationship, form, and validation analysis
+- **LaravelFormsChecker**: Fixed validation rules parsing error (commit: 916720f)
+  - Fixed TypeError when explode() receives array instead of string for validation rules
+  - Added proper handling for both string and array rule formats from parseRulesArray()
+- **FilamentChecker**: Fixed invalid class detection (commit: 1dcb3ca)
+  - Removed autoload prevention in class_exists() check
+  - Allows proper validation of Filament resource classes that haven't been loaded yet
+  - Eliminates false "invalid class" warnings for valid Filament filess project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
