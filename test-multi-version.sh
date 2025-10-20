@@ -109,17 +109,30 @@ test_laravel_version() {
         return 1
     fi
 
-    # Install package locally
+    # Install package by copying files directly to vendor directory
     print_status "Installing Laravel Model Schema Checker package..."
-    if ! ddev composer config repositories.local path "$PROJECT_ROOT"; then
-        print_error "Failed to configure local repository"
+
+    # Create vendor directory structure
+    mkdir -p vendor/ndestates
+
+    # Copy package files directly
+    cp -r "$PROJECT_ROOT" vendor/ndestates/laravel-model-schema-checker
+
+    # Remove the copied test directories to avoid conflicts
+    rm -rf vendor/ndestates/laravel-model-schema-checker/test-package
+    rm -rf vendor/ndestates/laravel-model-schema-checker/ddev-configs
+
+    # Run composer install to ensure dependencies are resolved
+    if ! ddev composer install --no-interaction; then
+        print_error "Failed to install dependencies in Laravel $laravel_version"
         ddev stop > /dev/null 2>&1 || true
         cd - > /dev/null
         return 1
     fi
 
-    if ! ddev composer require ndestates/laravel-model-schema-checker *@dev --no-interaction; then
-        print_error "Failed to install package in Laravel $laravel_version"
+    # Register the package
+    if ! ddev artisan package:discover --ansi; then
+        print_error "Failed to discover package in Laravel $laravel_version"
         ddev stop > /dev/null 2>&1 || true
         cd - > /dev/null
         return 1

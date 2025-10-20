@@ -1,10 +1,10 @@
 name: test-laravel-12
 type: laravel
 docroot: public
-php_version: "8.2"
+php_version: "8.3"
 database:
   type: mariadb
-  version: "10.4"
+  version: "10.11"
 use_dns_when_possible: true
 composer_version: "2"
 webserver_type: nginx-fpm
