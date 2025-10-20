@@ -57,7 +57,7 @@ class FilamentChecker extends BaseChecker
         foreach ($files as $file) {
             try {
                 $class = $this->getClassFromFile($file->getPathname());
-                if ($class && class_exists($class, false)) { // Don't autoload
+                if ($class && class_exists($class)) { // Allow autoloading to validate class
                     // Check if Filament is available before checking subclass
                     if (class_exists(\Filament\Resources\Resource::class) && is_subclass_of($class, \Filament\Resources\Resource::class)) {
                         $resources[] = $class;
