@@ -45,6 +45,7 @@ class ModelSchemaCheckCommand extends Command
                             {--check-migrations-quality : Check migration file quality and best practices}
                             {--check-migrations-quality-exclude=* : Exclude specific migration files from quality checks (can be used multiple times)}
                             {--check-laravel-forms : Check Blade templates and Livewire forms}
+                            {--check-encrypted-fields : Check encrypted fields in database, models, controllers, and views}
                             {--sync-migrations : Generate fresh migrations from database schema}
                             {--export-data : Export database data to compressed SQL file}
                             {--import-data : Import database data from compressed SQL file}
@@ -143,6 +144,10 @@ class ModelSchemaCheckCommand extends Command
 
         if ($this->option('check-laravel-forms')) {
             return $this->handleCheckLaravelForms();
+        }
+
+        if ($this->option('check-encrypted-fields')) {
+            return $this->handleCheckEncryptedFields();
         }
 
         if ($this->option('sync-migrations')) {
@@ -432,6 +437,24 @@ class ModelSchemaCheckCommand extends Command
         $this->issueManager->addIssues($issues);
 
         $this->displayResults();
+
+        return $this->issueManager->hasIssues() ? Command::FAILURE : Command::SUCCESS;
+    }
+
+    protected function handleCheckEncryptedFields(): int
+    {
+        $this->info('Checking encrypted fields in database, models, controllers, and views...');
+
+        $this->checkEncryptedFieldSizes();
+        $this->checkModelEncryption();
+        $this->checkControllerEncryption();
+        $this->checkViewEncryptionExposure();
+
+        $this->displayResults();
+
+        if ($this->option('fix') && !$this->option('dry-run')) {
+            $this->fixEncryptedFieldIssues();
+        }
 
         return $this->issueManager->hasIssues() ? Command::FAILURE : Command::SUCCESS;
     }
@@ -963,5 +986,381 @@ class ModelSchemaCheckCommand extends Command
         ];
 
         $this->line(json_encode($result, JSON_PRETTY_PRINT));
+    }
+
+    protected function checkEncryptedFieldSizes(): void
+    {
+        $this->info('  🔍 Checking database schema for encrypted field sizes...');
+
+        $tables = DB::select('SHOW TABLES');
+        $databaseName = DB::getDatabaseName();
+
+        foreach ($tables as $table) {
+            $tableName = $table->{'Tables_in_' . $databaseName};
+
+            // Skip system tables and common non-encrypted tables
+            if (in_array($tableName, ['migrations', 'failed_jobs', 'cache', 'sessions', 'jobs'])) {
+                continue;
+            }
+
+            $columns = DB::select("
+                SELECT COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, COLUMN_TYPE
+                FROM information_schema.COLUMNS
+                WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?
+                ORDER BY ORDINAL_POSITION
+            ", [$databaseName, $tableName]);
+
+            foreach ($columns as $column) {
+                $columnName = $column->COLUMN_NAME;
+                $dataType = $column->DATA_TYPE;
+                $maxLength = $column->CHARACTER_MAXIMUM_LENGTH;
+                $columnType = $column->COLUMN_TYPE;
+
+                // Check for potentially encrypted fields based on naming patterns
+                $encryptedFieldPatterns = [
+                    '/encrypted/i',
+                    '/cipher/i',
+                    '/token/i',
+                    '/secret/i',
+                    '/key/i',
+                    '/password/i',
+                    '/ssn/i',
+                    '/social_security/i',
+                    '/credit_card/i',
+                    '/api_key/i'
+                ];
+
+                $isLikelyEncrypted = false;
+                foreach ($encryptedFieldPatterns as $pattern) {
+                    if (preg_match($pattern, $columnName)) {
+                        $isLikelyEncrypted = true;
+                        break;
+                    }
+                }
+
+                if ($isLikelyEncrypted) {
+                    // Check if field size is adequate for encrypted data
+                    $recommendedMinSize = 255; // Laravel encrypted fields need at least 255 chars
+
+                    if ($dataType === 'varchar' && $maxLength < $recommendedMinSize) {
+                        $this->issueManager->addIssue('Encrypted Fields', 'insufficient_field_size', [
+                            'table' => $tableName,
+                            'column' => $columnName,
+                            'current_size' => $maxLength,
+                            'recommended_size' => $recommendedMinSize,
+                            'message' => "Encrypted field '{$columnName}' in table '{$tableName}' has insufficient size ({$maxLength} chars). Encrypted data requires at least {$recommendedMinSize} characters.",
+                            'fix_explanation' => 'Laravel encryption adds significant overhead. Encrypted data can be 2-3x larger than plaintext due to base64 encoding and encryption metadata.',
+                            'security_note' => 'Encrypt sensitive data at the model level using $casts or mutators, not in controllers or views, to ensure data is never exposed in transit.'
+                        ]);
+                    } elseif ($dataType === 'text' && in_array(strtolower($columnType), ['tinytext', 'text'])) {
+                        $this->issueManager->addIssue('Encrypted Fields', 'suboptimal_field_type', [
+                            'table' => $tableName,
+                            'column' => $columnName,
+                            'current_type' => $columnType,
+                            'recommended_type' => 'MEDIUMTEXT or LONGTEXT',
+                            'message' => "Encrypted field '{$columnName}' in table '{$tableName}' uses '{$columnType}' which may be too small for encrypted data.",
+                            'fix_explanation' => 'Use MEDIUMTEXT (16MB) or LONGTEXT (4GB) for encrypted fields to accommodate variable encrypted data sizes.',
+                            'security_note' => 'Always encrypt sensitive data before storing. Use Laravel\'s encrypt() helper or model casts for automatic encryption/decryption.'
+                        ]);
+                    }
+                }
+            }
+        }
+    }
+
+    protected function checkModelEncryption(): void
+    {
+        $this->info('  🔍 Checking models for proper encryption implementation...');
+
+        $modelPath = app_path('Models');
+        if (!File::exists($modelPath)) {
+            return;
+        }
+
+        $modelFiles = File::allFiles($modelPath);
+
+        foreach ($modelFiles as $file) {
+            if ($file->getExtension() === 'php') {
+                $content = file_get_contents($file->getPathname());
+                $className = pathinfo($file->getFilename(), PATHINFO_FILENAME);
+
+                // Check for encrypted casts
+                if (preg_match('/protected\s+\$casts\s*=\s*\[([^\]]*)\]/s', $content, $matches)) {
+                    $castsContent = $matches[1];
+
+                    // Look for encrypted casts
+                    if (preg_match_all('/[\'"](\w+)[\'"]\s*=>\s*[\'"]encrypted[\'"]/', $castsContent, $castMatches)) {
+                        foreach ($castMatches[1] as $fieldName) {
+                            // Check if the field exists in the database
+                            $tableName = $this->getTableNameFromModel($content, $className);
+                            if ($tableName && !$this->columnExists($tableName, $fieldName)) {
+                                $this->issueManager->addIssue('Model Encryption', 'missing_encrypted_column', [
+                                    'model' => $className,
+                                    'field' => $fieldName,
+                                    'table' => $tableName,
+                                    'message' => "Model '{$className}' defines encrypted cast for '{$fieldName}' but column doesn't exist in table '{$tableName}'.",
+                                    'fix_explanation' => 'Create a migration to add the encrypted column with sufficient size (VARCHAR(255) minimum, TEXT recommended).'
+                                ]);
+                            }
+                        }
+                    }
+                }
+
+                // Check for manual encryption in mutators/accessors
+                if (preg_match_all('/function\s+set(\w+)Attribute\s*\(/', $content, $mutatorMatches)) {
+                    foreach ($mutatorMatches[1] as $fieldName) {
+                        $fieldNameLower = lcfirst($fieldName);
+                        if (preg_match('/encrypt\(/', $content)) {
+                            // Check if decryption is also implemented
+                            if (!preg_match('/function\s+get' . $fieldName . 'Attribute\s*\(/', $content)) {
+                                $this->issueManager->addIssue('Model Encryption', 'missing_decrypt_accessor', [
+                                    'model' => $className,
+                                    'field' => $fieldNameLower,
+                                    'message' => "Model '{$className}' encrypts '{$fieldNameLower}' but doesn't provide a getter to decrypt it.",
+                                    'fix_explanation' => 'Add a get' . $fieldName . 'Attribute accessor that calls decrypt() to automatically decrypt the value when accessed.'
+                                ]);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    protected function checkControllerEncryption(): void
+    {
+        $this->info('  🔍 Checking controllers for encryption security issues...');
+
+        $controllerPath = app_path('Http/Controllers');
+        if (!File::exists($controllerPath)) {
+            return;
+        }
+
+        $controllerFiles = File::allFiles($controllerPath);
+
+        foreach ($controllerFiles as $file) {
+            if ($file->getExtension() === 'php') {
+                $content = file_get_contents($file->getPathname());
+                $className = pathinfo($file->getFilename(), PATHINFO_FILENAME);
+
+                // Check for direct encryption in controllers (security risk)
+                if (preg_match('/encrypt\s*\(/', $content)) {
+                    $this->issueManager->addIssue('Controller Security', 'encryption_in_controller', [
+                        'controller' => $className,
+                        'file' => $file->getPathname(),
+                        'message' => "Controller '{$className}' contains direct encryption calls, which is a security risk.",
+                        'fix_explanation' => 'Move encryption logic to model mutators/accessors or use encrypted casts. Controllers should never handle raw encrypted data.',
+                        'security_note' => 'Encrypting in controllers exposes sensitive data in transit between model and view. Always encrypt at the model level.'
+                    ]);
+                }
+
+                // Check for decrypt calls in controllers (also risky)
+                if (preg_match('/decrypt\s*\(/', $content)) {
+                    $this->issueManager->addIssue('Controller Security', 'decryption_in_controller', [
+                        'controller' => $className,
+                        'file' => $file->getPathname(),
+                        'message' => "Controller '{$className}' contains direct decryption calls.",
+                        'fix_explanation' => 'Use model accessors or encrypted casts for automatic decryption. Avoid manual decrypt operations in controllers.',
+                        'security_note' => 'Data should be decrypted as close to usage as possible, preferably in models or accessors, not controllers.'
+                    ]);
+                }
+
+                // Check for sensitive data being passed to views
+                $sensitivePatterns = [
+                    '/compact\s*\([^)]*(password|secret|token|key|ssn|credit_card)[^)]*\)/i',
+                    '/with\s*\([^)]*(password|secret|token|key|ssn|credit_card)[^)]*\)/i',
+                    '/->(\w*(password|secret|token|key|ssn|credit_card)\w*)/i'
+                ];
+
+                foreach ($sensitivePatterns as $pattern) {
+                    if (preg_match($pattern, $content)) {
+                        $this->issueManager->addIssue('Controller Security', 'sensitive_data_to_view', [
+                            'controller' => $className,
+                            'file' => $file->getPathname(),
+                            'message' => "Controller '{$className}' appears to be passing sensitive data to views.",
+                            'fix_explanation' => 'Ensure sensitive data is encrypted before storage and decrypted only when needed. Never pass raw sensitive data to views.',
+                            'security_note' => 'Views should never receive sensitive data. Use encrypted casts in models to handle encryption/decryption automatically.'
+                        ]);
+                        break; // Only report once per controller
+                    }
+                }
+            }
+        }
+    }
+
+    protected function checkViewEncryptionExposure(): void
+    {
+        $this->info('  🔍 Checking views for potential encryption exposure...');
+
+        $viewPath = resource_path('views');
+        if (!File::exists($viewPath)) {
+            return;
+        }
+
+        $viewFiles = File::allFiles($viewPath);
+
+        foreach ($viewFiles as $file) {
+            if (in_array($file->getExtension(), ['blade.php', 'php'])) {
+                $content = file_get_contents($file->getPathname());
+                $relativePath = str_replace(resource_path('views') . '/', '', $file->getPathname());
+
+                // Check for decrypt calls in views (major security issue)
+                if (preg_match('/decrypt\s*\(/', $content)) {
+                    $this->issueManager->addIssue('View Security', 'decryption_in_view', [
+                        'view' => $relativePath,
+                        'file' => $file->getPathname(),
+                        'message' => "View '{$relativePath}' contains decryption calls, exposing sensitive data.",
+                        'fix_explanation' => 'Never decrypt sensitive data in views. Use model accessors or encrypted casts to decrypt data before it reaches the view.',
+                        'security_note' => 'Views are client-side code. Decrypting in views exposes encryption keys and sensitive data to users.'
+                    ]);
+                }
+
+                // Check for sensitive field names in views
+                $sensitivePatterns = [
+                    '/\$(\w*(password|secret|token|key|ssn|credit_card)\w*)/i',
+                    '/{{.*(\w*(password|secret|token|key|ssn|credit_card)\w*).*}}/i'
+                ];
+
+                foreach ($sensitivePatterns as $pattern) {
+                    if (preg_match($pattern, $content)) {
+                        $this->issueManager->addIssue('View Security', 'sensitive_data_in_view', [
+                            'view' => $relativePath,
+                            'file' => $file->getPathname(),
+                            'message' => "View '{$relativePath}' appears to contain sensitive data fields.",
+                            'fix_explanation' => 'Ensure sensitive data is properly encrypted and only decrypted when absolutely necessary. Consider using masked or redacted values in views.',
+                            'security_note' => 'Sensitive data in views can be exposed to users through browser dev tools, network inspection, or page source.'
+                        ]);
+                        break; // Only report once per view
+                    }
+                }
+            }
+        }
+    }
+
+    protected function fixEncryptedFieldIssues(): void
+    {
+        $this->info('🔧 Fixing encrypted field issues...');
+
+        $issues = $this->issueManager->getIssuesByType('Encrypted Fields');
+
+        foreach ($issues as $issue) {
+            if ($issue['type'] === 'insufficient_field_size') {
+                $this->fixFieldSize($issue['data']);
+            } elseif ($issue['type'] === 'suboptimal_field_type') {
+                $this->fixFieldType($issue['data']);
+            }
+        }
+
+        $modelIssues = $this->issueManager->getIssuesByType('Model Encryption');
+        foreach ($modelIssues as $issue) {
+            if ($issue['type'] === 'missing_encrypted_column') {
+                $this->createEncryptedColumnMigration($issue['data']);
+            }
+        }
+    }
+
+    protected function fixFieldSize(array $data): void
+    {
+        if ($this->option('dry-run')) {
+            $this->info("  📝 Would change {$data['table']}.{$data['column']} from VARCHAR({$data['current_size']}) to VARCHAR({$data['recommended_size']})");
+            return;
+        }
+
+        try {
+            $tableName = $data['table'];
+            $columnName = $data['column'];
+            $newSize = $data['recommended_size'];
+
+            DB::statement("ALTER TABLE `{$tableName}` MODIFY COLUMN `{$columnName}` VARCHAR({$newSize})");
+
+            $this->info("  ✅ Changed {$tableName}.{$columnName} to VARCHAR({$newSize})");
+        } catch (\Exception $e) {
+            $this->error("  ❌ Failed to modify {$data['table']}.{$data['column']}: " . $e->getMessage());
+        }
+    }
+
+    protected function fixFieldType(array $data): void
+    {
+        if ($this->option('dry-run')) {
+            $this->info("  📝 Would change {$data['table']}.{$data['column']} from {$data['current_type']} to MEDIUMTEXT");
+            return;
+        }
+
+        try {
+            $tableName = $data['table'];
+            $columnName = $data['column'];
+
+            DB::statement("ALTER TABLE `{$tableName}` MODIFY COLUMN `{$columnName}` MEDIUMTEXT");
+
+            $this->info("  ✅ Changed {$tableName}.{$columnName} to MEDIUMTEXT");
+        } catch (\Exception $e) {
+            $this->error("  ❌ Failed to modify {$data['table']}.{$data['column']}: " . $e->getMessage());
+        }
+    }
+
+    protected function createEncryptedColumnMigration(array $data): void
+    {
+        if ($this->option('dry-run')) {
+            $this->info("  📝 Would create migration to add encrypted column {$data['table']}.{$data['field']}");
+            return;
+        }
+
+        try {
+            $tableName = $data['table'];
+            $columnName = $data['field'];
+            $timestamp = now()->format('Y_m_d_His');
+            $migrationName = "add_encrypted_{$columnName}_to_{$tableName}_table";
+
+            $migrationContent = "<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::table('{$tableName}', function (Blueprint \$table) {
+            \$table->text('{$columnName}')->nullable()->after('id');
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::table('{$tableName}', function (Blueprint \$table) {
+            \$table->dropColumn('{$columnName}');
+        });
+    }
+};";
+
+            $migrationPath = database_path("migrations/{$timestamp}_{$migrationName}.php");
+            file_put_contents($migrationPath, $migrationContent);
+
+            $this->info("  ✅ Created migration: {$timestamp}_{$migrationName}.php");
+        } catch (\Exception $e) {
+            $this->error("  ❌ Failed to create migration for {$data['table']}.{$data['field']}: " . $e->getMessage());
+        }
+    }
+
+    protected function getTableNameFromModel(string $content, string $className): ?string
+    {
+        // Try to find table name in the model
+        if (preg_match('/protected\s+\$table\s*=\s*[\'"]([^\'"]+)[\'"]/', $content, $matches)) {
+            return $matches[1];
+        }
+
+        // Default to pluralized class name
+        return Str::snake(Str::plural($className));
+    }
+
+    protected function columnExists(string $tableName, string $columnName): bool
+    {
+        try {
+            $columns = DB::getSchemaBuilder()->getColumnListing($tableName);
+            return in_array($columnName, $columns);
+        } catch (\Exception $e) {
+            return false;
+        }
     }
 }

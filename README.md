@@ -69,6 +69,7 @@ php artisan model:schema-check
 - `--filament-resource=` - Check specific Filament resource
 - `--security` - Check for XSS and CSRF vulnerabilities
 - `--laravel-forms` - Check Laravel forms (Blade templates, Livewire) and suggest amendments
+- `--check-encrypted-fields` - Check encrypted fields in database, models, controllers, and views
 
 #### Migration Synchronization
 - `--sync-migrations` - Generate fresh migrations from current database schema
@@ -218,6 +219,12 @@ php artisan model:schema-check --laravel-forms
 # Check forms with automatic fixing (interactive)
 php artisan model:schema-check --laravel-forms --fix
 
+# Check encrypted fields security and sizing
+php artisan model:schema-check --check-encrypted-fields
+
+# Check encrypted fields and apply automatic fixes
+php artisan model:schema-check --check-encrypted-fields --fix
+
 # Check model quality only
 php artisan model:schema-check --check-models
 
@@ -257,7 +264,14 @@ php artisan model:schema-check --generate-migrations --dry-run
 - Path traversal attack prevention
 - File upload security validation
 
-### 📊 **Migration Consistency Checks**
+### � **Encrypted Fields Security Analysis**
+- Database schema validation for encrypted field sizes
+- Model encryption implementation verification
+- Controller/view encryption security checks
+- Automatic fixes for insufficient field sizes
+- Security guidance for proper data encryption placement
+
+### �📊 **Migration Consistency Checks**
 - Validate migration naming conventions
 - Check for missing database indexes
 - Verify column constraints and defaults
