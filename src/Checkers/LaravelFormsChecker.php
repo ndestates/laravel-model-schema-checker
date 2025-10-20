@@ -430,20 +430,20 @@ class LaravelFormsChecker extends BaseChecker
         if (preg_match('/use\s+WithFileUploads;/', $content)) {
             // Check for file validation
             if (!preg_match('/[\'"]file[\'"]\s*=>\s*[\'"]|[\'"]mimes:[\'"]|[\'"]max:[\'"]/', $content)) {
-                $this->issue(
-                    "Livewire component {$className} uses file uploads but lacks proper validation rules",
-                    'high',
-                    $filePath
-                );
+                $this->addIssue('forms', 'missing_file_validation', [
+                    'message' => "Livewire component {$className} uses file uploads but lacks proper validation rules",
+                    'severity' => 'high',
+                    'file' => $filePath
+                ]);
             }
 
             // Check for secure temporary URL usage
             if (preg_match('/temporaryUrl\(/', $content)) {
-                $this->issue(
-                    "Livewire component {$className} uses temporaryUrl() - ensure proper security measures",
-                    'medium',
-                    $filePath
-                );
+                $this->addIssue('forms', 'insecure_temporary_url', [
+                    'message' => "Livewire component {$className} uses temporaryUrl() - ensure proper security measures",
+                    'severity' => 'medium',
+                    'file' => $filePath
+                ]);
             }
         }
     }
