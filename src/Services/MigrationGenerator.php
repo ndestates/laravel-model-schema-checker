@@ -460,10 +460,13 @@ return new class extends Migration
     public function generateAlterMigrations(array $issues): array
     {
         $alterMigrations = [];
+        $issuesByTable = $this->groupIssuesByTable($issues);
 
-        foreach ($issues as $issue) {
-            if ($this->canGenerateAlterMigration($issue)) {
-                $migration = $this->generateAlterMigrationForIssue($issue);
+        foreach ($issuesByTable as $tableName => $tableIssues) {
+            $safeIssues = $this->filterSafeAlterIssues($tableIssues, $tableName);
+
+            if (!empty($safeIssues)) {
+                $migration = $this->generateSafeAlterMigration($tableName, $safeIssues);
                 if ($migration) {
                     $alterMigrations[] = $migration;
                 }
@@ -474,33 +477,117 @@ return new class extends Migration
     }
 
     /**
-     * Check if an alter migration can be generated for this issue
+     * Group issues by table name
      */
-    protected function canGenerateAlterMigration(array $issue): bool
+    protected function groupIssuesByTable(array $issues): array
     {
-        $supportedTypes = [
-            'string_without_length',
-            'missing_timestamps',
-            'missing_foreign_key_index',
-            'nullable_foreign_key_no_default'
-        ];
+        $grouped = [];
 
-        return ($issue['category'] ?? '') === 'migration' && in_array($issue['type'] ?? '', $supportedTypes);
+        foreach ($issues as $issue) {
+            $tableName = $this->extractTableNameFromIssue($issue);
+            if ($tableName) {
+                $grouped[$tableName][] = $issue;
+            }
+        }
+
+        return $grouped;
     }
 
     /**
-     * Generate an alter migration for a specific issue
+     * Filter issues to only include those that can be safely altered
      */
-    protected function generateAlterMigrationForIssue(array $issue): ?array
+    protected function filterSafeAlterIssues(array $issues, string $tableName): array
     {
-        $tableName = $this->extractTableNameFromIssue($issue);
-        if (!$tableName) {
-            return null;
+        $safeIssues = [];
+
+        foreach ($issues as $issue) {
+            if ($this->isIssueSafeToAlter($issue, $tableName)) {
+                $safeIssues[] = $issue;
+            }
         }
 
-        $migrationName = $this->generateAlterMigrationName($issue, $tableName);
-        $upCode = $this->generateAlterUpCode($issue, $tableName);
-        $downCode = $this->generateAlterDownCode($issue, $tableName);
+        return $safeIssues;
+    }
+
+    /**
+     * Check if an issue can be safely altered
+     */
+    protected function isIssueSafeToAlter(array $issue, string $tableName): bool
+    {
+        // Only allow certain types of alterations that are generally safe
+        $safeTypes = [
+            'missing_timestamps',           // Adding timestamps is safe
+            'missing_foreign_key_index',    // Adding indexes is safe
+            'nullable_foreign_key_no_default' // Adding defaults to nullable columns is relatively safe
+        ];
+
+        if (!in_array($issue['type'], $safeTypes)) {
+            return false;
+        }
+
+        // Additional safety checks
+        return $this->performSafetyChecks($issue, $tableName);
+    }
+
+    /**
+     * Perform additional safety checks
+     */
+    protected function performSafetyChecks(array $issue, string $tableName): bool
+    {
+        try {
+            // Check if table exists
+            if (!$this->tableExists($tableName)) {
+                return false;
+            }
+
+            // Check if we have data in the table (be more careful with populated tables)
+            $recordCount = DB::table($tableName)->count();
+
+            // For tables with data, be more restrictive
+            if ($recordCount > 0) {
+                // Only allow adding indexes and timestamps to tables with data
+                return in_array($issue['type'], ['missing_timestamps', 'missing_foreign_key_index']);
+            }
+
+            return true;
+        } catch (\Exception $e) {
+            return false;
+        }
+    }
+
+    /**
+     * Check if a table exists
+     */
+    protected function tableExists(string $tableName): bool
+    {
+        try {
+            $driver = DB::getDriverName();
+
+            if ($driver === 'sqlite') {
+                $result = DB::select("SELECT name FROM sqlite_master WHERE type='table' AND name = ?", [$tableName]);
+                return !empty($result);
+            } elseif ($driver === 'mysql') {
+                $result = DB::select("SHOW TABLES LIKE ?", [$tableName]);
+                return !empty($result);
+            } elseif ($driver === 'pgsql') {
+                $result = DB::select("SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename = ?", [$tableName]);
+                return !empty($result);
+            }
+
+            return false;
+        } catch (\Exception $e) {
+            return false;
+        }
+    }
+
+    /**
+     * Generate a safe alter migration for a table
+     */
+    protected function generateSafeAlterMigration(string $tableName, array $issues): ?array
+    {
+        $migrationName = $this->generateSafeAlterMigrationName($tableName, $issues);
+        $upCode = $this->generateSafeAlterUpCode($issues, $tableName);
+        $downCode = $this->generateSafeAlterDownCode($issues, $tableName);
 
         if (!$upCode) {
             return null;
@@ -510,8 +597,273 @@ return new class extends Migration
             'name' => $migrationName,
             'content' => $this->generateAlterMigrationContent($migrationName, $upCode, $downCode),
             'table' => $tableName,
-            'issue_type' => $issue['type']
+            'issues_fixed' => count($issues),
+            'safety_level' => $this->assessMigrationSafety($issues, $tableName),
+            'warnings' => $this->generateSafetyWarnings($issues, $tableName)
         ];
+    }
+
+    /**
+     * Generate a safe migration name
+     */
+    protected function generateSafeAlterMigrationName(string $tableName, array $issues): string
+    {
+        $timestamp = date('Y_m_d_His');
+        $issueTypes = array_unique(array_column($issues, 'type'));
+        $action = $this->getConsolidatedActionName($issueTypes);
+
+        return "{$timestamp}_alter_{$tableName}_table_{$action}";
+    }
+
+    /**
+     * Get consolidated action name for multiple issues
+     */
+    protected function getConsolidatedActionName(array $issueTypes): string
+    {
+        if (count($issueTypes) === 1) {
+            return $this->getAlterActionName($issueTypes[0]);
+        }
+
+        // Multiple issues - use generic name
+        return 'fix_multiple_issues';
+    }
+
+    /**
+     * Generate safe up() code for alter migration
+     */
+    protected function generateSafeAlterUpCode(array $issues, string $tableName): string
+    {
+        $codeLines = [];
+
+        foreach ($issues as $issue) {
+            $code = $this->generateSafeAlterCodeForIssue($issue, $tableName);
+            if ($code) {
+                $codeLines[] = $code;
+            }
+        }
+
+        return empty($codeLines) ? '' : implode("\n        ", $codeLines);
+    }
+
+    /**
+     * Generate safe alter code for a specific issue
+     */
+    protected function generateSafeAlterCodeForIssue(array $issue, string $tableName): ?string
+    {
+        switch ($issue['type']) {
+            case 'missing_timestamps':
+                return $this->generateSafeTimestampsAddition($tableName);
+            case 'missing_foreign_key_index':
+                return $this->generateSafeIndexAddition($tableName, $issue);
+            case 'nullable_foreign_key_no_default':
+                return $this->generateSafeDefaultAddition($tableName, $issue);
+            default:
+                return null;
+        }
+    }
+
+    /**
+     * Generate safe timestamps addition
+     */
+    protected function generateSafeTimestampsAddition(string $tableName): string
+    {
+        // Check if timestamps already exist
+        $columns = $this->getTableColumns($tableName);
+        $hasCreatedAt = in_array('created_at', array_column($columns, 'name'));
+        $hasUpdatedAt = in_array('updated_at', array_column($columns, 'name'));
+
+        if ($hasCreatedAt && $hasUpdatedAt) {
+            return null; // Already has timestamps
+        }
+
+        return "\$table->timestamps();";
+    }
+
+    /**
+     * Generate safe index addition
+     */
+    protected function generateSafeIndexAddition(string $tableName, array $issue): ?string
+    {
+        $column = $issue['column'] ?? null;
+        if (!$column) {
+            return null;
+        }
+
+        // Check if index already exists
+        if ($this->indexExists($tableName, $column)) {
+            return null;
+        }
+
+        return "\$table->index('{$column}');";
+    }
+
+    /**
+     * Generate safe default value addition for nullable columns
+     */
+    protected function generateSafeDefaultAddition(string $tableName, array $issue): ?string
+    {
+        $column = $issue['column'] ?? null;
+        if (!$column) {
+            return null;
+        }
+
+        // Only add defaults to nullable foreign key columns that don't already have defaults
+        $columnInfo = $this->getColumnInfo($tableName, $column);
+        if (!$columnInfo || !$columnInfo['nullable'] || $columnInfo['default'] !== null) {
+            return null;
+        }
+
+        return "\$table->foreignId('{$column}')->nullable()->default(null)->change();";
+    }
+
+    /**
+     * Check if an index exists on a column
+     */
+    protected function indexExists(string $tableName, string $column): bool
+    {
+        try {
+            $driver = DB::getDriverName();
+
+            if ($driver === 'sqlite') {
+                $indexes = DB::select("PRAGMA index_list({$tableName})");
+                foreach ($indexes as $index) {
+                    $indexInfo = DB::select("PRAGMA index_info({$index->name})");
+                    $indexedColumns = array_column($indexInfo, 'name');
+                    if (in_array($column, $indexedColumns)) {
+                        return true;
+                    }
+                }
+            } elseif ($driver === 'mysql') {
+                $indexes = DB::select("SHOW INDEX FROM `{$tableName}` WHERE Column_name = ?", [$column]);
+                return !empty($indexes);
+            }
+
+            return false;
+        } catch (\Exception $e) {
+            return false;
+        }
+    }
+
+    /**
+     * Get column information
+     */
+    protected function getColumnInfo(string $tableName, string $columnName): ?array
+    {
+        $columns = $this->getTableColumns($tableName);
+
+        foreach ($columns as $column) {
+            if ($column['name'] === $columnName) {
+                return $column;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Generate safe down() code for alter migration
+     */
+    protected function generateSafeAlterDownCode(array $issues, string $tableName): string
+    {
+        $codeLines = [];
+
+        // Generate reversible operations where safe
+        foreach ($issues as $issue) {
+            $code = $this->generateSafeAlterDownCodeForIssue($issue, $tableName);
+            if ($code) {
+                $codeLines[] = $code;
+            }
+        }
+
+        if (empty($codeLines)) {
+            return "// Reverse migration not automatically generated for safety\n        // Please implement manually if needed";
+        }
+
+        return implode("\n        ", $codeLines);
+    }
+
+    /**
+     * Generate safe down code for a specific issue
+     */
+    protected function generateSafeAlterDownCodeForIssue(array $issue, string $tableName): ?string
+    {
+        switch ($issue['type']) {
+            case 'missing_timestamps':
+                return "// Dropping timestamps not recommended - data would be lost";
+            case 'missing_foreign_key_index':
+                $column = $issue['column'] ?? null;
+                return $column ? "\$table->dropIndex(['{$column}']);" : null;
+            case 'nullable_foreign_key_no_default':
+                $column = $issue['column'] ?? null;
+                return $column ? "\$table->foreignId('{$column}')->nullable()->change(); // Remove default" : null;
+            default:
+                return null;
+        }
+    }
+
+    /**
+     * Assess the safety level of a migration
+     */
+    protected function assessMigrationSafety(array $issues, string $tableName): string
+    {
+        $hasData = DB::table($tableName)->count() > 0;
+        $hasRiskyOperations = $this->hasRiskyOperations($issues);
+
+        if ($hasRiskyOperations) {
+            return 'high_risk';
+        } elseif ($hasData) {
+            return 'medium_risk';
+        } else {
+            return 'low_risk';
+        }
+    }
+
+    /**
+     * Check if issues contain risky operations
+     */
+    protected function hasRiskyOperations(array $issues): bool
+    {
+        $riskyTypes = ['nullable_foreign_key_no_default'];
+        $issueTypes = array_column($issues, 'type');
+
+        return !empty(array_intersect($riskyTypes, $issueTypes));
+    }
+
+    /**
+     * Generate safety warnings for the migration
+     */
+    protected function generateSafetyWarnings(array $issues, string $tableName): array
+    {
+        $warnings = [];
+        $recordCount = DB::table($tableName)->count();
+
+        if ($recordCount > 0) {
+            $warnings[] = "Table '{$tableName}' contains {$recordCount} records. Alter operations may take time.";
+        }
+
+        foreach ($issues as $issue) {
+            $warning = $this->getIssueSpecificWarning($issue);
+            if ($warning) {
+                $warnings[] = $warning;
+            }
+        }
+
+        return $warnings;
+    }
+
+    /**
+     * Get issue-specific warnings
+     */
+    protected function getIssueSpecificWarning(array $issue): ?string
+    {
+        switch ($issue['type']) {
+            case 'nullable_foreign_key_no_default':
+                return "Adding default values to existing nullable columns may affect application logic.";
+            case 'missing_foreign_key_index':
+                return "Adding indexes to large tables may temporarily impact performance.";
+            default:
+                return null;
+        }
     }
 
     /**

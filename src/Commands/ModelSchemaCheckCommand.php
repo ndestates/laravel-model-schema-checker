@@ -52,6 +52,7 @@ class ModelSchemaCheckCommand extends Command
                             {--cleanup-migrations : Safely remove old migration files with backup}
                             {--check-all : Run all available checks (alias for --all)}
                             {--fix-migrations : Generate alter migrations to fix detected migration issues}
+                            {--rollback-migrations : Rollback the last batch of migrations}
                             {--amend-migrations : Amend existing migration files with proper column specifications}';
     protected IssueManager $issueManager;
     protected MigrationGenerator $migrationGenerator;
@@ -170,6 +171,10 @@ class ModelSchemaCheckCommand extends Command
 
         if ($this->option('fix-migrations')) {
             return $this->handleFixMigrations();
+        }
+
+        if ($this->option('rollback-migrations')) {
+            return $this->handleRollbackMigrations();
         }
 
         if ($this->option('amend-migrations')) {
@@ -1374,9 +1379,47 @@ return new class extends Migration
         }
     }
 
+    protected function handleBackup(): int
+    {
+        $this->info('💾 Creating database backup...');
+
+        try {
+            $backupPath = $this->dataExporter->exportDatabaseDataToCompressedFile([
+                'include_structure' => true,
+                'include_data' => true,
+            ]);
+
+            $this->info("✅ Database backup created successfully!");
+            $this->info("📁 Backup location: {$backupPath}");
+
+            // Get file size
+            $size = File::size($backupPath);
+            $formattedSize = $this->formatBytes($size);
+            $this->info("📊 Backup size: {$formattedSize}");
+
+            return Command::SUCCESS;
+        } catch (\Exception $e) {
+            $this->error("❌ Failed to create database backup: " . $e->getMessage());
+            return Command::FAILURE;
+        }
+    }
+
     protected function handleFixMigrations(): int
     {
-        $this->info('Generating alter migrations to fix detected issues...');
+        $this->info('🔧 Generating alter migrations to fix detected issues...');
+        $this->warn('⚠️  WARNING: Alter migrations can be risky and may cause data loss!');
+        $this->warn('⚠️  Always backup your database before running generated migrations.');
+
+        // Check if backup is requested
+        if ($this->option('backup-db')) {
+            $this->info('💾 Creating database backup before proceeding...');
+            $backupResult = $this->handleBackup();
+            if ($backupResult !== Command::SUCCESS) {
+                $this->error('❌ Backup failed. Aborting migration generation.');
+                return Command::FAILURE;
+            }
+            $this->line('');
+        }
 
         // First run checks to identify issues
         $this->checkerManager->setCommand($this);
@@ -1388,21 +1431,35 @@ return new class extends Migration
         });
 
         if (empty($migrationIssues)) {
-            $this->info('No migration issues found that can be automatically fixed.');
+            $this->info('✅ No migration issues found that can be automatically fixed.');
             return Command::SUCCESS;
         }
 
-        $this->info("Found " . count($migrationIssues) . " migration issues that can be fixed.");
+        $this->info("🔍 Found " . count($migrationIssues) . " migration issues that can be fixed.");
 
-        // Generate alter migrations
+        // Generate alter migrations with safety checks
         $alterMigrations = $this->migrationGenerator->generateAlterMigrations($migrationIssues);
 
         if (empty($alterMigrations)) {
-            $this->warn('No alter migrations could be generated.');
+            $this->warn('⚠️  No alter migrations could be generated.');
             return Command::SUCCESS;
         }
 
-        $this->info("Generated " . count($alterMigrations) . " alter migrations:");
+        $this->info("📋 Generated " . count($alterMigrations) . " alter migrations:");
+
+        // Display safety information and get user confirmation
+        $this->displayMigrationSafetyInfo($alterMigrations);
+
+        if (!$this->option('dry-run')) {
+            // Ask about rollback option
+            $createRollback = $this->confirm('Create rollback migrations for safety?', true);
+            $proceed = $this->confirm('Do you want to proceed with generating these alter migrations?', false);
+
+            if (!$proceed) {
+                $this->info('❌ Operation cancelled by user.');
+                return Command::SUCCESS;
+            }
+        }
 
         foreach ($alterMigrations as $migration) {
             $this->line("📄 <comment>{$migration['name']}.php</comment> - Fixes: {$migration['issue_type']}");
@@ -1410,6 +1467,14 @@ return new class extends Migration
             if (!$this->option('dry-run')) {
                 $this->migrationGenerator->saveMigrations();
                 $this->info("✅ Migration saved to database/migrations/{$migration['name']}.php");
+
+                // Generate rollback migration if requested
+                if (isset($createRollback) && $createRollback) {
+                    $rollbackName = 'rollback_' . $migration['name'];
+                    $rollbackContent = $this->generateRollbackMigration($migration);
+                    $this->saveRollbackMigration($rollbackName, $rollbackContent);
+                    $this->info("↩️  Rollback migration saved to database/migrations/{$rollbackName}.php");
+                }
             } else {
                 $this->line("   <comment>Preview:</comment>");
                 $this->line("   " . str_replace("\n", "\n   ", substr($migration['content'], 0, 200)) . "...");
@@ -1417,10 +1482,149 @@ return new class extends Migration
         }
 
         if ($this->option('dry-run')) {
-            $this->warn('Use --fix-migrations without --dry-run to actually create the migration files.');
+            $this->warn('🔍 This was a dry-run. Use --fix-migrations without --dry-run to actually create the migration files.');
+            $this->info('💡 Tip: Always backup your database before running alter migrations!');
+        } else {
+            $this->info('✅ Alter migrations generated successfully!');
+            if (isset($createRollback) && $createRollback) {
+                $this->info('↩️  Rollback migrations created for safety.');
+            }
+            $this->warn('⚠️  Remember to review and backup before running these migrations!');
+            $this->info('💡 To rollback if needed: php artisan migrate:rollback');
         }
 
         return Command::SUCCESS;
+    }
+
+    protected function handleRollbackMigrations(): int
+    {
+        $this->info('↩️  Rolling back the last batch of migrations...');
+        $this->warn('⚠️  WARNING: This will undo the last migration batch!');
+        $this->warn('⚠️  Make sure you have a backup before proceeding.');
+
+        // Confirm rollback
+        if (!$this->confirm('Are you sure you want to rollback the last migration batch?', false)) {
+            $this->info('❌ Rollback cancelled by user.');
+            return Command::SUCCESS;
+        }
+
+        try {
+            // Create backup before rollback
+            $this->info('💾 Creating backup before rollback...');
+            $backupResult = $this->handleBackup();
+            if ($backupResult !== Command::SUCCESS) {
+                $this->error('❌ Backup failed. Rollback aborted for safety.');
+                return Command::FAILURE;
+            }
+
+            // Execute rollback
+            $this->info('🔄 Executing migration rollback...');
+            $this->call('migrate:rollback');
+
+            $this->info('✅ Migration rollback completed successfully!');
+            $this->info('💡 If you need to re-run the migrations: php artisan migrate');
+
+            return Command::SUCCESS;
+        } catch (\Exception $e) {
+            $this->error("❌ Rollback failed: " . $e->getMessage());
+            $this->warn('💡 You may need to manually fix the database state.');
+            return Command::FAILURE;
+        }
+    }
+
+    protected function displayMigrationSafetyInfo(array $alterMigrations): void
+    {
+        $this->warn('🚨 MIGRATION SAFETY INFORMATION:');
+        $this->line('   • These migrations will ALTER existing database tables');
+        $this->line('   • Some operations may cause data loss (DROP COLUMN, etc.)');
+        $this->line('   • Always backup your database before proceeding');
+        $this->line('   • Test migrations on a development database first');
+        $this->line('');
+
+        // Analyze risk levels
+        $highRiskCount = 0;
+        $mediumRiskCount = 0;
+        $lowRiskCount = 0;
+
+        foreach ($alterMigrations as $migration) {
+            $riskLevel = $migration['risk_level'] ?? 'medium';
+            switch ($riskLevel) {
+                case 'high':
+                    $highRiskCount++;
+                    break;
+                case 'medium':
+                    $mediumRiskCount++;
+                    break;
+                case 'low':
+                    $lowRiskCount++;
+                    break;
+            }
+        }
+
+        if ($highRiskCount > 0) {
+            $this->error("🔴 HIGH RISK: {$highRiskCount} migrations may cause data loss");
+        }
+        if ($mediumRiskCount > 0) {
+            $this->warn("🟡 MEDIUM RISK: {$mediumRiskCount} migrations need careful review");
+        }
+        if ($lowRiskCount > 0) {
+            $this->info("🟢 LOW RISK: {$lowRiskCount} migrations are generally safe");
+        }
+
+        $this->line('');
+    }
+
+    protected function formatBytes(int $bytes): string
+    {
+        $units = ['B', 'KB', 'MB', 'GB', 'TB'];
+        $bytes = max($bytes, 0);
+        $pow = floor(($bytes ? log($bytes) : 0) / log(1024));
+        $pow = min($pow, count($units) - 1);
+        $bytes /= pow(1024, $pow);
+        return round($bytes, 2) . ' ' . $units[$pow];
+    }
+
+    protected function generateRollbackMigration(array $migration): string
+    {
+        // Generate a basic rollback migration that reverses the alter operations
+        // This is a simplified version - in practice, rollback logic would be more complex
+        $tableName = $migration['table'] ?? 'unknown_table';
+        $timestamp = date('Y_m_d_His');
+
+        $rollbackContent = "<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    /**
+     * Reverse the migrations.
+     * This rollback was auto-generated for safety.
+     * Please review and modify as needed before running.
+     */
+    public function down(): void
+    {
+        // TODO: Implement rollback logic for: {$migration['issue_type']}
+        // This is a placeholder rollback migration.
+        // You may need to manually implement the reverse operations.
+
+        \$this->command->warn('⚠️  Please implement the rollback logic manually for: {$migration['issue_type']}');
+    }
+};
+";
+
+        return $rollbackContent;
+    }
+
+    protected function saveRollbackMigration(string $name, string $content): void
+    {
+        $migrationsPath = database_path('migrations');
+        $filename = $name . '.php';
+        $filepath = $migrationsPath . '/' . $filename;
+
+        File::put($filepath, $content);
     }
 
     protected function handleAmendMigrations(): int

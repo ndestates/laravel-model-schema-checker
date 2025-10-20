@@ -425,14 +425,6 @@ Each issue includes:
 - Remediation recommendations
 - Severity classification
 
-## Testing
-
-The package includes comprehensive tests:
-
-```bash
-composer test
-```
-
 ## Security Considerations
 
 The Laravel Model Schema Checker helps identify multiple security vulnerabilities:
@@ -468,6 +460,110 @@ Enforced Laravel best practices:
 - Laravel 10.x, 11.x, or 12.x
 - MySQL, PostgreSQL, or SQLite database
 - File system permissions for log writing
+
+## Testing
+
+The Laravel Model Schema Checker includes comprehensive testing to ensure compatibility across Laravel versions and maintain code quality.
+
+### Running Tests
+
+#### Local Testing
+
+```bash
+# Run basic local tests
+./test-local.sh
+
+# Run multi-version Laravel compatibility tests (uses DDEV)
+./test-multi-version.sh
+
+# Run DDEV integration tests
+./test-ddev.sh
+```
+
+#### Composer Scripts
+
+```bash
+# Run all tests and code quality checks
+composer test:all
+
+# Run unit tests only
+composer test
+
+# Run with coverage
+composer test:coverage
+
+# Run PHPStan static analysis
+composer stan
+
+# Run PHP CodeSniffer
+composer cs
+
+# Fix code style issues
+composer cs:fix
+
+# Run PHPMD mess detector
+composer md
+```
+
+### Test Matrix
+
+The package is tested against multiple Laravel and PHP versions:
+
+| Laravel Version | PHP Version | Status |
+|----------------|-------------|--------|
+| 10.x           | 8.1, 8.2, 8.3 | ✅ Supported |
+| 11.x           | 8.2, 8.3     | ✅ Supported |
+| 12.x           | 8.2, 8.3     | ✅ Supported |
+
+### Continuous Integration
+
+GitHub Actions automatically runs the full test suite on:
+
+- Push to `main`, `master`, or `feature/version-3` branches
+- Pull requests to `main`, `master`, or `feature/version-3`
+- Tag pushes (for releases)
+
+Tests include:
+
+- Unit tests with PHPUnit
+- Static analysis with PHPStan
+- Code style checking with PHP CodeSniffer
+- Mess detection with PHPMD
+- Multi-version Laravel compatibility
+- Security vulnerability scanning
+- Composer validation
+
+### Development Testing
+
+For development and contribution:
+
+1. **Setup**: Ensure DDEV is installed and configured
+2. **Local Tests**: Run `./test-local.sh` for basic functionality
+3. **Multi-Version**: Run `./test-multi-version.sh` for Laravel compatibility (uses isolated DDEV environments)
+4. **Code Quality**: Run `composer test:all` before committing
+5. **Integration**: Run `./test-ddev.sh` for full integration testing
+
+### Test Coverage
+
+Current test coverage includes:
+
+- ✅ Package structure validation
+- ✅ Service provider registration
+- ✅ Command functionality
+- ✅ Laravel version compatibility (10.x, 11.x, 12.x) using DDEV
+- ✅ Code quality standards
+- ✅ Static analysis
+- ✅ Security checks
+
+### DDEV Testing Environment
+
+The multi-version tests use isolated DDEV environments for each Laravel version:
+
+- **Laravel 10**: PHP 8.1, MariaDB 10.4
+- **Laravel 11**: PHP 8.2, MariaDB 10.4
+- **Laravel 12**: PHP 8.2, MariaDB 10.4
+
+DDEV configurations are stored in `ddev-configs/` directory and automatically create clean, isolated test environments that are cleaned up after testing.
 
 ## Contributing
 
