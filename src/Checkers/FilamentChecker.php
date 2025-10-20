@@ -57,13 +57,37 @@ class FilamentChecker extends BaseChecker
         foreach ($files as $file) {
             try {
                 $class = $this->getClassFromFile($file->getPathname());
-                if ($class && class_exists($class)) { // Allow autoloading to validate class
-                    // Check if Filament is available before checking subclass
-                    if (class_exists(\Filament\Resources\Resource::class) && is_subclass_of($class, \Filament\Resources\Resource::class)) {
-                        $resources[] = $class;
+                if ($class) {
+                    // Try autoloading first
+                    $classExists = class_exists($class);
+                    
+                    // If autoloading fails, try to include the file directly
+                    if (!$classExists) {
+                        try {
+                            include_once $file->getPathname();
+                            $classExists = class_exists($class);
+                        } catch (\Throwable $e) {
+                            // Include failed, continue
+                        }
+                    }
+                    
+                    if ($classExists) {
+                        // Check if Filament is available before checking subclass
+                        if (class_exists(\Filament\Resources\Resource::class) && is_subclass_of($class, \Filament\Resources\Resource::class)) {
+                            $resources[] = $class;
+                        } else {
+                            // Debug: log why we're skipping
+                            if (!class_exists(\Filament\Resources\Resource::class)) {
+                                $this->warn("Filament not available, skipping: {$file->getPathname()}");
+                            } elseif (!is_subclass_of($class, \Filament\Resources\Resource::class)) {
+                                $this->warn("Not a Filament Resource, skipping: {$file->getPathname()} (class: {$class})");
+                            }
+                        }
+                    } else {
+                        $this->warn("Skipping file with invalid class: {$file->getPathname()} (class: {$class})");
                     }
                 } else {
-                    $this->warn("Skipping file with invalid class: {$file->getPathname()}");
+                    $this->warn("Skipping file with no class found: {$file->getPathname()}");
                 }
             } catch (\Throwable $e) {
                 $this->error("Cannot process file {$file->getPathname()}: " . $e->getMessage());
@@ -358,10 +382,16 @@ class FilamentChecker extends BaseChecker
             return null;
         }
 
+        // Skip non-PHP files
+        if (!str_ends_with($filePath, '.php')) {
+            return null;
+        }
+
         // Simple regex to find namespace and class
         if (preg_match('/namespace\s+([^;]+);/', $content, $namespaceMatch)) {
             $namespace = $namespaceMatch[1];
-            if (preg_match('/class\s+([a-zA-Z0-9_]+)/', $content, $classMatch)) {
+            // Look for class, abstract class, or final class declarations
+            if (preg_match('/(?:class|abstract\s+class|final\s+class)\s+([a-zA-Z0-9_]+)/', $content, $classMatch)) {
                 return $namespace . '\\' . $classMatch[1];
             }
         }
