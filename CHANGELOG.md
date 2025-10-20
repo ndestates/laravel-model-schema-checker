@@ -10,7 +10,12 @@ All notable changes to- **ModelChecker, LaravelFormsChecker, ValidationChecker**
 - **FilamentChecker**: Fixed invalid class detection (commit: 1dcb3ca)
   - Removed autoload prevention in class_exists() check
   - Allows proper validation of Filament resource classes that haven't been loaded yet
-  - Eliminates false "invalid class" warnings for valid Filament filess project will be documented in this file.
+  - Eliminates false "invalid class" warnings for valid Filament files
+- **FilamentChecker**: Enhanced class loading and detection (commit: f03b6bd)
+  - Added fallback file inclusion when autoloading fails for Filament classes
+  - Improved class detection to handle abstract and final class declarations
+  - Skip non-PHP files to avoid processing README.md and other non-code files
+  - Added detailed debug logging to identify why files are skipped
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
