@@ -29,6 +29,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Replaced incorrect `$this->issue()` calls with proper `$this->addIssue()` method calls
   - Updated method signatures to match BaseChecker interface requirements
   - Fixed `--check-laravel-forms` command execution errors
+- **ModelChecker**: Fixed abstract class instantiation error (commit: a9e7ac1)
+  - Added ReflectionClass check to skip abstract model classes before instantiation
+  - Prevents "Cannot instantiate abstract class" errors during model scanning
+  - Abstract model base classes are now properly handled without causing exceptions
 
 ## [1.0.0] - 2024-12-19
 
