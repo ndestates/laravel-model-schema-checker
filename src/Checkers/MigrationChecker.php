@@ -113,25 +113,40 @@ class MigrationChecker extends BaseChecker
     protected function checkMissingIndexes(): void
     {
         try {
-            // Get all tables
-            $tables = DB::select('SHOW TABLES');
-            $databaseName = DB::getDatabaseName();
+            $driver = DB::getDriverName();
 
-            foreach ($tables as $table) {
-                $tableName = $table->{'Tables_in_' . $databaseName};
+            // Get all tables based on database driver
+            if ($driver === 'sqlite') {
+                $tables = DB::select("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'");
+                $tableNames = array_column($tables, 'name');
+            } elseif ($driver === 'mysql') {
+                $tables = DB::select('SHOW TABLES');
+                $databaseName = DB::getDatabaseName();
+                $tableNames = [];
+                foreach ($tables as $table) {
+                    $tableNames[] = $table->{'Tables_in_' . $databaseName};
+                }
+            } elseif ($driver === 'pgsql') {
+                $tables = DB::select("SELECT tablename FROM pg_tables WHERE schemaname = 'public'");
+                $tableNames = array_column($tables, 'tablename');
+            } else {
+                $this->warn('Database driver not supported for index checking');
+                return;
+            }
 
+            foreach ($tableNames as $tableName) {
                 // Skip Laravel system tables
                 if (in_array($tableName, ['migrations', 'failed_jobs', 'cache', 'sessions'])) {
                     continue;
                 }
 
-                // Check for foreign keys without indexes
-                if (DB::getDriverName() === 'mysql') {
+                // Check for foreign keys without indexes based on database driver
+                if ($driver === 'mysql') {
                     $foreignKeys = DB::select("
                         SELECT COLUMN_NAME
                         FROM information_schema.KEY_COLUMN_USAGE
                         WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND REFERENCED_TABLE_NAME IS NOT NULL
-                    ", [$databaseName, $tableName]);
+                    ", [DB::getDatabaseName(), $tableName]);
 
                     foreach ($foreignKeys as $fk) {
                         $columnName = $fk->COLUMN_NAME;
@@ -141,7 +156,7 @@ class MigrationChecker extends BaseChecker
                             SELECT 1
                             FROM information_schema.STATISTICS
                             WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?
-                        ", [$databaseName, $tableName, $columnName]);
+                        ", [DB::getDatabaseName(), $tableName, $columnName]);
 
                         if (empty($hasIndex)) {
                             $this->addIssue('migration', 'missing_foreign_key_index', [
@@ -151,6 +166,12 @@ class MigrationChecker extends BaseChecker
                             ]);
                         }
                     }
+                } elseif ($driver === 'sqlite') {
+                    // SQLite foreign key detection is complex, skip for now
+                    continue;
+                } elseif ($driver === 'pgsql') {
+                    // PostgreSQL foreign key checking could be added here
+                    continue;
                 }
             }
         } catch (\Exception $e) {

@@ -1,6 +1,8 @@
 # Laravel Model Schema Checker
 
-A comprehensive Laravel tool for validating models, relationships, security, performance, code quality, and **form amendment suggestions** across your entire Laravel application.
+A comprehensive Laravel tool for validating models, relationships, security,
+performance, code quality, and **form amendment suggestions** across your entire
+Laravel application.
 
 ## Compatibility
 
@@ -17,7 +19,8 @@ composer require ndestates/laravel-model-schema-checker --dev
 
 ### Laravel Auto-Discovery
 
-The package uses Laravel's auto-discovery feature, so it will be automatically registered.
+The package uses Laravel's auto-discovery feature, so it will be automatically
+registered.
 
 ### Publish Configuration (Optional)
 
@@ -28,11 +31,44 @@ php artisan vendor:publish --provider="NDEstates\LaravelModelSchemaChecker\Model
 ```
 
 This will create a `config/model-schema-checker.php` file where you can customize:
+
 - Model directory
 - Excluded fields
 - Database connection
 - Migration directory
 - Other settings
+
+## 🚀 **Version 3.0 - Modular Architecture (In Development)**
+
+**Current Status: ~20% Complete** - Core architecture and models/services foundation implemented.
+
+The upcoming v3.0 release will transform the monolithic 3040-line `ModelSchemaCheckCommand.php` into a modular, maintainable architecture with:
+
+### ✅ **Completed Components**
+
+- **Core Architecture**: Basic service structure and contracts foundation
+- **Models & Services**: Service classes, utilities, and enhanced monolithic command
+- **Encrypted Fields Security**: Advanced security analysis for encrypted database fields
+
+### 🔄 **Planned Modular Features**
+
+- **Individual Checkers**: Separate, focused checker classes for each validation type
+- **Code Improvement System**: Automatic suggestions with severity levels and auto-fix capabilities
+- **Enhanced User Experience**: Better output formatting, interactive fixes, and JSON reporting
+- **Plugin Architecture**: Extensible system for third-party checkers
+
+### 📁 **Target Architecture**
+
+```bash
+src/
+├── Checkers/          # Individual checker classes
+├── Contracts/         # Interfaces for checkers and improvements
+├── Services/          # Core services (IssueManager, CheckerManager)
+├── Models/            # Code improvement models
+└── Commands/          # Refactored main command
+```
+
+For detailed progress, see [VERSION_3_PLAN.md](VERSION_3_PLAN.md).
 
 ## Usage
 
@@ -47,6 +83,7 @@ php artisan model:schema-check
 ### Available Options
 
 #### Core Options
+
 - `--help` - Show help information
 - `--dry-run` - Show what would be changed without making changes
 - `--fix` - Fix model fillable properties
@@ -54,6 +91,7 @@ php artisan model:schema-check
 - `--json` - Output results in JSON format
 
 #### Specialized Checks
+
 - `--relationships` - Check model relationships and foreign keys
 - `--migrations` - Check migration consistency and indexes
 - `--validation` - Check validation rules against schema
@@ -72,12 +110,14 @@ php artisan model:schema-check
 - `--check-encrypted-fields` - Check encrypted fields in database, models, controllers, and views
 
 #### Migration Synchronization
+
 - `--sync-migrations` - Generate fresh migrations from current database schema
 - `--export-data` - Export database data before migration changes
 - `--import-data` - Import previously exported data
 - `--cleanup-migrations` - Safely remove old migration files
 
 #### Combined Checks
+
 - `--all` - Run all available checks
 
 ### Migration Synchronization Examples
@@ -114,24 +154,28 @@ php artisan model:schema-check --import-data
 ## Migration Synchronization Features
 
 ### 🔄 **Complete Migration Recreation**
+
 - **Schema Analysis**: Introspect current database structure
 - **Fresh Migration Generation**: Create new migrations from existing schema
 - **Index Preservation**: Maintain database indexes and constraints
 - **Foreign Key Handling**: Preserve relationships and constraints
 
 ### 💾 **Data Preservation**
+
 - **Safe Data Export**: Export all table data before changes
 - **SQL Format**: Generate portable SQL export files
 - **Foreign Key Management**: Handle constraints during import/export
 - **Rollback Capability**: Restore data if needed
 
 ### 🧹 **Migration Cleanup**
+
 - **Backup Creation**: Automatic backup of existing migrations
 - **Safe Deletion**: Remove old files only after backup
 - **Timestamp Tracking**: Organize backups by date/time
 - **Recovery Options**: Easy restoration if needed
 
 ### 📊 **Schema Diffing**
+
 - **Current vs Expected**: Compare database with migration expectations
 - **Missing Elements**: Identify missing tables, columns, indexes
 - **Extra Elements**: Find database elements not in migrations
@@ -143,7 +187,7 @@ php artisan model:schema-check --import-data
 
 When your `database/migrations/` files no longer match your actual database structure:
 
-```
+```text
 1. Database has evolved with direct SQL changes
 2. Migration files are missing or incorrect
 3. Need to recreate migrations from scratch
@@ -247,130 +291,54 @@ php artisan model:schema-check --generate-migrations --dry-run
 ## Features
 
 ### 🔍 **Comprehensive Model Validation**
+
 - Compare model fillable properties with database columns
 - Validate mass assignment protection
 - Check for missing or extra fillable properties
 
 ### 🔗 **Relationship & Foreign Key Validation**
+
 - Validate model relationship definitions
 - Check foreign key constraints against database
 - Verify relationship naming conventions
 - Detect missing inverse relationships
 
 ### 🛡️ **Security Vulnerability Detection**
+
 - XSS (Cross-Site Scripting) vulnerability detection
 - CSRF (Cross-Site Request Forgery) protection validation
 - SQL injection vulnerability scanning
 - Path traversal attack prevention
 - File upload security validation
 
-### � **Encrypted Fields Security Analysis**
-- Database schema validation for encrypted field sizes
-- Model encryption implementation verification
-- Controller/view encryption security checks
-- Automatic fixes for insufficient field sizes
-- Security guidance for proper data encryption placement
-
-### �📊 **Migration Consistency Checks**
-- Validate migration naming conventions
-- Check for missing database indexes
-- Verify column constraints and defaults
-- Ensure migration files follow Laravel standards
+## Form Amendment Suggestions
 
 ### ✅ **Validation Rule Analysis**
+
 - Check validation rules against database schema
 - Validate required field coverage
 - Verify rule consistency with column types
 - Check Form Request class structure
-
-### ⚡ **Performance Optimization**
-- N+1 query detection
-- Eager loading validation
-- Database index recommendations
-- Inefficient query pattern identification
-
-### 🎯 **Code Quality Assurance**
-- Namespace validation
-- Naming convention enforcement
-- Deprecated feature detection
-- Code smell identification
-- Unused import detection
-- **Granular Code Quality Checks**: Dedicated commands for models, controllers, and migrations
-- **Path-Based Filtering**: Include/exclude specific files or directories
-- **Targeted Analysis**: Run quality checks on specific application components
-
-### 🔍 **Granular Code Quality Checks**
-
-The Laravel Model Schema Checker provides dedicated commands for targeted code quality analysis, allowing you to focus on specific parts of your application:
-
-#### **Model Quality Checks (`--check-models`)**
-- Validates model fillable properties and mass assignment protection
-- Checks relationship method implementations
-- Analyzes scope method usage and efficiency
-- Detects deprecated Eloquent methods
-- Validates model naming conventions
-
-#### **Controller Quality Checks (`--check-controllers`)**
-- Validates controller method signatures and naming
-- Checks validation usage in controller methods
-- Analyzes authorization implementation
-- Detects query efficiency issues
-- Reviews controller structure and organization
-
-#### **Migration Quality Checks (`--check-migrations-quality`)**
-- Validates migration file naming conventions
-- Checks column type definitions and constraints
-- Analyzes index usage and foreign key constraints
-- Detects potential migration issues
-- Reviews migration file organization
-
-#### **Path-Based Filtering**
-All granular checks support path filtering for precise control:
-
-```bash
-# Check only API models
-php artisan model:schema-check --check-models --check-models-exclude="**/User.php"
-
-# Check only web controllers, exclude API controllers
-php artisan model:schema-check --check-controllers --check-controllers-exclude="**/Api/**"
-
-# Check specific migration files
-php artisan model:schema-check --check-migrations-quality --check-migrations-quality-exclude="*_create_sessions_table.php"
-```
-
-### 🎨 **Laravel-Specific Features**
-- Filament form and relationship validation
-- Blade template security checks
-- Livewire component validation
-- API resource validation
-- **Form Amendment Suggestions**: Automatic form improvement recommendations
-
-### 📝 **Form Amendment Suggestions**
-- **Missing Field Detection**: Identifies required fields missing from forms
-- **Field Requirement Validation**: Checks for incorrect required field markings
-- **Input Type Optimization**: Suggests better input types (email, password, number, date)
-- **Model-Form Synchronization**: Compares forms against model definitions
-- **Livewire Component Analysis**: Validates Livewire properties and validation rules
-- **Automatic Form Updates**: Interactive option to automatically fix form issues
-
-## Form Amendment Suggestions
 
 The Laravel Model Schema Checker now includes intelligent form analysis and amendment suggestions to help you create better, more complete forms.
 
 ### 🔍 **Form Analysis Features**
 
 #### **Model-Form Synchronization**
+
 - Automatically identifies which model a form is associated with
 - Compares form fields against model fillable properties
 - Validates form fields against model validation rules
 - Detects missing required fields in create/update/delete forms
 
 #### **Field Requirement Validation**
+
 - Identifies fields marked as required when they shouldn't be
 - Finds required fields missing the HTML `required` attribute
 - Suggests proper field requirements based on model validation rules
 
 #### **Input Type Optimization**
+
 - Recommends `type="email"` for email fields
 - Suggests `type="password"` for password inputs
 - Advises `type="number"` for numeric database columns
@@ -378,6 +346,7 @@ The Laravel Model Schema Checker now includes intelligent form analysis and amen
 - Suggests `<textarea>` for longer text content
 
 #### **Livewire Component Support**
+
 - Analyzes Livewire component properties against model requirements
 - Validates Livewire validation rules
 - Suggests missing component properties and validation rules
@@ -385,19 +354,22 @@ The Laravel Model Schema Checker now includes intelligent form analysis and amen
 ### 📋 **Amendment Suggestion Examples**
 
 **Missing Required Field:**
-```
+
+```html
 Required field 'email' is missing from the form.
 Suggestion: Add: <input type="text" name="email" value="{{ old('email') }}" required>
 ```
 
 **Incorrect Field Type:**
-```
+
+```html
 Field 'email' appears to be an email field.
 Suggestion: Consider using input type='email' for better validation and UX.
 ```
 
 **Livewire Property Missing:**
-```
+
+```php
 Fillable property 'title' is missing from Livewire component.
 Suggestion: Add: public $title; to the component properties.
 ```
@@ -419,6 +391,7 @@ php artisan model:schema-check --laravel-forms --fix
 ```
 
 When you choose to auto-fix, the checker will:
+
 - Add missing required fields to forms
 - Correct field requirement attributes
 - Optimize input types based on database schema
@@ -426,6 +399,7 @@ When you choose to auto-fix, the checker will:
 - Update validation rules in Livewire components
 
 ### 🛡️ **Safety Features**
+
 - **Backup Creation**: Automatic backup of form files before changes
 - **Dry Run Support**: Preview changes without applying them
 - **Confirmation Prompts**: Interactive confirmation for each change
@@ -445,6 +419,7 @@ The checker provides detailed reports categorized by issue type:
 - **Forms**: Form completeness and amendment suggestions
 
 Each issue includes:
+
 - File location and line number
 - Specific problem description
 - Remediation recommendations

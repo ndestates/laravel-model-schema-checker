@@ -50,7 +50,9 @@ class ModelSchemaCheckCommand extends Command
                             {--export-data : Export database data to compressed SQL file}
                             {--import-data : Import database data from compressed SQL file}
                             {--cleanup-migrations : Safely remove old migration files with backup}
-                            {--check-all : Run all available checks (alias for --all)}';
+                            {--check-all : Run all available checks (alias for --all)}
+                            {--fix-migrations : Generate alter migrations to fix detected migration issues}
+                            {--amend-migrations : Amend existing migration files with proper column specifications}';
     protected IssueManager $issueManager;
     protected MigrationGenerator $migrationGenerator;
     protected DataExporter $dataExporter;
@@ -164,6 +166,14 @@ class ModelSchemaCheckCommand extends Command
 
         if ($this->option('cleanup-migrations')) {
             return $this->handleCleanupMigrations();
+        }
+
+        if ($this->option('fix-migrations')) {
+            return $this->handleFixMigrations();
+        }
+
+        if ($this->option('amend-migrations')) {
+            return $this->handleAmendMigrations();
         }
 
         // Default: run model checks
@@ -1362,5 +1372,64 @@ return new class extends Migration
         } catch (\Exception $e) {
             return false;
         }
+    }
+
+    protected function handleFixMigrations(): int
+    {
+        $this->info('Generating alter migrations to fix detected issues...');
+
+        // First run checks to identify issues
+        $this->checkerManager->setCommand($this);
+        $issues = $this->checkerManager->runAllChecks();
+
+        // Filter for migration-related issues that can be fixed
+        $migrationIssues = array_filter($issues, function($issue) {
+            return isset($issue['type']) && str_starts_with($issue['type'], 'migration_');
+        });
+
+        if (empty($migrationIssues)) {
+            $this->info('No migration issues found that can be automatically fixed.');
+            return Command::SUCCESS;
+        }
+
+        $this->info("Found " . count($migrationIssues) . " migration issues that can be fixed.");
+
+        // Generate alter migrations
+        $alterMigrations = $this->migrationGenerator->generateAlterMigrations($migrationIssues);
+
+        if (empty($alterMigrations)) {
+            $this->warn('No alter migrations could be generated.');
+            return Command::SUCCESS;
+        }
+
+        $this->info("Generated " . count($alterMigrations) . " alter migrations:");
+
+        foreach ($alterMigrations as $migration) {
+            $this->line("📄 <comment>{$migration['name']}.php</comment> - Fixes: {$migration['issue_type']}");
+
+            if (!$this->option('dry-run')) {
+                $this->migrationGenerator->saveMigrations();
+                $this->info("✅ Migration saved to database/migrations/{$migration['name']}.php");
+            } else {
+                $this->line("   <comment>Preview:</comment>");
+                $this->line("   " . str_replace("\n", "\n   ", substr($migration['content'], 0, 200)) . "...");
+            }
+        }
+
+        if ($this->option('dry-run')) {
+            $this->warn('Use --fix-migrations without --dry-run to actually create the migration files.');
+        }
+
+        return Command::SUCCESS;
+    }
+
+    protected function handleAmendMigrations(): int
+    {
+        $this->info('Amending existing migration files with proper specifications...');
+        $this->warn('⚠️  Migration amendment feature is not yet implemented.');
+        $this->info('This feature will allow amending existing migration files to add missing column lengths, indexes, etc.');
+        $this->info('For now, use --fix-migrations to generate new alter migrations.');
+
+        return Command::SUCCESS;
     }
 }

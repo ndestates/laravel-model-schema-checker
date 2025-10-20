@@ -113,8 +113,20 @@ abstract class BaseChecker implements CheckerInterface
     protected function getTableColumns(string $tableName): array
     {
         try {
-            $columns = DB::select("SHOW COLUMNS FROM `{$tableName}`");
-            return array_column($columns, 'Field');
+            $driver = DB::getDriverName();
+
+            if ($driver === 'sqlite') {
+                $columns = DB::select("PRAGMA table_info({$tableName})");
+                return array_column($columns, 'name');
+            } elseif ($driver === 'mysql') {
+                $columns = DB::select("SHOW COLUMNS FROM `{$tableName}`");
+                return array_column($columns, 'Field');
+            } elseif ($driver === 'pgsql') {
+                $columns = DB::select("SELECT column_name FROM information_schema.columns WHERE table_name = ? AND table_schema = 'public' ORDER BY ordinal_position", [$tableName]);
+                return array_column($columns, 'column_name');
+            }
+
+            return [];
         } catch (\Exception $e) {
             return [];
         }
@@ -126,8 +138,20 @@ abstract class BaseChecker implements CheckerInterface
     protected function tableExists(string $tableName): bool
     {
         try {
-            $result = DB::select("SHOW TABLES LIKE '{$tableName}'");
-            return !empty($result);
+            $driver = DB::getDriverName();
+
+            if ($driver === 'sqlite') {
+                $result = DB::select("SELECT name FROM sqlite_master WHERE type='table' AND name = ?", [$tableName]);
+                return !empty($result);
+            } elseif ($driver === 'mysql') {
+                $result = DB::select("SHOW TABLES LIKE ?", [$tableName]);
+                return !empty($result);
+            } elseif ($driver === 'pgsql') {
+                $result = DB::select("SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename = ?", [$tableName]);
+                return !empty($result);
+            }
+
+            return false;
         } catch (\Exception $e) {
             return false;
         }

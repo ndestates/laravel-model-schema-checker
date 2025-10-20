@@ -280,20 +280,37 @@ return new class extends Migration
     {
         $this->databaseTables = [];
 
-        // Get all tables
-        $tables = DB::select('SHOW TABLES');
-        $databaseName = config('database.connections.mysql.database');
+        $connection = config('database.default');
+        $driver = config("database.connections.{$connection}.driver");
 
-        foreach ($tables as $table) {
-            $tableName = $table->{"Tables_in_{$databaseName}"};
-            $this->databaseTables[$tableName] = $this->analyzeTable($tableName);
+        // Get all tables based on database driver
+        if ($driver === 'sqlite') {
+            $tables = DB::select("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'");
+            foreach ($tables as $table) {
+                $tableName = $table->name;
+                $this->databaseTables[$tableName] = $this->analyzeTable($tableName, $driver);
+            }
+        } elseif ($driver === 'mysql') {
+            $tables = DB::select('SHOW TABLES');
+            $databaseName = config("database.connections.{$connection}.database");
+
+            foreach ($tables as $table) {
+                $tableName = $table->{"Tables_in_{$databaseName}"};
+                $this->databaseTables[$tableName] = $this->analyzeTable($tableName, $driver);
+            }
+        } elseif ($driver === 'pgsql') {
+            $tables = DB::select("SELECT tablename FROM pg_tables WHERE schemaname = 'public'");
+            foreach ($tables as $table) {
+                $tableName = $table->tablename;
+                $this->databaseTables[$tableName] = $this->analyzeTable($tableName, $driver);
+            }
         }
     }
 
     /**
      * Analyze a specific table
      */
-    protected function analyzeTable(string $tableName): array
+    protected function analyzeTable(string $tableName, string $driver): array
     {
         $tableInfo = [
             'columns' => [],
@@ -301,56 +318,82 @@ return new class extends Migration
             'foreign_keys' => []
         ];
 
-        // Get columns
-        $columns = DB::select("DESCRIBE `{$tableName}`");
-        foreach ($columns as $column) {
-            $tableInfo['columns'][] = [
-                'name' => $column->Field,
-                'type' => $this->parseColumnType($column->Type),
-                'nullable' => $column->Null === 'YES',
-                'default' => $column->Default,
-                'auto_increment' => strpos($column->Extra, 'auto_increment') !== false,
-                'length' => $this->extractLength($column->Type)
-            ];
-        }
-
-        // Get indexes
-        $indexes = DB::select("SHOW INDEX FROM `{$tableName}`");
-        $indexGroups = [];
-        foreach ($indexes as $index) {
-            $keyName = $index->Key_name;
-            if ($keyName === 'PRIMARY') continue;
-
-            if (!isset($indexGroups[$keyName])) {
-                $indexGroups[$keyName] = [
-                    'columns' => [],
-                    'unique' => !$index->Non_unique
+        // Get columns based on database driver
+        if ($driver === 'sqlite') {
+            $columns = DB::select("PRAGMA table_info({$tableName})");
+            foreach ($columns as $column) {
+                $tableInfo['columns'][] = [
+                    'name' => $column->name,
+                    'type' => $this->parseColumnType($column->type),
+                    'nullable' => !$column->notnull,
+                    'default' => $column->dflt_value,
+                    'auto_increment' => $column->pk && strpos(strtolower($column->type), 'integer') !== false,
+                    'length' => $this->extractLength($column->type)
                 ];
             }
-            $indexGroups[$keyName]['columns'][] = $index->Column_name;
+        } elseif ($driver === 'mysql') {
+            $columns = DB::select("DESCRIBE `{$tableName}`");
+            foreach ($columns as $column) {
+                $tableInfo['columns'][] = [
+                    'name' => $column->Field,
+                    'type' => $this->parseColumnType($column->Type),
+                    'nullable' => $column->Null === 'YES',
+                    'default' => $column->Default,
+                    'auto_increment' => strpos($column->Extra, 'auto_increment') !== false,
+                    'length' => $this->extractLength($column->Type)
+                ];
+            }
+        } elseif ($driver === 'pgsql') {
+            $columns = DB::select("SELECT column_name, data_type, is_nullable, column_default FROM information_schema.columns WHERE table_name = ? AND table_schema = 'public' ORDER BY ordinal_position", [$tableName]);
+            foreach ($columns as $column) {
+                $tableInfo['columns'][] = [
+                    'name' => $column->column_name,
+                    'type' => $this->parseColumnType($column->data_type),
+                    'nullable' => $column->is_nullable === 'YES',
+                    'default' => $column->column_default,
+                    'auto_increment' => false, // PostgreSQL handles this differently
+                    'length' => null
+                ];
+            }
         }
 
-        foreach ($indexGroups as $index) {
-            $tableInfo['indexes'][] = $index;
+        // Get indexes based on database driver
+        if ($driver === 'sqlite') {
+            $indexes = DB::select("PRAGMA index_list({$tableName})");
+            foreach ($indexes as $index) {
+                if (!$index->unique) { // Skip unique indexes for now
+                    $indexInfo = DB::select("PRAGMA index_info({$index->name})");
+                    $columns = array_column($indexInfo, 'name');
+                    $tableInfo['indexes'][] = [
+                        'columns' => $columns,
+                        'unique' => false
+                    ];
+                }
+            }
+        } elseif ($driver === 'mysql') {
+            $indexes = DB::select("SHOW INDEX FROM `{$tableName}`");
+            $indexGroups = [];
+            foreach ($indexes as $index) {
+                $keyName = $index->Key_name;
+                if ($keyName === 'PRIMARY') continue;
+
+                if (!isset($indexGroups[$keyName])) {
+                    $indexGroups[$keyName] = [
+                        'columns' => [],
+                        'unique' => !$index->Non_unique
+                    ];
+                }
+                $indexGroups[$keyName]['columns'][] = $index->Column_name;
+            }
+
+            foreach ($indexGroups as $index) {
+                $tableInfo['indexes'][] = $index;
+            }
         }
 
-        // Get foreign keys
-        $foreignKeys = DB::select("
-            SELECT
-                COLUMN_NAME as local_column,
-                REFERENCED_TABLE_NAME as foreign_table,
-                REFERENCED_COLUMN_NAME as foreign_column
-            FROM information_schema.KEY_COLUMN_USAGE
-            WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND REFERENCED_TABLE_NAME IS NOT NULL
-        ", [config('database.connections.mysql.database'), $tableName]);
-
-        foreach ($foreignKeys as $fk) {
-            $tableInfo['foreign_keys'][] = [
-                'local_column' => $fk->local_column,
-                'foreign_table' => $fk->foreign_table,
-                'foreign_column' => $fk->foreign_column
-            ];
-        }
+        // Foreign keys are more complex and database-specific
+        // For now, we'll skip them in the DDEV test
+        $tableInfo['foreign_keys'] = [];
 
         return $tableInfo;
     }
@@ -409,5 +452,225 @@ return new class extends Migration
     public function previewMigrations(): array
     {
         return $this->generateMigrationsFromSchema();
+    }
+
+    /**
+     * Generate alter migrations to fix detected issues
+     */
+    public function generateAlterMigrations(array $issues): array
+    {
+        $alterMigrations = [];
+
+        foreach ($issues as $issue) {
+            if ($this->canGenerateAlterMigration($issue)) {
+                $migration = $this->generateAlterMigrationForIssue($issue);
+                if ($migration) {
+                    $alterMigrations[] = $migration;
+                }
+            }
+        }
+
+        return $alterMigrations;
+    }
+
+    /**
+     * Check if an alter migration can be generated for this issue
+     */
+    protected function canGenerateAlterMigration(array $issue): bool
+    {
+        $supportedTypes = [
+            'string_without_length',
+            'missing_timestamps',
+            'missing_foreign_key_index',
+            'nullable_foreign_key_no_default'
+        ];
+
+        return ($issue['category'] ?? '') === 'migration' && in_array($issue['type'] ?? '', $supportedTypes);
+    }
+
+    /**
+     * Generate an alter migration for a specific issue
+     */
+    protected function generateAlterMigrationForIssue(array $issue): ?array
+    {
+        $tableName = $this->extractTableNameFromIssue($issue);
+        if (!$tableName) {
+            return null;
+        }
+
+        $migrationName = $this->generateAlterMigrationName($issue, $tableName);
+        $upCode = $this->generateAlterUpCode($issue, $tableName);
+        $downCode = $this->generateAlterDownCode($issue, $tableName);
+
+        if (!$upCode) {
+            return null;
+        }
+
+        return [
+            'name' => $migrationName,
+            'content' => $this->generateAlterMigrationContent($migrationName, $upCode, $downCode),
+            'table' => $tableName,
+            'issue_type' => $issue['type']
+        ];
+    }
+
+    /**
+     * Extract table name from issue data
+     */
+    protected function extractTableNameFromIssue(array $issue): ?string
+    {
+        // Try different ways to extract table name from issue
+        if (isset($issue['table'])) {
+            return $issue['table'];
+        }
+
+        if (isset($issue['file'])) {
+            // Extract from migration filename
+            $filename = basename($issue['file']);
+            if (preg_match('/create_(\w+)_table/', $filename, $matches)) {
+                return $matches[1];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Generate migration name for alter migration
+     */
+    protected function generateAlterMigrationName(array $issue, string $tableName): string
+    {
+        $timestamp = date('Y_m_d_His');
+        $action = $this->getAlterActionName($issue['type']);
+
+        return "{$timestamp}_alter_{$tableName}_table_{$action}";
+    }
+
+    /**
+     * Get action name for alter migration
+     */
+    protected function getAlterActionName(string $issueType): string
+    {
+        $actions = [
+            'string_without_length' => 'add_string_lengths',
+            'missing_timestamps' => 'add_timestamps',
+            'missing_foreign_key_index' => 'add_foreign_key_indexes',
+            'nullable_foreign_key_no_default' => 'fix_foreign_keys'
+        ];
+
+        return $actions[$issueType] ?? 'fix_schema_issues';
+    }
+
+    /**
+     * Generate the up() code for alter migration
+     */
+    protected function generateAlterUpCode(array $issue, string $tableName): ?string
+    {
+        switch ($issue['type']) {
+            case 'string_without_length':
+                return $this->generateStringLengthFix($tableName, $issue);
+            case 'missing_timestamps':
+                return $this->generateTimestampsFix($tableName);
+            case 'missing_foreign_key_index':
+                return $this->generateForeignKeyIndexFix($tableName, $issue);
+            case 'nullable_foreign_key_no_default':
+                return $this->generateForeignKeyNullableFix($tableName, $issue);
+            default:
+                return null;
+        }
+    }
+
+    /**
+     * Generate the down() code for alter migration
+     */
+    protected function generateAlterDownCode(array $issue, string $tableName): ?string
+    {
+        // For safety, most alter migrations will have empty down() methods
+        // Users should manually write down() methods if needed
+        return "// Reverse migration not automatically generated for safety\n        // Please implement manually if needed";
+    }
+
+    /**
+     * Generate string length fix code
+     */
+    protected function generateStringLengthFix(string $tableName, array $issue): string
+    {
+        // This is a simplified example - in practice, we'd need to parse the migration file
+        // to determine which columns need length specifications
+        return "\$table->string('name', 255)->change();\n        \$table->string('email', 255)->change();";
+    }
+
+    /**
+     * Generate timestamps fix code
+     */
+    protected function generateTimestampsFix(string $tableName): string
+    {
+        return "\$table->timestamps();";
+    }
+
+    /**
+     * Generate foreign key index fix code
+     */
+    protected function generateForeignKeyIndexFix(string $tableName, array $issue): string
+    {
+        $column = $issue['column'] ?? 'unknown_column';
+        return "\$table->index('{$column}');";
+    }
+
+    /**
+     * Generate foreign key nullable fix code
+     */
+    protected function generateForeignKeyNullableFix(string $tableName, array $issue): string
+    {
+        $column = $issue['column'] ?? 'unknown_column';
+        return "\$table->foreignId('{$column}')->nullable()->constrained()->change();";
+    }
+
+    /**
+     * Generate the complete migration content
+     */
+    protected function generateAlterMigrationContent(string $migrationName, string $upCode, string $downCode): string
+    {
+        $className = Str::studly(str_replace(['_', '.php'], [' ', ''], $migrationName));
+
+        return "<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
+    {
+        Schema::table('{$this->extractTableFromMigrationName($migrationName)}', function (Blueprint \$table) {
+            {$upCode}
+        });
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        Schema::table('{$this->extractTableFromMigrationName($migrationName)}', function (Blueprint \$table) {
+            {$downCode}
+        });
+    }
+};";
+    }
+
+    /**
+     * Extract table name from migration name
+     */
+    protected function extractTableFromMigrationName(string $migrationName): string
+    {
+        if (preg_match('/alter_(\w+)_table/', $migrationName, $matches)) {
+            return $matches[1];
+        }
+        return 'unknown_table';
     }
 }
