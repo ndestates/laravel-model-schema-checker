@@ -16,6 +16,11 @@ class SecurityChecker extends BaseChecker
         return 'Scan for XSS, CSRF, SQL injection, and path traversal vulnerabilities';
     }
 
+    protected function getRuleName(): ?string
+    {
+        return 'security_checks';
+    }
+
     public function check(): array
     {
         $this->info('');

@@ -39,7 +39,34 @@ abstract class BaseChecker implements CheckerInterface
 
     public function isEnabled(): bool
     {
+        // Check if this checker is enabled in the rules config
+        $ruleName = $this->getRuleName();
+        if ($ruleName && isset($this->config['rules']['enabled'][$ruleName])) {
+            return $this->config['rules']['enabled'][$ruleName];
+        }
+
         return $this->enabled;
+    }
+
+    protected function getRuleName(): ?string
+    {
+        // Override in subclasses to map to config rule names
+        return null;
+    }
+
+    protected function shouldSkipFile(string $filePath): bool
+    {
+        return app(\NDEstates\LaravelModelSchemaChecker\Services\CheckerManager::class)->shouldSkipFile($filePath);
+    }
+
+    protected function getPerformanceThreshold(string $threshold): mixed
+    {
+        return app(\NDEstates\LaravelModelSchemaChecker\Services\CheckerManager::class)->getPerformanceThreshold($threshold);
+    }
+
+    protected function isStrictMode(): bool
+    {
+        return $this->config['strict_mode'] ?? false;
     }
 
     public function enable(): self

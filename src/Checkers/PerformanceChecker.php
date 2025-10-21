@@ -17,6 +17,11 @@ class PerformanceChecker extends BaseChecker
         return 'Detect N+1 queries and optimization opportunities';
     }
 
+    protected function getRuleName(): ?string
+    {
+        return 'performance_checks';
+    }
+
     public function check(): array
     {
         $this->info('');

@@ -17,6 +17,11 @@ class MigrationChecker extends BaseChecker
         return 'Check migration syntax, consistency, and database schema best practices';
     }
 
+    protected function getRuleName(): ?string
+    {
+        return 'migration_syntax';
+    }
+
     public function check(): array
     {
         $this->info('');

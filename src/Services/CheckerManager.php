@@ -22,8 +22,50 @@ class CheckerManager
 
     public function __construct(array $config = [])
     {
-        $this->config = $config;
+        $this->config = $this->mergeEnvironmentConfig($config);
         $this->registerDefaultCheckers();
+    }
+
+    protected function mergeEnvironmentConfig(array $config): array
+    {
+        $env = app()->environment();
+
+        // Merge environment-specific settings
+        if (isset($config['environments'][$env])) {
+            $config = array_merge_recursive($config, $config['environments'][$env]);
+        }
+
+        return $config;
+    }
+
+    public function shouldSkipFile(string $filePath): bool
+    {
+        $excludePatterns = $this->config['exclude_patterns']['files'] ?? [];
+
+        foreach ($excludePatterns as $pattern) {
+            if (fnmatch($pattern, $filePath)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public function shouldSkipModel(string $modelClass): bool
+    {
+        $excludeModels = $this->config['exclude_patterns']['models'] ?? [];
+
+        return in_array($modelClass, $excludeModels);
+    }
+
+    public function isRuleEnabled(string $ruleName): bool
+    {
+        return $this->config['rules']['enabled'][$ruleName] ?? true;
+    }
+
+    public function getPerformanceThreshold(string $threshold): mixed
+    {
+        return $this->config['performance_thresholds'][$threshold] ?? null;
     }
 
     public function setCommand(Command $command): self

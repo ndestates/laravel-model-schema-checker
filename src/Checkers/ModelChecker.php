@@ -1,6 +1,21 @@
 <?php
 
-namespace NDEstates\LaravelModelSchemaChecker\Checkers;
+class ModelChecker extends BaseChecker
+{
+    public function getName(): string
+    {
+        return 'Model Checker';
+    }
+
+    public function getDescription(): string
+    {
+        return 'Check model fillable properties, relationships, and table integrity';
+    }
+
+    protected function getRuleName(): ?string
+    {
+        return 'model_fillable_check';
+    }DEstates\LaravelModelSchemaChecker\Checkers;
 
 use Illuminate\Support\Facades\File;
 use NDEstates\LaravelModelSchemaChecker\Models\CodeImprovement;

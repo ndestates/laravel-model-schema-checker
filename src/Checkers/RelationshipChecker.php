@@ -1,6 +1,21 @@
 <?php
 
-namespace NDEstates\LaravelModelSchemaChecker\Checkers;
+class RelationshipChecker extends BaseChecker
+{
+    public function getName(): string
+    {
+        return 'Relationship Checker';
+    }
+
+    public function getDescription(): string
+    {
+        return 'Check model relationships for integrity and consistency';
+    }
+
+    protected function getRuleName(): ?string
+    {
+        return 'relationship_integrity';
+    }DEstates\LaravelModelSchemaChecker\Checkers;
 
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;

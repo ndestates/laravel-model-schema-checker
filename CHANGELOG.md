@@ -41,6 +41,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - 'database_schema': Validates current database schema for missing indexes and issues
   - 'both': Performs both types of validation
   - Enables production database health checks and legacy database analysis
+- **Configuration**: Expanded configuration system for testing environments (commit: [pending])
+  - Added environment-specific settings (local, testing, staging, production)
+  - File and path exclusions with glob pattern support
+  - Performance thresholds configuration
+  - Output format options (console, json, xml)
+  - Granular rule enable/disable controls
+  - Custom validation rules support
 - **Granular Code Quality Checks**: New dedicated commands for targeted code quality analysis
   - `--check-models`: Check model quality (fillable, relationships, etc.)
   - `--check-models-exclude=*`: Exclude specific model files from checks
