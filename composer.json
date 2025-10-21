@@ -1,6 +1,7 @@
 {
     "name": "ndestates/laravel-model-schema-checker",
     "description": "A comprehensive Laravel application validator for security, performance, relationships, migrations, and code quality",
+    "version": "3.0.0-dev",
     "type": "library",
     "license": "MIT",
     "authors": [

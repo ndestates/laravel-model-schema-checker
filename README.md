@@ -1,13 +1,14 @@
 # Laravel Model Schema Checker
 
 A comprehensive Laravel tool for validating models, relationships, security,
-performance, code quality, and **form amendment suggestions** across your entire
+performance, code quality, migrations, and **form amendment suggestions** across your entire
 Laravel application.
 
 ## Compatibility
 
 - **Laravel**: 10.x, 11.x, 12.x
 - **PHP**: 8.1+
+- **Version**: 3.0.0-dev (Major rewrite in development)
 
 ## Installation
 
@@ -33,21 +34,211 @@ php artisan vendor:publish --provider="NDEstates\LaravelModelSchemaChecker\Model
 This will create a `config/model-schema-checker.php` file where you can customize:
 
 - Model directory
-- Excluded fields
-- Database connection
-- Migration directory
-- Other settings
+- Excluded fields and models
+- Database connection and validation modes
+- Migration directory and exclusions
+- Environment-specific settings
+- Performance thresholds
+- Output formats and verbosity
+- Rule enable/disable controls
 
 ## 🚀 **Version 3.0 - Modular Architecture (In Development)**
 
-**Current Status: ~20% Complete** - Core architecture and models/services foundation implemented.
+**Current Status: ~85% Complete** - Major architecture overhaul with comprehensive configuration system.
 
-The upcoming v3.0 release will transform the monolithic 3040-line `ModelSchemaCheckCommand.php` into a modular, maintainable architecture with:
+The v3.0 release transforms the previous monolithic architecture into a modular, maintainable system with extensive configuration options.
 
 ### ✅ **Completed Components**
 
-- **Core Architecture**: Basic service structure and contracts foundation
-- **Models & Services**: Service classes, utilities, and enhanced monolithic command
+#### **Core Architecture**
+- **Modular Services**: `CheckerManager`, `IssueManager`, `MigrationGenerator`, `DataExporter`, `DataImporter`, `MigrationCleanup`
+- **Contracts**: `CheckerInterface` for extensible checker system
+- **Base Classes**: `BaseChecker` with common functionality and configuration support
+
+#### **Enhanced Checkers (9 Total)**
+- **ModelChecker**: Fillable properties, table existence, schema alignment
+- **RelationshipChecker**: Model relationships integrity and consistency
+- **MigrationChecker**: Syntax validation, best practices, configurable database schema validation
+- **ValidationChecker**: Form validation rules against database schema
+- **SecurityChecker**: XSS, CSRF, SQL injection, and path traversal detection
+- **PerformanceChecker**: N+1 query detection and optimization opportunities
+- **CodeQualityChecker**: Code quality and maintainability checks
+- **LaravelFormsChecker**: Form field validation and amendment suggestions
+- **FilamentChecker**: Filament resource validation with autoloading support
+
+#### **Configuration System**
+- **Environment-Specific Settings**: Different validation modes for local/testing/production
+- **Comprehensive Exclusions**: Models, files, migrations, and database tables
+- **Performance Thresholds**: Configurable timeouts and limits
+- **Output Formats**: Console, JSON, XML with verbosity controls
+- **Rule Controls**: Enable/disable individual validation rules
+- **Default Exclusions**: User model, common Laravel tables, migration subdirectories
+
+#### **Migration Validation Revolution**
+- **PHP Syntax Validation**: Catches syntax errors before execution
+- **Malformed Method Call Detection**: Prevents `$table->string('key'(255))` runtime errors
+- **Database-Agnostic Validation**: Works regardless of current database connection
+- **Configurable Schema Validation**: Choose migration-files, database-schema, or both modes
+- **Smart Exclusions**: Automatically skips old/, archive/, legacy/ migration directories
+
+## 📖 **Usage**
+
+### Basic Usage
+
+```bash
+php artisan model-schema:check
+```
+
+### Advanced Usage
+
+```bash
+# Check specific components
+php artisan model-schema:check --check-models --check-migrations
+
+# Use different migration validation modes
+php artisan model-schema:check --migration-mode=database_schema
+
+# Output formats
+php artisan model-schema:check --format=json --verbose
+
+# Environment-specific validation
+php artisan model-schema:check --env=production
+```
+
+### Configuration Examples
+
+#### Environment-Specific Settings
+```php
+'environments' => [
+    'local' => [
+        'strict_mode' => false,
+        'skip_performance_checks' => true,
+    ],
+    'testing' => [
+        'strict_mode' => true,
+        'skip_performance_checks' => false,
+    ],
+    'production' => [
+        'strict_mode' => true,
+        'skip_performance_checks' => false,
+    ],
+],
+```
+
+#### Migration Validation Modes
+```php
+'migration_validation_mode' => 'migration_files', // 'migration_files', 'database_schema', 'both'
+```
+
+#### Default Exclusions
+```php
+'excluded_models' => ['App\Models\User'],
+'exclude_patterns' => [
+    'migrations' => ['**/migrations/old/**', '**/migrations/archive/**'],
+],
+```
+
+## 🔧 **Environment Variables**
+
+```env
+# Migration validation mode
+MSC_MIGRATION_MODE=migration_files  # migration_files, database_schema, both
+
+# Output configuration
+MSC_OUTPUT_FORMAT=console          # console, json, xml
+MSC_VERBOSE=false
+MSC_SHOW_PROGRESS=true
+MSC_FAIL_ON_WARNINGS=false
+
+# Performance tuning
+MSC_QUERY_TIMEOUT=1000
+MSC_MEMORY_LIMIT=128
+MSC_MAX_RELATIONSHIPS=10
+
+# Caching
+MSC_CACHE_ENABLED=true
+MSC_CACHE_TTL=3600
+```
+
+## 📋 **What It Checks**
+
+### Models
+- Fillable properties vs database columns
+- Table existence and naming conventions
+- Model relationships integrity
+- Abstract class handling
+
+### Relationships
+- Foreign key constraints
+- Relationship method consistency
+- Inverse relationship validation
+- N+1 query prevention
+
+### Migrations
+- PHP syntax validation
+- Malformed method calls detection
+- Foreign key index requirements
+- Database-agnostic validation
+- Configurable schema validation
+
+### Security
+- XSS vulnerability detection
+- CSRF protection validation
+- SQL injection prevention
+- Path traversal protection
+- Mass assignment vulnerabilities
+
+### Performance
+- N+1 query detection
+- Missing index identification
+- Query optimization suggestions
+- Memory usage monitoring
+
+### Code Quality
+- Code style consistency
+- Maintainability checks
+- Best practice adherence
+- Documentation requirements
+
+### Laravel Forms
+- Form field validation
+- Amendment suggestions
+- Schema alignment
+- Validation rule consistency
+
+### Filament Resources
+- Resource class validation
+- Form and table method checking
+- Relationship integrity
+- Autoloading support
+
+## 🎯 **Key Features**
+
+- **Database Agnostic**: Works with SQLite, MySQL, PostgreSQL
+- **Environment Aware**: Different validation modes per environment
+- **Highly Configurable**: Extensive configuration options
+- **Modular Architecture**: Easy to extend with new checkers
+- **Performance Optimized**: Caching support for large codebases
+- **Multiple Output Formats**: Console, JSON, XML support
+- **Smart Exclusions**: Automatic exclusion of common files/models
+- **Production Ready**: Comprehensive error detection and reporting
+
+## 📊 **Development Status**
+
+- ✅ **Architecture**: Complete (Modular services implemented)
+- ✅ **Checkers**: Complete (All major checkers implemented and enhanced)
+- ✅ **Configuration**: Complete (Comprehensive config system with environment support)
+- 🚧 **Testing**: In Progress
+- 🚧 **Documentation**: In Progress (This README reflects current state)
+- ❌ **Production Ready**: Not yet (Requires testing completion)
+
+## 🤝 **Contributing**
+
+Contributions are welcome! Please see our contributing guidelines and submit pull requests to the `feature/version-3` branch.
+
+## 📄 **License**
+
+This package is open-sourced software licensed under the [MIT license](LICENSE).
 - **Encrypted Fields Security**: Advanced security analysis for encrypted database fields
 
 ### 🔄 **Planned Modular Features**
