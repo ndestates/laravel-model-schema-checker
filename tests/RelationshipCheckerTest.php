@@ -383,7 +383,7 @@ class RelationshipCheckerTest extends TestCase
             if (!empty($issue)) {
                 $this->assertArrayHasKey('category', $issue);
                 $this->assertArrayHasKey('type', $issue);
-                $this->assertArrayHasKey('data', $issue);
+                $this->assertArrayHasKey('checker', $issue);
             }
         }
     }

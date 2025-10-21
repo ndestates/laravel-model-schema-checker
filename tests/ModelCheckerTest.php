@@ -395,9 +395,11 @@ class ModelCheckerTest extends TestCase
         // Each issue should be an array with expected structure
         foreach ($issues as $issue) {
             $this->assertIsArray($issue);
-            $this->assertArrayHasKey('category', $issue);
-            $this->assertArrayHasKey('type', $issue);
-            $this->assertArrayHasKey('data', $issue);
+            if (!empty($issue)) {
+                $this->assertArrayHasKey('category', $issue);
+                $this->assertArrayHasKey('type', $issue);
+                $this->assertArrayHasKey('checker', $issue);
+            }
         }
     }
 

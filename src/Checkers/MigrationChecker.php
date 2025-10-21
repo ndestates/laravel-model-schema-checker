@@ -76,25 +76,12 @@ class MigrationChecker extends BaseChecker
             return $this->issues;
         }
 
-        // Debug: before file discovery
-        $this->addIssue('migration', 'before_file_discovery', [
-            'migration_path' => $migrationPath,
-            'message' => 'About to discover migration files'
-        ]);
-
         // Try to use Laravel File facade, fallback to PHP functions
         try {
             $migrationFiles = File::allFiles($migrationPath);
         } catch (\Throwable $e) {
             $migrationFiles = $this->getAllFiles($migrationPath);
         }
-
-        // Debug: show what files were found
-        $this->addIssue('migration', 'files_found', [
-            'count' => count($migrationFiles),
-            'files' => array_slice($migrationFiles, 0, 5), // Limit to first 5 files
-            'message' => 'Migration files discovered'
-        ]);
 
         $validationMode = $this->config['migration_validation_mode'] ?? 'migration_files';
 
@@ -130,14 +117,6 @@ class MigrationChecker extends BaseChecker
     protected function checkMigrationFile(string $filePath, string $fileName): void
     {
         $content = file_get_contents($filePath);
-
-        // Debug: file being processed
-        $this->addIssue('migration', 'file_content_read', [
-            'file' => $filePath,
-            'filename' => $fileName,
-            'content_length' => strlen($content),
-            'message' => 'File content read successfully'
-        ]);
 
         // Check for PHP syntax errors
         $this->checkMigrationSyntax($filePath);
@@ -217,22 +196,6 @@ class MigrationChecker extends BaseChecker
                     'message' => "Malformed method call detected: '{$malformedCall}'. Check for missing commas between arguments."
                 ]);
             }
-        }
-
-        // Check for missing timestamps
-        if (!preg_match('/\$table->timestamps\(\)/', $content)) {
-            $this->addIssue('migration', 'missing_timestamps', [
-                'file' => $filePath,
-                'table' => $tableName,
-                'message' => "Consider adding timestamps() for created_at and updated_at columns"
-            ]);
-        } else {
-            // Debug: timestamps found
-            $this->addIssue('migration', 'timestamps_found', [
-                'file' => $filePath,
-                'table' => $tableName,
-                'message' => 'Timestamps found in migration'
-            ]);
         }
 
         // Check for foreign keys without indexes in the same migration

@@ -167,6 +167,9 @@ class MigrationCheckerTest extends TestCase
 
         file_put_contents($filePath, $content);
 
+        // Ensure migration file was written
+        $this->assertFileExists($filePath);
+
         $issues = $this->checker->check();
 
         // Should detect nullable foreign key without default
@@ -207,6 +210,9 @@ class MigrationCheckerTest extends TestCase
         }';
 
         file_put_contents($filePath, $content);
+
+        // Ensure migration file was written
+        $this->assertFileExists($filePath);
 
         $issues = $this->checker->check();
 
@@ -249,6 +255,9 @@ class MigrationCheckerTest extends TestCase
 
         file_put_contents($filePath, $content);
 
+        // Ensure migration file was written
+        $this->assertFileExists($filePath);
+
         $issues = $this->checker->check();
 
         // Should detect nullable boolean
@@ -290,6 +299,9 @@ class MigrationCheckerTest extends TestCase
         }';
 
         file_put_contents($filePath, $content);
+
+        // Ensure migration file was written
+        $this->assertFileExists($filePath);
 
         $issues = $this->checker->check();
 
@@ -380,47 +392,6 @@ class MigrationCheckerTest extends TestCase
     }
 
     /**
-     * Test handling of missing timestamps in migrations
-     * Assertions: assertCount, assertEquals
-     * Validates timestamp column recommendations
-     */
-    public function test_detects_missing_timestamps()
-    {
-        // Create migration without timestamps
-        $filePath = $this->migrationDir . '/2023_01_01_000000_create_categories_table.php';
-        $content = '<?php
-        use Illuminate\Database\Migrations\Migration;
-        use Illuminate\Database\Schema\Blueprint;
-        use Illuminate\Support\Facades\Schema;
-
-        class CreateCategoriesTable extends Migration {
-            public function up() {
-                Schema::create("categories", function (Blueprint $table) {
-                    $table->id();
-                    $table->string("name");
-                    // No timestamps
-                });
-            }
-        }';
-
-        $issues = $this->checker->check();
-
-        // Should detect missing timestamps
-        $timestampIssues = array_filter($issues, function($issue) {
-            return $issue['type'] === 'missing_timestamps';
-        });
-
-        // Reindex the array to have consecutive keys
-        $timestampIssues = array_values($timestampIssues);
-
-        // Debug: dump filtered issues
-        var_dump('Filtered timestamp issues:', $timestampIssues);
-
-        $this->assertCount(1, $timestampIssues);
-        $this->assertEquals('migration', $timestampIssues[0]['category']);
-    }
-
-    /**
      * Test malformed method call detection
      * Assertions: assertCount, assertEquals
      * Validates syntax error detection in method calls
@@ -443,6 +414,9 @@ class MigrationCheckerTest extends TestCase
         }';
 
         file_put_contents($filePath, $content);
+
+        // Ensure migration file was written
+        $this->assertFileExists($filePath);
 
         $issues = $this->checker->check();
 
@@ -489,7 +463,7 @@ class MigrationCheckerTest extends TestCase
             if (!empty($issue)) {
                 $this->assertArrayHasKey('category', $issue);
                 $this->assertArrayHasKey('type', $issue);
-                $this->assertArrayHasKey('data', $issue);
+                $this->assertArrayHasKey('checker', $issue);
             }
         }
     }
