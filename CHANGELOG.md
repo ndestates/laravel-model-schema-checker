@@ -41,7 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - 'database_schema': Validates current database schema for missing indexes and issues
   - 'both': Performs both types of validation
   - Enables production database health checks and legacy database analysis
-- **Configuration**: Expanded configuration system for testing environments (commit: [pending])
+- **Configuration**: Expanded configuration system for testing environments (commit: bc2fb83)
   - Added environment-specific settings (local, testing, staging, production)
   - File and path exclusions with glob pattern support
   - Performance thresholds configuration
