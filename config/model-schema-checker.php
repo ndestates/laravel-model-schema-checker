@@ -63,11 +63,14 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Constraint Check Settings
+    | Migration Validation Mode
     |--------------------------------------------------------------------------
     |
-    | Whether to ignore ID columns in constraint checks.
+    | Choose how migrations are validated:
+    | - 'migration_files': Validate migration files only (database-agnostic)
+    | - 'database_schema': Validate current database schema
+    | - 'both': Validate both migration files and database schema
     |
     */
-    'ignore_id_columns_in_constraint_check' => true,
+    'migration_validation_mode' => env('MSC_MIGRATION_MODE', 'migration_files'),
 ];
