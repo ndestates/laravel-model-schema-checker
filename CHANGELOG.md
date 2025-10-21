@@ -30,6 +30,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **MigrationChecker**: Added malformed method call detection (commit: df38f60)
   - Detects incorrect Laravel migration method calls like `$table->string('key'(255))` instead of `$table->string('key', 255)`
   - Prevents runtime TypeErrors from malformed argument syntax
+- **MigrationChecker**: Made database-agnostic (commit: [pending])
+  - Removed database schema dependency - now validates migration files directly
+  - Checks for foreign key indexes within migration files instead of current database
+  - Prevents false positives when developing on different databases (SQLite vs MySQL/MariaDB)
+  - Ensures migration validation works regardless of current database connection
 - **Granular Code Quality Checks**: New dedicated commands for targeted code quality analysis
   - `--check-models`: Check model quality (fillable, relationships, etc.)
   - `--check-models-exclude=*`: Exclude specific model files from checks

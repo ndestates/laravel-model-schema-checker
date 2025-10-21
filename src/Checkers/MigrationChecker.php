@@ -14,7 +14,7 @@ class MigrationChecker extends BaseChecker
 
     public function getDescription(): string
     {
-        return 'Check migration consistency, indexes, and foreign keys';
+        return 'Check migration syntax, consistency, and best practices';
     }
 
     public function check(): array
@@ -37,9 +37,6 @@ class MigrationChecker extends BaseChecker
                 $this->checkMigrationFile($file);
             }
         }
-
-        // Check for missing indexes
-        $this->checkMissingIndexes();
 
         // Check migration naming conventions
         $this->checkMigrationNaming($migrationFiles);
@@ -140,74 +137,36 @@ class MigrationChecker extends BaseChecker
                 'message' => "Consider adding timestamps() for created_at and updated_at columns"
             ]);
         }
+
+        // Check for foreign keys without indexes in the same migration
+        $this->checkForeignKeysWithoutIndexes($content, $tableName, $filePath);
     }
 
-    protected function checkMissingIndexes(): void
+    protected function checkForeignKeysWithoutIndexes(string $content, string $tableName, string $filePath): void
     {
-        try {
-            $driver = DB::getDriverName();
-
-            // Get all tables based on database driver
-            if ($driver === 'sqlite') {
-                $tables = DB::select("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'");
-                $tableNames = array_column($tables, 'name');
-            } elseif ($driver === 'mysql') {
-                $tables = DB::select('SHOW TABLES');
-                $databaseName = DB::getDatabaseName();
-                $tableNames = [];
-                foreach ($tables as $table) {
-                    $tableNames[] = $table->{'Tables_in_' . $databaseName};
-                }
-            } elseif ($driver === 'pgsql') {
-                $tables = DB::select("SELECT tablename FROM pg_tables WHERE schemaname = 'public'");
-                $tableNames = array_column($tables, 'tablename');
-            } else {
-                $this->warn('Database driver not supported for index checking');
-                return;
-            }
-
-            foreach ($tableNames as $tableName) {
-                // Skip Laravel system tables
-                if (in_array($tableName, ['migrations', 'failed_jobs', 'cache', 'sessions'])) {
-                    continue;
-                }
-
-                // Check for foreign keys without indexes based on database driver
-                if ($driver === 'mysql') {
-                    $foreignKeys = DB::select("
-                        SELECT COLUMN_NAME
-                        FROM information_schema.KEY_COLUMN_USAGE
-                        WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND REFERENCED_TABLE_NAME IS NOT NULL
-                    ", [DB::getDatabaseName(), $tableName]);
-
-                    foreach ($foreignKeys as $fk) {
-                        $columnName = $fk->COLUMN_NAME;
-
-                        // Check if there's an index on this column
-                        $hasIndex = DB::select("
-                            SELECT 1
-                            FROM information_schema.STATISTICS
-                            WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?
-                        ", [DB::getDatabaseName(), $tableName, $columnName]);
-
-                        if (empty($hasIndex)) {
-                            $this->addIssue('migration', 'missing_foreign_key_index', [
-                                'table' => $tableName,
-                                'column' => $columnName,
-                                'message' => "Foreign key column '{$columnName}' in table '{$tableName}' should have an index for performance"
-                            ]);
-                        }
-                    }
-                } elseif ($driver === 'sqlite') {
-                    // SQLite foreign key detection is complex, skip for now
-                    continue;
-                } elseif ($driver === 'pgsql') {
-                    // PostgreSQL foreign key checking could be added here
-                    continue;
+        // Find all foreign key definitions in this migration
+        if (preg_match_all('/\$table->foreignId\(([^)]+)\)/', $content, $foreignKeyMatches)) {
+            $foreignKeyColumns = [];
+            foreach ($foreignKeyMatches[1] as $columnDef) {
+                // Extract column name from the definition
+                if (preg_match('/[\'"]([^\'"]+)[\'"]/', $columnDef, $columnMatch)) {
+                    $foreignKeyColumns[] = $columnMatch[1];
                 }
             }
-        } catch (\Exception $e) {
-            $this->warn("Could not check database indexes: " . $e->getMessage());
+
+            // Check if each foreign key column has an index defined in the same migration
+            foreach ($foreignKeyColumns as $fkColumn) {
+                // Look for index creation for this column
+                $indexPattern = '/\$table->index\(\s*[\'"](?:' . preg_quote($fkColumn, '/') . ')[\'"]\s*(?:,|\))/';
+                if (!preg_match($indexPattern, $content)) {
+                    $this->addIssue('migration', 'foreign_key_without_index', [
+                        'file' => $filePath,
+                        'table' => $tableName,
+                        'column' => $fkColumn,
+                        'message' => "Foreign key column '{$fkColumn}' should have an index for performance. Add: \$table->index('{$fkColumn}');"
+                    ]);
+                }
+            }
         }
     }
 
