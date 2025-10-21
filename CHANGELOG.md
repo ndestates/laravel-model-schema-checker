@@ -51,6 +51,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Validation Rules Parsing** (commit: 916720f): Fixed array/string rule format handling
 - **Filament Class Loading** (commit: 1dcb3ca, f03b6bd): Enhanced autoloading and detection
 - **Security Fields**: Added password, two_factor_* to excluded fields
+- **MigrationChecker Timestamps**: Removed timestamps validation since it's normal for some tables (pivot tables, lookup tables) to not have created_at/updated_at columns
+- **Test Cleanup**: Removed test_detects_missing_timestamps test and cleaned up temporary debug output from MigrationCheckerTest
 
 ### 🧪 **Testing Infrastructure Overhaul**
 - **Comprehensive Unit Tests**: Added 46 tests with 176 assertions covering core functionality
