@@ -48,7 +48,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Output format options (console, json, xml)
   - Granular rule enable/disable controls
   - Custom validation rules support
-- **Configuration**: Added default exclusions and additional options (commit: [pending])
+- **Configuration**: Added default exclusions and additional options (commit: aa2cb8a)
   - Default exclusion of App\Models\User model
   - Migration subdirectory exclusions (old/, archive/, legacy/, backup/, deprecated/, v*/)
   - Additional file exclusions (.git/, .svn/, .DS_Store, Thumbs.db)
