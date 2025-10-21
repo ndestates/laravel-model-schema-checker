@@ -35,7 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Checks for foreign key indexes within migration files instead of current database
   - Prevents false positives when developing on different databases (SQLite vs MySQL/MariaDB)
   - Ensures migration validation works regardless of current database connection
-- **MigrationChecker**: Added configurable database schema validation (commit: [pending])
+- **MigrationChecker**: Added configurable database schema validation (commit: b6977d9)
   - Added `migration_validation_mode` config option with choices: 'migration_files', 'database_schema', 'both'
   - 'migration_files': Database-agnostic validation of migration syntax and best practices
   - 'database_schema': Validates current database schema for missing indexes and issues
