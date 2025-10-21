@@ -21,10 +21,9 @@ class DataExporter
         'telescope_monitoring',
     ];
 
-    public function __construct()
+    public function __construct(string $exportPath = null)
     {
-        $this->exportPath = storage_path('app/exports');
-        $this->ensureExportDirectoryExists();
+        $this->exportPath = $exportPath ?? storage_path('app/exports');
     }
 
     /**
@@ -32,6 +31,7 @@ class DataExporter
      */
     public function exportDatabaseData(array $options = []): string
     {
+        $this->ensureExportDirectoryExists();
         $filename = $this->generateFilename('sql');
         $filepath = $this->exportPath . '/' . $filename;
 
@@ -62,6 +62,7 @@ class DataExporter
      */
     public function exportTables(array $tableNames, array $options = []): string
     {
+        $this->ensureExportDirectoryExists();
         $filename = $this->generateFilename('sql', 'tables_' . implode('_', $tableNames));
         $filepath = $this->exportPath . '/' . $filename;
 
