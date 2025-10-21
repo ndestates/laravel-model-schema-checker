@@ -29,6 +29,28 @@ return [
         'deleted_at',
         'email_verified_at',
         'remember_token',
+        'password',
+        'two_factor_secret',
+        'two_factor_recovery_codes',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Excluded Models
+    |--------------------------------------------------------------------------
+    |
+    | Model classes to exclude from validation. Useful for standard Laravel models
+    | or third-party package models you don't want to validate.
+    |
+    */
+    'excluded_models' => [
+        // Standard Laravel models
+        'App\Models\User',
+
+        // Common third-party models (uncomment to exclude)
+        // 'Spatie\Permission\Models\Role',
+        // 'Spatie\Permission\Models\Permission',
+        // 'Laravel\Sanctum\PersonalAccessToken',
     ],
 
     /*
@@ -121,13 +143,27 @@ return [
             '**/storage/**',
             '**/bootstrap/cache/**',
             '**/*.log',
-            '**/tests/**', // Can be overridden for testing environments
+            '**/tests/**',
+            '**/test/**',
+            '**/.git/**',
+            '**/.svn/**',
+            '**/.DS_Store',
+            '**/Thumbs.db',
         ],
         'models' => [
-            // Exclude specific model files
+            // Exclude specific model files by path pattern
+            '**/vendor/**',
         ],
         'migrations' => [
-            // Exclude specific migration files
+            // Exclude migration subdirectories that contain legacy/old migrations
+            '**/migrations/old/**',
+            '**/migrations/archive/**',
+            '**/migrations/legacy/**',
+            '**/migrations/backup/**',
+            '**/migrations/deprecated/**',
+            '**/migrations/v*/**', // Versioned migration directories
+            // Exclude vendor package migrations
+            '**/vendor/**',
         ],
     ],
 
@@ -180,5 +216,44 @@ return [
         'custom' => [
             // Space for custom validation rules
         ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Excluded Database Tables
+    |--------------------------------------------------------------------------
+    |
+    | Database tables to exclude from schema validation. Useful for third-party
+    | package tables or system tables you don't want to validate.
+    |
+    */
+    'excluded_tables' => [
+        // Laravel system tables
+        'migrations',
+        'failed_jobs',
+        'cache',
+        'sessions',
+        'password_resets',
+
+        // Common third-party tables (uncomment to exclude)
+        // 'personal_access_tokens', // Laravel Sanctum
+        // 'model_has_permissions', // Spatie Permission
+        // 'model_has_roles',       // Spatie Permission
+        // 'permissions',            // Spatie Permission
+        // 'roles',                  // Spatie Permission
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Cache Settings
+    |--------------------------------------------------------------------------
+    |
+    | Caching options to improve performance on large codebases.
+    |
+    */
+    'cache' => [
+        'enabled' => env('MSC_CACHE_ENABLED', true),
+        'ttl' => env('MSC_CACHE_TTL', 3600), // seconds
+        'store' => env('MSC_CACHE_STORE', 'file'),
     ],
 ];

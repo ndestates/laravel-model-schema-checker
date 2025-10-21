@@ -43,6 +43,11 @@ class MigrationChecker extends BaseChecker
         // Always check migration files for syntax and best practices
         foreach ($migrationFiles as $file) {
             if ($file->getExtension() === 'php') {
+                // Check if this migration file should be excluded
+                if ($this->shouldSkipFile($file->getPathname())) {
+                    $this->info("Skipping excluded migration: {$file->getPathname()}");
+                    continue;
+                }
                 $this->checkMigrationFile($file);
             }
         }

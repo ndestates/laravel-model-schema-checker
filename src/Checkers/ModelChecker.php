@@ -70,6 +70,12 @@ class ModelChecker extends BaseChecker
             return;
         }
 
+        // Check if this model should be excluded from validation
+        if ($this->shouldSkipModel($className)) {
+            $this->info("Skipping excluded model: {$className}");
+            return;
+        }
+
         try {
             // Check if the class is abstract before trying to instantiate it
             $reflection = new \ReflectionClass($className);

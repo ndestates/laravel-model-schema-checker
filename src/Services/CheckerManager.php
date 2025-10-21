@@ -53,7 +53,7 @@ class CheckerManager
 
     public function shouldSkipModel(string $modelClass): bool
     {
-        $excludeModels = $this->config['exclude_patterns']['models'] ?? [];
+        $excludeModels = $this->config['excluded_models'] ?? [];
 
         return in_array($modelClass, $excludeModels);
     }

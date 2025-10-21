@@ -59,9 +59,9 @@ abstract class BaseChecker implements CheckerInterface
         return app(\NDEstates\LaravelModelSchemaChecker\Services\CheckerManager::class)->shouldSkipFile($filePath);
     }
 
-    protected function getPerformanceThreshold(string $threshold): mixed
+    protected function shouldSkipModel(string $modelClass): bool
     {
-        return app(\NDEstates\LaravelModelSchemaChecker\Services\CheckerManager::class)->getPerformanceThreshold($threshold);
+        return app(\NDEstates\LaravelModelSchemaChecker\Services\CheckerManager::class)->shouldSkipModel($modelClass);
     }
 
     protected function isStrictMode(): bool

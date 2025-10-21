@@ -48,6 +48,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Output format options (console, json, xml)
   - Granular rule enable/disable controls
   - Custom validation rules support
+- **Configuration**: Added default exclusions and additional options (commit: [pending])
+  - Default exclusion of App\Models\User model
+  - Migration subdirectory exclusions (old/, archive/, legacy/, backup/, deprecated/, v*/)
+  - Additional file exclusions (.git/, .svn/, .DS_Store, Thumbs.db)
+  - Excluded database tables configuration for schema validation
+  - Cache settings for performance optimization
+  - Enhanced security field exclusions (password, two_factor_*)
 - **Granular Code Quality Checks**: New dedicated commands for targeted code quality analysis
   - `--check-models`: Check model quality (fillable, relationships, etc.)
   - `--check-models-exclude=*`: Exclude specific model files from checks
