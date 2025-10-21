@@ -200,7 +200,7 @@ abstract class BaseChecker implements CheckerInterface
                 WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND REFERENCED_TABLE_NAME IS NOT NULL
             ", [$databaseName, $tableName]);
 
-            return array_map(function($constraint) {
+            return array_map(function ($constraint) {
                 return [
                     'column' => $constraint->column,
                     'references' => $constraint->references_table . '.' . $constraint->references_column,

@@ -1,21 +1,6 @@
 <?php
 
-class ModelChecker extends BaseChecker
-{
-    public function getName(): string
-    {
-        return 'Model Checker';
-    }
-
-    public function getDescription(): string
-    {
-        return 'Check model fillable properties, relationships, and table integrity';
-    }
-
-    protected function getRuleName(): ?string
-    {
-        return 'model_fillable_check';
-    }DEstates\LaravelModelSchemaChecker\Checkers;
+namespace NDEstates\LaravelModelSchemaChecker\Checkers;
 
 use Illuminate\Support\Facades\File;
 use NDEstates\LaravelModelSchemaChecker\Models\CodeImprovement;
@@ -92,7 +77,6 @@ class ModelChecker extends BaseChecker
 
             $this->checkModelFillableProperties($model, $className, $file->getPathname());
             $this->checkModelTable($model, $className, $file->getPathname());
-
         } catch (\Exception $e) {
             $this->addIssue('Model', 'reflection_error', [
                 'file' => $file->getPathname(),
@@ -125,9 +109,10 @@ class ModelChecker extends BaseChecker
         // Check for missing fillable properties
         $missingFillable = [];
         foreach ($tableColumns as $column) {
-            if (!in_array($column, $fillable) &&
-                !in_array($column, $this->config['excluded_fields'] ?? ['id', 'created_at', 'updated_at'])) {
-
+            if (
+                !in_array($column, $fillable) &&
+                !in_array($column, $this->config['excluded_fields'] ?? ['id', 'created_at', 'updated_at'])
+            ) {
                 // If fillable is empty or guarded contains '*', suggest adding to fillable
                 if (empty($fillable) || in_array('*', $guarded)) {
                     $missingFillable[] = $column;
@@ -208,7 +193,7 @@ class ModelChecker extends BaseChecker
             return '[]';
         }
 
-        $formatted = array_map(function($column) {
+        $formatted = array_map(function ($column) {
             return "        '{$column}'";
         }, $columns);
 

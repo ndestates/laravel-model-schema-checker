@@ -1,21 +1,6 @@
 <?php
 
-class RelationshipChecker extends BaseChecker
-{
-    public function getName(): string
-    {
-        return 'Relationship Checker';
-    }
-
-    public function getDescription(): string
-    {
-        return 'Check model relationships for integrity and consistency';
-    }
-
-    protected function getRuleName(): ?string
-    {
-        return 'relationship_integrity';
-    }DEstates\LaravelModelSchemaChecker\Checkers;
+namespace NDEstates\LaravelModelSchemaChecker\Checkers;
 
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
@@ -77,7 +62,6 @@ class RelationshipChecker extends BaseChecker
 
             // Check relationship naming conventions
             $this->checkRelationshipNaming($reflection, $content, $file->getPathname());
-
         } catch (\Exception $e) {
             $this->addIssue('relationship', 'reflection_error', [
                 'file' => $file->getPathname(),
@@ -148,7 +132,7 @@ class RelationshipChecker extends BaseChecker
 
         // This is a simplified check - in a real implementation, you'd need to analyze
         // the related models to check for inverse relationships
-        $hasManyRelationships = array_filter($relationships, function($rel) {
+        $hasManyRelationships = array_filter($relationships, function ($rel) {
             return in_array($rel, ['hasMany', 'belongsToMany', 'morphMany', 'morphToMany']);
         });
 
@@ -207,7 +191,6 @@ class RelationshipChecker extends BaseChecker
                     }
                 }
             }
-
         } catch (\Exception $e) {
             // Skip if model can't be instantiated or table doesn't exist
         }

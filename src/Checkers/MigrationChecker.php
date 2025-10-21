@@ -289,3 +289,4 @@ class MigrationChecker extends BaseChecker
             $this->warn("Could not check database schema: " . $e->getMessage());
         }
     }
+}

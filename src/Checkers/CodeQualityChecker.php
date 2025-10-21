@@ -136,8 +136,10 @@ class CodeQualityChecker extends BaseChecker
         }
 
         // Check for fillable/mass assignment protection
-        if (!preg_match('/protected\s+\$fillable\s*=/', $content) &&
-            !preg_match('/protected\s+\$guarded\s*=/', $content)) {
+        if (
+            !preg_match('/protected\s+\$fillable\s*=/', $content) &&
+            !preg_match('/protected\s+\$guarded\s*=/', $content)
+        ) {
             $this->addIssue('code_quality', 'missing_mass_assignment_protection', [
                 'file' => $file->getPathname(),
                 'model' => $className,
@@ -355,8 +357,10 @@ class CodeQualityChecker extends BaseChecker
     protected function checkIndexUsage(string $content, string $fileName, string $filePath): void
     {
         // Check for indexed foreign keys
-        if (preg_match('/->foreign\(\s*[\'"]\w+[\'"]\s*\)/', $content) &&
-            !preg_match('/->index\(\s*\)/', $content)) {
+        if (
+            preg_match('/->foreign\(\s*[\'"]\w+[\'"]\s*\)/', $content) &&
+            !preg_match('/->index\(\s*\)/', $content)
+        ) {
             $this->addIssue('code_quality', 'unindexed_foreign_key', [
                 'file' => $filePath,
                 'migration' => $fileName,
@@ -458,8 +462,10 @@ class CodeQualityChecker extends BaseChecker
                 $content = File::get($file->getPathname());
 
                 // Check for try-catch blocks in methods that might throw exceptions
-                if (preg_match('/public\s+function\s+\w+\s*\([^)]*\)\s*\{[\s\S]*?\$this->[^}]+}/', $content) &&
-                    !preg_match('/try\s*\{[\s\S]*?}\s*catch\s*\(/', $content)) {
+                if (
+                    preg_match('/public\s+function\s+\w+\s*\([^)]*\)\s*\{[\s\S]*?\$this->[^}]+}/', $content) &&
+                    !preg_match('/try\s*\{[\s\S]*?}\s*catch\s*\(/', $content)
+                ) {
                     $this->addIssue('code_quality', 'missing_exception_handling', [
                         'file' => $file->getPathname(),
                         'filename' => $file->getFilename(),

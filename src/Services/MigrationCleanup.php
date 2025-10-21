@@ -216,7 +216,6 @@ class MigrationCleanup
                     $results['errors'][] = "Failed to backup file: {$file->getFilename()}";
                 }
             }
-
         } catch (\Exception $e) {
             $results['errors'][] = "Failed to create backup directory: {$e->getMessage()}";
         }
@@ -409,7 +408,7 @@ class MigrationCleanup
         }
 
         // Sort by date descending
-        usort($backups, function($a, $b) {
+        usort($backups, function ($a, $b) {
             return strtotime($b['date']) - strtotime($a['date']);
         });
 

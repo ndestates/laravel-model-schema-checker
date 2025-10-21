@@ -60,7 +60,7 @@ class FilamentChecker extends BaseChecker
                 if ($class) {
                     // Try autoloading first
                     $classExists = class_exists($class);
-                    
+
                     // If autoloading fails, try to include the file directly
                     if (!$classExists) {
                         try {
@@ -70,7 +70,7 @@ class FilamentChecker extends BaseChecker
                             // Include failed, continue
                         }
                     }
-                    
+
                     if ($classExists) {
                         // Check if Filament is available before checking subclass
                         if (class_exists(\Filament\Resources\Resource::class) && is_subclass_of($class, \Filament\Resources\Resource::class)) {
@@ -283,7 +283,6 @@ class FilamentChecker extends BaseChecker
                 ]);
                 return;
             }
-
         } catch (\Throwable $e) {
             $this->addIssue('filament', 'filament_select_relationship_error', [
                 'component_type' => $componentType,

@@ -20,15 +20,15 @@ class CheckerManager
     protected Command $command;
     protected array $config;
 
-    public function __construct(array $config = [])
+    public function __construct(array $config = [], ?string $environment = null)
     {
-        $this->config = $this->mergeEnvironmentConfig($config);
+        $this->config = $this->mergeEnvironmentConfig($config, $environment);
         $this->registerDefaultCheckers();
     }
 
-    protected function mergeEnvironmentConfig(array $config): array
+    protected function mergeEnvironmentConfig(array $config, ?string $environment = null): array
     {
-        $env = app()->environment();
+        $env = $environment ?? app()->environment();
 
         // Merge environment-specific settings
         if (isset($config['environments'][$env])) {
@@ -168,7 +168,7 @@ class CheckerManager
 
     public function getAvailableCheckers(): array
     {
-        return array_map(function($checker) {
+        return array_map(function ($checker) {
             return [
                 'name' => $checker->getName(),
                 'description' => $checker->getDescription(),

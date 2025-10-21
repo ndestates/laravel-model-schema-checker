@@ -362,8 +362,10 @@ class LaravelFormsChecker extends BaseChecker
     protected function checkLivewireValidation(string $content, string $className, string $filePath): void
     {
         // Check for validation rules
-        if (!preg_match('/protected\s+\$rules\s*=/', $content) &&
-            !preg_match('/public\s+function\s+rules\(\)/', $content)) {
+        if (
+            !preg_match('/protected\s+\$rules\s*=/', $content) &&
+            !preg_match('/public\s+function\s+rules\(\)/', $content)
+        ) {
             $this->addIssue('forms', 'missing_livewire_validation_rules', [
                 'file' => $filePath,
                 'component' => $className,
@@ -471,8 +473,10 @@ class LaravelFormsChecker extends BaseChecker
         // Check for proper property initialization
         if (preg_match('/public\s+\$([a-zA-Z_][a-zA-Z0-9_]*)\s*;/', $content, $matches)) {
             $property = $matches[1];
-            if (!preg_match("/\\\$this->{$property}\s*=\s*[^;]+;/", $content) &&
-                !preg_match("/public\s+function\s+mount\s*\([^)]*\)\s*\{[\s\S]*?\\\$this->{$property}/", $content)) {
+            if (
+                !preg_match("/\\\$this->{$property}\s*=\s*[^;]+;/", $content) &&
+                !preg_match("/public\s+function\s+mount\s*\([^)]*\)\s*\{[\s\S]*?\\\$this->{$property}/", $content)
+            ) {
                 $this->addIssue('forms', 'uninitialized_property', [
                     'file' => $filePath,
                     'component' => $className,
@@ -704,7 +708,6 @@ class LaravelFormsChecker extends BaseChecker
                 'required_fields' => $requiredFields,
                 'file_path' => $file->getPathname()
             ];
-
         } catch (\Exception $e) {
             // Skip models that can't be analyzed
             return null;
@@ -1007,8 +1010,10 @@ class LaravelFormsChecker extends BaseChecker
         }
 
         // Text areas for long text
-        if ((stripos($dbType, 'text') !== false || stripos($dbType, 'varchar') !== false) &&
-            strlen($dbType) > 10 && $formType === 'text') { // Rough check for longer text fields
+        if (
+            (stripos($dbType, 'text') !== false || stripos($dbType, 'varchar') !== false) &&
+            strlen($dbType) > 10 && $formType === 'text'
+        ) { // Rough check for longer text fields
             return [
                 'type' => 'textarea',
                 'message' => "Field '{$fieldName}' appears to store longer text. Consider using a textarea instead of input."
@@ -1452,7 +1457,6 @@ class LaravelFormsChecker extends BaseChecker
                     File::put($file, $content);
                     $this->info("  ✅ Fixed " . count($issues) . " issues (backup created: " . basename($backupFile) . ")");
                 }
-
             } catch (\Exception $e) {
                 $results['errors']++;
                 $this->error("  ❌ Error processing {$file}: " . $e->getMessage());

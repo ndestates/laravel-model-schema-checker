@@ -81,7 +81,6 @@ class ValidationChecker extends BaseChecker
 
             // Check for validation methods
             $this->checkValidationMethods($content, $file->getPathname(), $className);
-
         } catch (\Exception $e) {
             // Skip models that can't be instantiated
         }
@@ -118,10 +117,11 @@ class ValidationChecker extends BaseChecker
 
             // Check for required fields without validation
             foreach ($columns as $columnName => $columnInfo) {
-                if ($columnInfo['nullable'] === false &&
+                if (
+                    $columnInfo['nullable'] === false &&
                     !in_array($columnName, ['id', 'created_at', 'updated_at']) &&
-                    !isset($rules[$columnName])) {
-
+                    !isset($rules[$columnName])
+                ) {
                     $this->addIssue('validation', 'missing_required_validation', [
                         'file' => $filePath,
                         'model' => $className,
@@ -138,7 +138,6 @@ class ValidationChecker extends BaseChecker
                     $this->checkRuleConsistency($field, $ruleString, $columns[$field], $filePath, $className);
                 }
             }
-
         } catch (\Exception $e) {
             // Skip if table doesn't exist or can't be queried
         }

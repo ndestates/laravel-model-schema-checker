@@ -375,7 +375,9 @@ return new class extends Migration
             $indexGroups = [];
             foreach ($indexes as $index) {
                 $keyName = $index->Key_name;
-                if ($keyName === 'PRIMARY') continue;
+                if ($keyName === 'PRIMARY') {
+                    continue;
+                }
 
                 if (!isset($indexGroups[$keyName])) {
                     $indexGroups[$keyName] = [

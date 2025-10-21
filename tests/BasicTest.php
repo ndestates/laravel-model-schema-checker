@@ -127,9 +127,9 @@ class BasicTest extends TestCase
         );
 
         $signature = $command->getSynopsis();
-        $this->assertStringContains('--fix-migrations', $signature);
-        $this->assertStringContains('--rollback-migrations', $signature);
-        $this->assertStringContains('--backup-db', $signature);
-        $this->assertStringContains('--dry-run', $signature);
+        $this->assertStringContainsString('--fix-migrations', $signature);
+        $this->assertStringContainsString('--rollback-migrations', $signature);
+        $this->assertStringContainsString('--backup-db', $signature);
+        $this->assertStringContainsString('--dry-run', $signature);
     }
 }

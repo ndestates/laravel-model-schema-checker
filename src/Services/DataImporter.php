@@ -75,7 +75,6 @@ class DataImporter
                 DB::rollBack();
                 $results['warnings'][] = 'Dry run mode - no changes were made to the database';
             }
-
         } catch (\Exception $e) {
             DB::rollBack();
             $results['success'] = false;
@@ -185,9 +184,11 @@ class DataImporter
         } elseif (stripos($statement, 'SET') === 0) {
             // Handle SET statements (like SET FOREIGN_KEY_CHECKS)
             $this->executeSetStatement($statement);
-        } elseif (stripos($statement, 'START TRANSACTION') === 0 ||
+        } elseif (
+            stripos($statement, 'START TRANSACTION') === 0 ||
                   stripos($statement, 'COMMIT') === 0 ||
-                  stripos($statement, 'BEGIN') === 0) {
+                  stripos($statement, 'BEGIN') === 0
+        ) {
             // Transaction control statements - skip as we handle transactions ourselves
         } else {
             // Execute other statements

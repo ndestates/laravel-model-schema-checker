@@ -508,7 +508,6 @@ class ModelSchemaCheckCommand extends Command
             }
 
             return Command::SUCCESS;
-
         } catch (\Exception $e) {
             $this->error("Failed to generate migrations: {$e->getMessage()}");
             return Command::FAILURE;
@@ -529,7 +528,6 @@ class ModelSchemaCheckCommand extends Command
             $this->line("File size: " . number_format($fileSize / 1024 / 1024, 2) . " MB");
 
             return Command::SUCCESS;
-
         } catch (\Exception $e) {
             $this->error("Failed to export database data: {$e->getMessage()}");
             return Command::FAILURE;
@@ -614,7 +612,6 @@ class ModelSchemaCheckCommand extends Command
             }
 
             return Command::SUCCESS;
-
         } catch (\Exception $e) {
             $this->error("Import failed: {$e->getMessage()}");
             return Command::FAILURE;
@@ -723,7 +720,6 @@ class ModelSchemaCheckCommand extends Command
                         $this->line("  - {$error}");
                     }
                 }
-
             } catch (\Exception $e) {
                 $this->error("Cleanup failed: {$e->getMessage()}");
                 return Command::FAILURE;
@@ -1246,7 +1242,7 @@ return new class extends Migration
         $issues = $this->checkerManager->runAllChecks();
 
         // Filter for migration-related issues that can be fixed
-        $migrationIssues = array_filter($issues, function($issue) {
+        $migrationIssues = array_filter($issues, function ($issue) {
             return isset($issue['type']) && str_starts_with($issue['type'], 'migration_');
         });
 
