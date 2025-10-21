@@ -7,6 +7,13 @@ use Illuminate\Support\Facades\File;
 
 class MigrationChecker extends BaseChecker
 {
+    protected ?string $migrationPath;
+
+    public function __construct(array $config = [], ?string $migrationPath = null)
+    {
+        parent::__construct($config);
+        $this->migrationPath = $migrationPath;
+    }
     public function getName(): string
     {
         return 'Migration Checker';
@@ -22,33 +29,90 @@ class MigrationChecker extends BaseChecker
         return 'migration_syntax';
     }
 
+    protected function getDefaultMigrationPath(): string
+    {
+        if (function_exists('database_path')) {
+            try {
+                return database_path('migrations');
+            } catch (\Throwable $e) {
+                // Laravel environment not fully available
+                return '';
+            }
+        }
+        return '';
+    }
+
+    protected function isLaravelEnvironment(): bool
+    {
+        return function_exists('database_path') && function_exists('app_path');
+    }
+
+    protected function getAllFiles(string $directory): array
+    {
+        $files = [];
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($directory, \RecursiveDirectoryIterator::SKIP_DOTS)
+        );
+
+        foreach ($iterator as $file) {
+            if ($file->isFile()) {
+                $files[] = $file->getPathname();
+            }
+        }
+
+        return $files;
+    }
+
     public function check(): array
     {
         $this->info('');
         $this->info('Checking Migration Consistency');
         $this->info('==============================');
 
-        $migrationPath = database_path('migrations');
+        $migrationPath = $this->migrationPath ?? $this->getDefaultMigrationPath();
 
-        if (!File::exists($migrationPath)) {
+        if (!file_exists($migrationPath)) {
             $this->warn("Migrations directory not found: {$migrationPath}");
             return $this->issues;
         }
 
-        $migrationFiles = File::allFiles($migrationPath);
+        // Debug: before file discovery
+        $this->addIssue('migration', 'before_file_discovery', [
+            'migration_path' => $migrationPath,
+            'message' => 'About to discover migration files'
+        ]);
+
+        // Try to use Laravel File facade, fallback to PHP functions
+        try {
+            $migrationFiles = File::allFiles($migrationPath);
+        } catch (\Throwable $e) {
+            $migrationFiles = $this->getAllFiles($migrationPath);
+        }
+
+        // Debug: show what files were found
+        $this->addIssue('migration', 'files_found', [
+            'count' => count($migrationFiles),
+            'files' => array_slice($migrationFiles, 0, 5), // Limit to first 5 files
+            'message' => 'Migration files discovered'
+        ]);
+
         $validationMode = $this->config['migration_validation_mode'] ?? 'migration_files';
 
         $this->info("Migration validation mode: {$validationMode}");
 
         // Always check migration files for syntax and best practices
         foreach ($migrationFiles as $file) {
-            if ($file->getExtension() === 'php') {
+            $filePath = is_string($file) ? $file : $file->getPathname();
+            $fileName = is_string($file) ? basename($file) : $file->getFilename();
+            $fileExtension = is_string($file) ? pathinfo($file, PATHINFO_EXTENSION) : $file->getExtension();
+
+            if ($fileExtension === 'php') {
                 // Check if this migration file should be excluded
-                if ($this->shouldSkipFile($file->getPathname())) {
-                    $this->info("Skipping excluded migration: {$file->getPathname()}");
+                if ($this->shouldSkipFile($filePath)) {
+                    $this->info("Skipping excluded migration: {$filePath}");
                     continue;
                 }
-                $this->checkMigrationFile($file);
+                $this->checkMigrationFile($filePath, $fileName);
             }
         }
 
@@ -63,18 +127,25 @@ class MigrationChecker extends BaseChecker
         return $this->issues;
     }
 
-    protected function checkMigrationFile($file): void
+    protected function checkMigrationFile(string $filePath, string $fileName): void
     {
-        $content = file_get_contents($file->getPathname());
-        $fileName = $file->getFilename();
+        $content = file_get_contents($filePath);
+
+        // Debug: file being processed
+        $this->addIssue('migration', 'file_content_read', [
+            'file' => $filePath,
+            'filename' => $fileName,
+            'content_length' => strlen($content),
+            'message' => 'File content read successfully'
+        ]);
 
         // Check for PHP syntax errors
-        $this->checkMigrationSyntax($file->getPathname());
+        $this->checkMigrationSyntax($filePath);
 
         // Extract table name from migration
-        if (preg_match('/create_(\w+)_table/', $fileName, $matches)) {
+        if (preg_match('/(?:create|add)_(\w+)_table/', $fileName, $matches)) {
             $tableName = $matches[1];
-            $this->checkMigrationContent($content, $tableName, $file->getPathname());
+            $this->checkMigrationContent($content, $tableName, $filePath);
         }
     }
 
@@ -155,6 +226,13 @@ class MigrationChecker extends BaseChecker
                 'table' => $tableName,
                 'message' => "Consider adding timestamps() for created_at and updated_at columns"
             ]);
+        } else {
+            // Debug: timestamps found
+            $this->addIssue('migration', 'timestamps_found', [
+                'file' => $filePath,
+                'table' => $tableName,
+                'message' => 'Timestamps found in migration'
+            ]);
         }
 
         // Check for foreign keys without indexes in the same migration
@@ -192,12 +270,13 @@ class MigrationChecker extends BaseChecker
     protected function checkMigrationNaming($migrationFiles): void
     {
         foreach ($migrationFiles as $file) {
-            $fileName = $file->getFilename();
+            $fileName = is_string($file) ? basename($file) : $file->getFilename();
+            $filePath = is_string($file) ? $file : $file->getPathname();
 
             // Check naming convention: YYYY_MM_DD_HHMMSS_description.php
             if (!preg_match('/^\d{4}_\d{2}_\d{2}_\d{6}_[a-z][a-z0-9_]*\.php$/', $fileName)) {
                 $this->addIssue('migration', 'invalid_migration_name', [
-                    'file' => $file->getPathname(),
+                    'file' => $filePath,
                     'filename' => $fileName,
                     'message' => "Migration filename should follow convention: YYYY_MM_DD_HHMMSS_description.php"
                 ]);
@@ -209,7 +288,7 @@ class MigrationChecker extends BaseChecker
 
             if (strlen($description) < 5) {
                 $this->addIssue('migration', 'poor_migration_description', [
-                    'file' => $file->getPathname(),
+                    'file' => $filePath,
                     'description' => $description,
                     'message' => "Migration description '{$description}' is too short. Use descriptive names like 'create_users_table' or 'add_email_to_users'"
                 ]);

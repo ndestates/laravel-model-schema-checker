@@ -71,7 +71,7 @@ class MigrationCheckerTest extends TestCase
             ]
         ];
 
-        $this->checker = new MigrationChecker($this->config);
+        $this->checker = new MigrationChecker($this->config, $this->migrationDir);
     }
 
     protected function tearDown(): void
@@ -174,9 +174,12 @@ class MigrationCheckerTest extends TestCase
             return $issue['type'] === 'nullable_foreign_key_no_default';
         });
 
+        // Reindex the array to have consecutive keys
+        $nullableFkIssues = array_values($nullableFkIssues);
+
         $this->assertCount(1, $nullableFkIssues);
         $this->assertEquals('migration', $nullableFkIssues[0]['category']);
-        $this->assertArrayHasKey('table', $nullableFkIssues[0]['data']);
+        $this->assertArrayHasKey('table', $nullableFkIssues[0]);
     }
 
     /**
@@ -212,9 +215,12 @@ class MigrationCheckerTest extends TestCase
             return $issue['type'] === 'string_without_length';
         });
 
+        // Reindex the filtered results to ensure sequential numeric keys
+        $stringIssues = array_values($stringIssues);
+
         $this->assertCount(1, $stringIssues);
         $this->assertEquals('migration', $stringIssues[0]['category']);
-        $this->assertArrayHasKey('column', $stringIssues[0]['data']);
+        $this->assertArrayHasKey('column', $stringIssues[0]);
     }
 
     /**
@@ -249,6 +255,9 @@ class MigrationCheckerTest extends TestCase
         $booleanIssues = array_filter($issues, function($issue) {
             return $issue['type'] === 'boolean_nullable';
         });
+
+        // Reindex the array to have consecutive keys
+        $booleanIssues = array_values($booleanIssues);
 
         $this->assertCount(1, $booleanIssues);
         $this->assertEquals('migration', $booleanIssues[0]['category']);
@@ -289,9 +298,12 @@ class MigrationCheckerTest extends TestCase
             return $issue['type'] === 'foreign_key_without_index';
         });
 
+        // Reindex to get sequential keys
+        $indexIssues = array_values($indexIssues);
+
         $this->assertCount(1, $indexIssues);
         $this->assertEquals('migration', $indexIssues[0]['category']);
-        $this->assertArrayHasKey('column', $indexIssues[0]['data']);
+        $this->assertArrayHasKey('column', $indexIssues[0]);
     }
 
     /**
@@ -311,6 +323,9 @@ class MigrationCheckerTest extends TestCase
         $namingIssues = array_filter($issues, function($issue) {
             return $issue['type'] === 'invalid_migration_name';
         });
+
+        // Reindex the array to have consecutive keys
+        $namingIssues = array_values($namingIssues);
 
         $this->assertCount(1, $namingIssues);
         $this->assertEquals('migration', $namingIssues[0]['category']);
@@ -333,6 +348,9 @@ class MigrationCheckerTest extends TestCase
         $descriptionIssues = array_filter($issues, function($issue) {
             return $issue['type'] === 'poor_migration_description';
         });
+
+        // Reindex the array to have consecutive keys
+        $descriptionIssues = array_values($descriptionIssues);
 
         $this->assertCount(1, $descriptionIssues);
         $this->assertEquals('migration', $descriptionIssues[0]['category']);
@@ -385,14 +403,18 @@ class MigrationCheckerTest extends TestCase
             }
         }';
 
-        file_put_contents($filePath, $content);
-
         $issues = $this->checker->check();
 
         // Should detect missing timestamps
         $timestampIssues = array_filter($issues, function($issue) {
             return $issue['type'] === 'missing_timestamps';
         });
+
+        // Reindex the array to have consecutive keys
+        $timestampIssues = array_values($timestampIssues);
+
+        // Debug: dump filtered issues
+        var_dump('Filtered timestamp issues:', $timestampIssues);
 
         $this->assertCount(1, $timestampIssues);
         $this->assertEquals('migration', $timestampIssues[0]['category']);

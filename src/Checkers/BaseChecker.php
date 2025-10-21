@@ -70,8 +70,8 @@ abstract class BaseChecker implements CheckerInterface
         if (function_exists('app')) {
             try {
                 return app(\NDEstates\LaravelModelSchemaChecker\Services\CheckerManager::class)->shouldSkipFile($filePath);
-            } catch (\Exception $e) {
-                // In test environment, don't skip files
+            } catch (\Throwable $e) {
+                // In test environment or when Laravel is not fully initialized
                 return false;
             }
         }
@@ -83,7 +83,7 @@ abstract class BaseChecker implements CheckerInterface
         if (function_exists('app')) {
             try {
                 return app(\NDEstates\LaravelModelSchemaChecker\Services\CheckerManager::class)->shouldSkipModel($modelClass);
-            } catch (\Exception $e) {
+            } catch (\Throwable $e) {
                 // In test environment, don't skip models
                 return false;
             }
