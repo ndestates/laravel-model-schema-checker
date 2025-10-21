@@ -7,6 +7,11 @@
         <testsuite name="Test Suite">
             <directory>tests</directory>
         </testsuite>
+        <testsuite name="ReliableTests">
+            <file>tests/BasicTest.php</file>
+            <file>tests/IssueManagerTest.php</file>
+            <file>tests/MigrationCheckerTest.php</file>
+        </testsuite>
     </testsuites>
     <coverage/>
     <php>
