@@ -26,7 +26,18 @@ abstract class BaseChecker implements CheckerInterface
     protected function getIssueManager(): IssueManager
     {
         if ($this->issueManager === null) {
-            $this->issueManager = app(IssueManager::class);
+            // Check if Laravel app is available
+            if (function_exists('app')) {
+                try {
+                    $this->issueManager = app(IssueManager::class);
+                } catch (\Exception $e) {
+                    // In test environment or when Laravel is not fully initialized
+                    $this->issueManager = new IssueManager();
+                }
+            } else {
+                // Fallback for non-Laravel environments
+                $this->issueManager = new IssueManager();
+            }
         }
         return $this->issueManager;
     }
@@ -56,12 +67,28 @@ abstract class BaseChecker implements CheckerInterface
 
     protected function shouldSkipFile(string $filePath): bool
     {
-        return app(\NDEstates\LaravelModelSchemaChecker\Services\CheckerManager::class)->shouldSkipFile($filePath);
+        if (function_exists('app')) {
+            try {
+                return app(\NDEstates\LaravelModelSchemaChecker\Services\CheckerManager::class)->shouldSkipFile($filePath);
+            } catch (\Exception $e) {
+                // In test environment, don't skip files
+                return false;
+            }
+        }
+        return false;
     }
 
     protected function shouldSkipModel(string $modelClass): bool
     {
-        return app(\NDEstates\LaravelModelSchemaChecker\Services\CheckerManager::class)->shouldSkipModel($modelClass);
+        if (function_exists('app')) {
+            try {
+                return app(\NDEstates\LaravelModelSchemaChecker\Services\CheckerManager::class)->shouldSkipModel($modelClass);
+            } catch (\Exception $e) {
+                // In test environment, don't skip models
+                return false;
+            }
+        }
+        return false;
     }
 
     protected function isStrictMode(): bool
