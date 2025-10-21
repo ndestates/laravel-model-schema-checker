@@ -52,10 +52,30 @@ class MigrationChecker extends BaseChecker
         $content = file_get_contents($file->getPathname());
         $fileName = $file->getFilename();
 
+        // Check for PHP syntax errors
+        $this->checkMigrationSyntax($file->getPathname());
+
         // Extract table name from migration
         if (preg_match('/create_(\w+)_table/', $fileName, $matches)) {
             $tableName = $matches[1];
             $this->checkMigrationContent($content, $tableName, $file->getPathname());
+        }
+    }
+
+    protected function checkMigrationSyntax(string $filePath): void
+    {
+        // Use PHP's built-in syntax checker
+        $output = [];
+        $returnCode = 0;
+        exec("php -l " . escapeshellarg($filePath) . " 2>&1", $output, $returnCode);
+
+        if ($returnCode !== 0) {
+            // Syntax error detected
+            $errorMessage = implode("\n", $output);
+            $this->addIssue('migration', 'syntax_error', [
+                'file' => $filePath,
+                'message' => "PHP syntax error in migration file: " . $errorMessage
+            ]);
         }
     }
 

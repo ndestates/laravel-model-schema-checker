@@ -23,6 +23,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [3.0.0] - 2025-10-19 (Unreleased - Feature Branch)
 
 ### Added
+- **MigrationChecker**: Added PHP syntax validation (commit: [pending])
+  - Validates migration files for PHP syntax errors before execution
+  - Catches malformed method calls like `$table->string('key'(255))` that would cause runtime errors
+  - Uses PHP's built-in syntax checker (`php -l`) for accurate error detection
 - **Granular Code Quality Checks**: New dedicated commands for targeted code quality analysis
   - `--check-models`: Check model quality (fillable, relationships, etc.)
   - `--check-models-exclude=*`: Exclude specific model files from checks
