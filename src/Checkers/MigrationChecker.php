@@ -120,6 +120,18 @@ class MigrationChecker extends BaseChecker
             ]);
         }
 
+        // Check for malformed method calls (e.g., $table->string('key'(255)) instead of $table->string('key', 255))
+        if (preg_match_all('/\$table->(\w+)\(\s*[^,)]+\([^)]*\)\s*\)/', $content, $matches)) {
+            foreach ($matches[0] as $malformedCall) {
+                $this->addIssue('migration', 'malformed_method_call', [
+                    'file' => $filePath,
+                    'table' => $tableName,
+                    'malformed_call' => $malformedCall,
+                    'message' => "Malformed method call detected: '{$malformedCall}'. Check for missing commas between arguments."
+                ]);
+            }
+        }
+
         // Check for missing timestamps
         if (!preg_match('/\$table->timestamps\(\)/', $content)) {
             $this->addIssue('migration', 'missing_timestamps', [
