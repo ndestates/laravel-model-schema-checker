@@ -55,6 +55,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Test Cleanup**: Removed test_detects_missing_timestamps test and cleaned up temporary debug output from MigrationCheckerTest
 - **CI Workflow Optimization**: Added ReliableTests test suite for CI to focus on stable unit tests and made static analysis warnings non-failing
 - **Test Environment Fixes**: Improved ServiceProviderTest config setup and marked complex integration tests for future evaluation
+- **PerformanceChecker N+1 Detection**: Fixed regex patterns to properly detect relationship access with method calls (e.g., `$user->posts->count()`)
+- **PerformanceChecker Config Paths**: Updated to use configurable paths instead of hardcoded `app_path()` calls for better testability
+- **PerformanceChecker Facade Agnostic**: Added facade-agnostic file operations to work in test environments without Laravel facades
+- **PerformanceCheckerTest Array Keys**: Fixed test assertions to properly handle array keys after filtering operations
 
 ### 🧪 **Testing Infrastructure Overhaul**
 - **Comprehensive Unit Tests**: Added 46 tests with 176 assertions covering core functionality
@@ -103,9 +107,9 @@ MSC_CACHE_ENABLED=true
 - **Architecture**: ✅ Complete (Modular services implemented)
 - **Checkers**: ✅ Complete (All major checkers implemented and enhanced)
 - **Configuration**: ✅ Complete (Comprehensive config system)
-- **Testing**: ✅ Complete (46 tests passing with 176 assertions)
+- **Testing**: ✅ Complete (46 tests passing with 176 assertions, PerformanceChecker tests fixed)
 - **Documentation**: 🚧 In Progress
-- **Production Ready**: ❌ Not yet (Requires documentation completion)
+- **Production Ready**: ❌ Not yet (Requires documentation completion and ServiceProviderTest fixes)
 
 ---
 

@@ -44,7 +44,7 @@ This will create a `config/model-schema-checker.php` file where you can customiz
 
 ## 🚀 **Version 3.0 - Modular Architecture (In Development)**
 
-**Current Status: ~85% Complete** - Major architecture overhaul with comprehensive configuration system.
+**Current Status: ~90% Complete** - Major architecture overhaul with comprehensive configuration system and fixed PerformanceChecker.
 
 The v3.0 release transforms the previous monolithic architecture into a modular, maintainable system with extensive configuration options.
 
@@ -80,6 +80,13 @@ The v3.0 release transforms the previous monolithic architecture into a modular,
 - **Database-Agnostic Validation**: Works regardless of current database connection
 - **Configurable Schema Validation**: Choose migration-files, database-schema, or both modes
 - **Smart Exclusions**: Automatically skips old/, archive/, legacy/ migration directories
+
+### 🔧 **Recent Fixes & Improvements**
+- **PerformanceChecker N+1 Detection**: Fixed regex patterns to properly detect relationship access with method calls (e.g., `$user->posts->count()`)
+- **PerformanceChecker Config Paths**: Updated to use configurable paths instead of hardcoded `app_path()` calls for better testability
+- **PerformanceChecker Facade Agnostic**: Added facade-agnostic file operations to work in test environments without Laravel facades
+- **PerformanceCheckerTest Array Keys**: Fixed test assertions to properly handle array keys after filtering operations
+- **Test Suite**: All PerformanceChecker tests now passing (14/14 tests)
 
 ## 📖 **Usage**
 

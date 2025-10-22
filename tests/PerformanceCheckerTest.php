@@ -68,6 +68,8 @@ class PerformanceCheckerTest extends TestCase
         mkdir($this->modelDir, 0755, true);
 
         $this->config = [
+            'controller_path' => $this->controllerDir,
+            'model_path' => $this->modelDir,
             'rules' => [
                 'enabled' => ['performance_checks' => true]
             ]
@@ -133,8 +135,9 @@ class UserController extends Controller {
         });
 
         $this->assertCount(1, $nPlusOneIssues);
+        $nPlusOneIssues = array_values($nPlusOneIssues); // Reset array keys
         $this->assertEquals('performance', $nPlusOneIssues[0]['category']);
-        $this->assertArrayHasKey('line', $nPlusOneIssues[0]['data']);
+        $this->assertArrayHasKey('line', $nPlusOneIssues[0]);
     }
 
     /**
@@ -268,8 +271,9 @@ class BatchController extends Controller {
         });
 
         $this->assertCount(1, $loopIssues);
+        $loopIssues = array_values($loopIssues); // Reset array keys
         $this->assertEquals('performance', $loopIssues[0]['category']);
-        $this->assertArrayHasKey('line', $loopIssues[0]['data']);
+        $this->assertArrayHasKey('line', $loopIssues[0]);
     }
 
     /**

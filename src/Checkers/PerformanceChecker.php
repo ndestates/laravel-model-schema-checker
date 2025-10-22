@@ -45,13 +45,13 @@ class PerformanceChecker extends BaseChecker
 
     protected function checkNPlusOneQueries(): void
     {
-        $controllerPath = app_path('Http/Controllers');
+        $controllerPath = $this->config['controller_path'] ?? app_path('Http/Controllers');
 
-        if (!File::exists($controllerPath)) {
+        if (!$this->fileExists($controllerPath)) {
             return;
         }
 
-        $controllerFiles = File::allFiles($controllerPath);
+        $controllerFiles = $this->getAllFiles($controllerPath);
 
         foreach ($controllerFiles as $file) {
             if ($file->getExtension() === 'php') {
@@ -67,8 +67,8 @@ class PerformanceChecker extends BaseChecker
     {
         // Pattern to detect foreach loops accessing relationships
         $loopPatterns = [
-            '/foreach\s*\([^}]*as\s+\$[a-zA-Z_][a-zA-Z0-9_]*\)\s*\{[^}]*\$[a-zA-Z_][a-zA-Z0-9_]*->[a-zA-Z_][a-zA-Z0-9_]*\s*;/',
-            '/foreach\s*\([^}]*as\s+\$[a-zA-Z_][a-zA-Z0-9_]*\)\s*:\s*[^}]*\$[a-zA-Z_][a-zA-Z0-9_]*->[a-zA-Z_][a-zA-Z0-9_]*\s*;/',
+            '/foreach\s*\([^}]*as\s+\$[a-zA-Z_][a-zA-Z0-9_]*\)\s*\{.*?\$[a-zA-Z_][a-zA-Z0-9_]*->[a-zA-Z_][a-zA-Z0-9_]*[^\r\n]*;/s',
+            '/foreach\s*\([^}]*as\s+\$[a-zA-Z_][a-zA-Z0-9_]*\)\s*:\s*.*?\$[a-zA-Z_][a-zA-Z0-9_]*->[a-zA-Z_][a-zA-Z0-9_]*[^\r\n]*;/s',
         ];
 
         foreach ($loopPatterns as $pattern) {
@@ -106,13 +106,13 @@ class PerformanceChecker extends BaseChecker
 
     protected function checkEagerLoading(): void
     {
-        $controllerPath = app_path('Http/Controllers');
+        $controllerPath = $this->config['controller_path'] ?? app_path('Http/Controllers');
 
-        if (!File::exists($controllerPath)) {
+        if (!$this->fileExists($controllerPath)) {
             return;
         }
 
-        $controllerFiles = File::allFiles($controllerPath);
+        $controllerFiles = $this->getAllFiles($controllerPath);
 
         foreach ($controllerFiles as $file) {
             if ($file->getExtension() === 'php') {
@@ -213,17 +213,17 @@ class PerformanceChecker extends BaseChecker
 
     protected function checkInefficientQueries(): void
     {
-        $controllerPath = app_path('Http/Controllers');
-        $modelPath = app_path('Models');
+        $controllerPath = $this->config['controller_path'] ?? app_path('Http/Controllers');
+        $modelPath = $this->config['model_path'] ?? app_path('Models');
 
         $paths = [$controllerPath, $modelPath];
 
         foreach ($paths as $path) {
-            if (!File::exists($path)) {
+            if (!$this->fileExists($path)) {
                 continue;
             }
 
-            $files = File::allFiles($path);
+            $files = $this->getAllFiles($path);
 
             foreach ($files as $file) {
                 if ($file->getExtension() === 'php') {
@@ -296,5 +296,35 @@ class PerformanceChecker extends BaseChecker
     protected function getLineNumberFromString(string $content, int $offset): int
     {
         return substr_count(substr($content, 0, $offset), "\n") + 1;
+    }
+
+    /**
+     * Check if a file or directory exists, using Laravel File facade if available
+     */
+    protected function fileExists(string $path): bool
+    {
+        return class_exists('\Illuminate\Support\Facades\File') && method_exists('\Illuminate\Support\Facades\File', 'exists')
+            ? \Illuminate\Support\Facades\File::exists($path)
+            : file_exists($path);
+    }
+
+    /**
+     * Get all files in a directory, using Laravel File facade if available
+     */
+    protected function getAllFiles(string $path): array
+    {
+        if (class_exists('\Illuminate\Support\Facades\File') && method_exists('\Illuminate\Support\Facades\File', 'allFiles')) {
+            return \Illuminate\Support\Facades\File::allFiles($path);
+        }
+
+        // Fallback to native PHP using RecursiveDirectoryIterator
+        $files = [];
+        $iterator = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($path));
+        foreach ($iterator as $file) {
+            if ($file->isFile()) {
+                $files[] = $file;
+            }
+        }
+        return $files;
     }
 }
