@@ -25,6 +25,9 @@ class CheckerManagerTest extends TestCase
         parent::setUp();
 
         $this->defaultConfig = [
+            'controller_path' => '/tmp/test_controllers',
+            'model_path' => '/tmp/test_models',
+            'view_path' => '/tmp/test_views',
             'excluded_models' => ['App\Models\User'],
             'exclude_patterns' => [
                 'files' => ['**/vendor/**', '**/node_modules/**'],

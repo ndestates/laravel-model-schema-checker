@@ -23,14 +23,14 @@ class ModelChecker extends BaseChecker
         $this->info('Checking Models');
         $this->info('================');
 
-        $modelsPath = $this->config['models_dir'] ?? app_path('Models');
+        $modelsPath = $this->config['models_dir'] ?? $this->config['model_path'] ?? $this->getDefaultModelPath();
 
-        if (!File::exists($modelsPath)) {
+        if (!$this->fileExists($modelsPath)) {
             $this->error("Models directory not found: {$modelsPath}");
             return $this->issues;
         }
 
-        $modelFiles = File::allFiles($modelsPath);
+        $modelFiles = $this->getAllFiles($modelsPath);
 
         foreach ($modelFiles as $file) {
             if ($file->getExtension() === 'php') {
@@ -44,7 +44,7 @@ class ModelChecker extends BaseChecker
     protected function checkModelFile(\SplFileInfo $file): void
     {
         $namespace = $this->getNamespaceFromFile($file->getPathname());
-        $className = $namespace . '\\' . $file->getFilenameWithoutExtension();
+        $className = $namespace . '\\' . pathinfo($file->getFilename(), PATHINFO_FILENAME);
 
         if (!class_exists($className)) {
             $this->addIssue('Model', 'class_not_found', [
@@ -207,5 +207,46 @@ class ModelChecker extends BaseChecker
             return $matches[1];
         }
         return '';
+    }
+
+    /**
+     * Check if a file or directory exists, using Laravel File facade if available
+     */
+    protected function fileExists(string $path): bool
+    {
+        return class_exists('\Illuminate\Support\Facades\File') && method_exists('\Illuminate\Support\Facades\File', 'exists')
+            ? \Illuminate\Support\Facades\File::exists($path)
+            : file_exists($path);
+    }
+
+    /**
+     * Get all files in a directory, using Laravel File facade if available
+     */
+    protected function getAllFiles(string $path): array
+    {
+        if (class_exists('\Illuminate\Support\Facades\File') && method_exists('\Illuminate\Support\Facades\File', 'allFiles')) {
+            return \Illuminate\Support\Facades\File::allFiles($path);
+        }
+
+        // Fallback to native PHP using RecursiveDirectoryIterator
+        $files = [];
+        $iterator = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($path));
+        foreach ($iterator as $file) {
+            if ($file->isFile()) {
+                $files[] = $file;
+            }
+        }
+        return $files;
+    }
+
+    protected function getDefaultModelPath(): string
+    {
+        try {
+            return app_path('Models');
+        } catch (\Throwable $e) {
+            // Laravel environment not fully available, return empty string
+            // This allows the checker to skip model checking gracefully
+            return '';
+        }
     }
 }

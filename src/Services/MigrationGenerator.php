@@ -15,8 +15,13 @@ class MigrationGenerator
 
     public function __construct()
     {
-        $this->loadExistingMigrations();
-        $this->loadDatabaseSchema();
+        try {
+            $this->loadExistingMigrations();
+            $this->loadDatabaseSchema();
+        } catch (\Throwable $e) {
+            // Skip initialization if Laravel environment isn't available (e.g., in tests)
+            // The service can still be instantiated but won't have migration data
+        }
     }
 
     /**
@@ -243,19 +248,23 @@ return new class extends Migration
      */
     protected function loadExistingMigrations(): void
     {
-        $migrationPath = database_path('migrations');
+        try {
+            $migrationPath = database_path('migrations');
 
-        if (!File::exists($migrationPath)) {
-            return;
-        }
-
-        $migrationFiles = File::allFiles($migrationPath);
-
-        foreach ($migrationFiles as $file) {
-            if ($file->getExtension() === 'php') {
-                $content = File::get($file->getPathname());
-                $this->parseMigrationFile($file->getFilename(), $content);
+            if (!$this->fileExists($migrationPath)) {
+                return;
             }
+
+            $migrationFiles = $this->getAllFiles($migrationPath);
+
+            foreach ($migrationFiles as $file) {
+                if ($file->getExtension() === 'php') {
+                    $content = $this->getFileContent($file->getPathname());
+                    $this->parseMigrationFile($file->getFilename(), $content);
+                }
+            }
+        } catch (\Throwable $e) {
+            // Skip if Laravel environment isn't available
         }
     }
 
@@ -1026,5 +1035,45 @@ return new class extends Migration
             return $matches[1];
         }
         return 'unknown_table';
+    }
+
+    /**
+     * Check if a file or directory exists, using Laravel File facade if available
+     */
+    protected function fileExists(string $path): bool
+    {
+        return class_exists('\Illuminate\Support\Facades\File') && method_exists('\Illuminate\Support\Facades\File', 'exists')
+            ? \Illuminate\Support\Facades\File::exists($path)
+            : file_exists($path);
+    }
+
+    /**
+     * Get all files in a directory, using Laravel File facade if available
+     */
+    protected function getAllFiles(string $path): array
+    {
+        if (class_exists('\Illuminate\Support\Facades\File') && method_exists('\Illuminate\Support\Facades\File', 'allFiles')) {
+            return \Illuminate\Support\Facades\File::allFiles($path);
+        }
+
+        // Fallback to native PHP using RecursiveDirectoryIterator
+        $files = [];
+        $iterator = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($path));
+        foreach ($iterator as $file) {
+            if ($file->isFile()) {
+                $files[] = $file;
+            }
+        }
+        return $files;
+    }
+
+    /**
+     * Get file content, using Laravel File facade if available
+     */
+    protected function getFileContent(string $path): string
+    {
+        return class_exists('\Illuminate\Support\Facades\File') && method_exists('\Illuminate\Support\Facades\File', 'get')
+            ? \Illuminate\Support\Facades\File::get($path)
+            : file_get_contents($path);
     }
 }

@@ -21,6 +21,11 @@ class SecurityChecker extends BaseChecker
 
     protected function getDefaultViewPath(): string
     {
+        // Use config value if available, otherwise try Laravel helper
+        if (isset($this->config['view_path'])) {
+            return $this->config['view_path'];
+        }
+
         try {
             return resource_path('views');
         } catch (\Exception $e) {
@@ -31,6 +36,11 @@ class SecurityChecker extends BaseChecker
 
     protected function getDefaultControllerPath(): string
     {
+        // Use config value if available, otherwise try Laravel helper
+        if (isset($this->config['controller_path'])) {
+            return $this->config['controller_path'];
+        }
+
         try {
             return app_path('Http/Controllers');
         } catch (\Exception $e) {
@@ -41,6 +51,11 @@ class SecurityChecker extends BaseChecker
 
     protected function getDefaultModelPath(): string
     {
+        // Use config value if available, otherwise try Laravel helper
+        if (isset($this->config['model_path'])) {
+            return $this->config['model_path'];
+        }
+
         try {
             return app_path('Models');
         } catch (\Exception $e) {

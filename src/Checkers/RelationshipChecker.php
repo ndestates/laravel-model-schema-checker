@@ -23,14 +23,14 @@ class RelationshipChecker extends BaseChecker
         $this->info('Checking Model Relationships');
         $this->info('===========================');
 
-        $modelsPath = app_path('Models');
+        $modelsPath = $this->config['model_path'] ?? $this->config['model_directories'][0] ?? app_path('Models');
 
-        if (!File::exists($modelsPath)) {
+        if (!$this->fileExists($modelsPath)) {
             $this->warn("Models directory not found: {$modelsPath}");
             return $this->issues;
         }
 
-        $modelFiles = File::allFiles($modelsPath);
+        $modelFiles = $this->getAllFiles($modelsPath);
 
         foreach ($modelFiles as $file) {
             if ($file->getExtension() === 'php') {
@@ -44,7 +44,7 @@ class RelationshipChecker extends BaseChecker
     protected function checkModelRelationshipsForFile($file): void
     {
         $namespace = $this->getNamespaceFromFile($file->getPathname());
-        $className = $namespace . '\\' . $file->getFilenameWithoutExtension();
+        $className = $namespace . '\\' . pathinfo($file->getFilename(), PATHINFO_FILENAME);
 
         if (!class_exists($className)) {
             return;
@@ -263,12 +263,52 @@ class RelationshipChecker extends BaseChecker
 
     protected function getNamespaceFromFile(string $filePath): string
     {
-        $content = File::get($filePath);
+        $content = $this->getFileContent($filePath);
 
         if (preg_match('/namespace\s+([^;]+);/i', $content, $matches)) {
             return $matches[1];
         }
 
         return '';
+    }
+
+    /**
+     * Check if a file or directory exists, using Laravel File facade if available
+     */
+    protected function fileExists(string $path): bool
+    {
+        return class_exists('\Illuminate\Support\Facades\File') && method_exists('\Illuminate\Support\Facades\File', 'exists')
+            ? \Illuminate\Support\Facades\File::exists($path)
+            : file_exists($path);
+    }
+
+    /**
+     * Get all files in a directory, using Laravel File facade if available
+     */
+    protected function getAllFiles(string $path): array
+    {
+        if (class_exists('\Illuminate\Support\Facades\File') && method_exists('\Illuminate\Support\Facades\File', 'allFiles')) {
+            return \Illuminate\Support\Facades\File::allFiles($path);
+        }
+
+        // Fallback to native PHP using RecursiveDirectoryIterator
+        $files = [];
+        $iterator = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($path));
+        foreach ($iterator as $file) {
+            if ($file->isFile()) {
+                $files[] = $file;
+            }
+        }
+        return $files;
+    }
+
+    /**
+     * Get file content, using Laravel File facade if available
+     */
+    protected function getFileContent(string $path): string
+    {
+        return class_exists('\Illuminate\Support\Facades\File') && method_exists('\Illuminate\Support\Facades\File', 'get')
+            ? \Illuminate\Support\Facades\File::get($path)
+            : file_get_contents($path);
     }
 }

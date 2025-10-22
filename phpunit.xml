@@ -12,6 +12,9 @@
             <file>tests/IssueManagerTest.php</file>
             <file>tests/MigrationCheckerTest.php</file>
         </testsuite>
+        <testsuite name="Suppliers">
+            <file>tests/SupplierTestingExamplesTest.php</file>
+        </testsuite>
     </testsuites>
     <coverage/>
     <php>
