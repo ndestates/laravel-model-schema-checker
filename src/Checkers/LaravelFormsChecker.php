@@ -54,7 +54,7 @@ class LaravelFormsChecker extends BaseChecker
         }
     }
 
-    protected function checkBladeFile($file): void
+    protected function checkBladeFile(\SplFileInfo $file): void
     {
         $content = File::get($file->getPathname());
         $fileName = $file->getFilename();
@@ -338,7 +338,7 @@ class LaravelFormsChecker extends BaseChecker
         }
     }
 
-    protected function checkLivewireComponent($file): void
+    protected function checkLivewireComponent(\Symfony\Component\Finder\SplFileInfo $file): void
     {
         $content = File::get($file->getPathname());
         $className = $file->getFilenameWithoutExtension();
@@ -654,7 +654,7 @@ class LaravelFormsChecker extends BaseChecker
         return $modelFields;
     }
 
-    protected function analyzeModelFields($file): ?array
+    protected function analyzeModelFields(\Symfony\Component\Finder\SplFileInfo $file): ?array
     {
         $namespace = $this->getNamespaceFromFile($file->getPathname());
         $className = $namespace . '\\' . $file->getFilenameWithoutExtension();
@@ -672,7 +672,15 @@ class LaravelFormsChecker extends BaseChecker
             }
 
             $model = new $className();
+
+            if (!$model instanceof \Illuminate\Database\Eloquent\Model) {
+                return null;
+            }
+
             $content = file_get_contents($file->getPathname());
+            if ($content === false) {
+                return null;
+            }
 
             // Get fillable/guarded properties
             $fillable = $model->getFillable();
@@ -794,7 +802,7 @@ class LaravelFormsChecker extends BaseChecker
         }
     }
 
-    protected function checkBladeFormForAmendments($file, array $modelFields): void
+    protected function checkBladeFormForAmendments(\SplFileInfo $file, array $modelFields): void
     {
         $content = File::get($file->getPathname());
         $fileName = $file->getFilename();
@@ -1114,7 +1122,7 @@ class LaravelFormsChecker extends BaseChecker
         }
     }
 
-    protected function checkLivewireFormForAmendments($file, array $modelFields): void
+    protected function checkLivewireFormForAmendments(\Symfony\Component\Finder\SplFileInfo $file, array $modelFields): void
     {
         $content = File::get($file->getPathname());
         $className = $file->getFilenameWithoutExtension();
@@ -1268,6 +1276,10 @@ class LaravelFormsChecker extends BaseChecker
     protected function getNamespaceFromFile(string $filePath): string
     {
         $content = file_get_contents($filePath);
+
+        if ($content === false) {
+            return '';
+        }
 
         if (preg_match('/namespace\s+([^;]+);/', $content, $matches)) {
             return $matches[1];
@@ -1659,8 +1671,14 @@ class LaravelFormsChecker extends BaseChecker
 
         if (preg_match($pattern, $content)) {
             $newContent = preg_replace($pattern, '$1$2$3$4', $content);
+            if ($newContent === null) {
+                return ['applied' => false, 'content' => $content, 'action' => 'Failed to remove required rule'];
+            }
             // Clean up any double pipes or leading/trailing pipes
             $newContent = preg_replace('/(\'' . preg_quote($field, '/') . '\'\s*=>\s*[\'"])\|+(\w)/', '$1$2', $newContent);
+            if ($newContent === null) {
+                return ['applied' => false, 'content' => $content, 'action' => 'Failed to clean up pipes'];
+            }
             $newContent = preg_replace('/(\w)\|+(\w)/', '$1|$2', $newContent);
 
             return [

@@ -52,7 +52,7 @@ class ValidationChecker extends BaseChecker
         }
     }
 
-    protected function checkModelValidationForFile($file): void
+    protected function checkModelValidationForFile(\Symfony\Component\Finder\SplFileInfo $file): void
     {
         $namespace = $this->getNamespaceFromFile($file->getPathname());
         $className = $namespace . '\\' . $file->getFilenameWithoutExtension();

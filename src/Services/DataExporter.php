@@ -5,6 +5,7 @@ namespace NDEstates\LaravelModelSchemaChecker\Services;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Auth;
 use Symfony\Component\Process\Process;
 use Carbon\Carbon;
 
@@ -143,7 +144,7 @@ class DataExporter
 -- Generated: {$timestamp}
 -- Database: {$database}
 -- Host: " . config('database.connections.mysql.host') . "
--- Exported by: " . (auth()->check() ? auth()->user()->email : 'System') . "
+-- Exported by: " . (Auth::check() ? (Auth::user()?->email ?? 'Unknown') : 'System') . "
 
 SET FOREIGN_KEY_CHECKS = 0;
 SET SQL_MODE = 'NO_AUTO_VALUE_ON_ZERO';
@@ -248,7 +249,7 @@ SET FOREIGN_KEY_CHECKS = 1;
     /**
      * Escape value for SQL insertion
      */
-    protected function escapeValue($value, array $columnInfo): string
+    protected function escapeValue(mixed $value, array $columnInfo): string
     {
         if ($value === null) {
             return 'NULL';

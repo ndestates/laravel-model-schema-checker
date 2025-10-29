@@ -123,7 +123,7 @@ class SecurityCheckerTest extends TestCase
         $issues = $this->checker->check();
 
         // Should detect missing CSRF token
-        $csrfIssues = array_filter($issues, function($issue) {
+        $csrfIssues = array_filter($issues, function ($issue) {
             return $issue['type'] === 'csrf_missing';
         });
 
@@ -149,7 +149,7 @@ class SecurityCheckerTest extends TestCase
         $issues = $this->checker->check();
 
         // Should detect unescaped output
-        $xssIssues = array_filter($issues, function($issue) {
+        $xssIssues = array_filter($issues, function ($issue) {
             return $issue['type'] === 'xss_unescaped_output';
         });
 
@@ -187,7 +187,7 @@ class UserController extends Controller {
         $issues = $this->checker->check();
 
         // Should detect SQL injection risks
-        $sqlIssues = array_filter($issues, function($issue) {
+        $sqlIssues = array_filter($issues, function ($issue) {
             return in_array($issue['type'], ['sql_injection_risk', 'sql_injection_string_concat']);
         });
 
@@ -221,7 +221,7 @@ class FileController extends Controller {
         $issues = $this->checker->check();
 
         // Should detect path traversal risks
-        $pathIssues = array_filter($issues, function($issue) {
+        $pathIssues = array_filter($issues, function ($issue) {
             return $issue['type'] === 'path_traversal_risk';
         });
 
@@ -254,7 +254,7 @@ class UploadController extends Controller {
         $issues = $this->checker->check();
 
         // Should detect upload validation issues
-        $uploadIssues = array_filter($issues, function($issue) {
+        $uploadIssues = array_filter($issues, function ($issue) {
             return in_array($issue['type'], ['upload_validation_missing', 'original_filename_usage']);
         });
 
@@ -286,7 +286,7 @@ class User extends Model {
         $issues = $this->checker->check();
 
         // Should detect SQL injection in model
-        $eloquentIssues = array_filter($issues, function($issue) {
+        $eloquentIssues = array_filter($issues, function ($issue) {
             return $issue['type'] === 'sql_injection_string_concat';
         });
 
@@ -349,7 +349,7 @@ class User extends Model {
         $issues = $this->checker->check();
 
         // Should not detect CSRF issues for properly protected forms
-        $csrfIssues = array_filter($issues, function($issue) {
+        $csrfIssues = array_filter($issues, function ($issue) {
             return $issue['type'] === 'csrf_missing';
         });
 

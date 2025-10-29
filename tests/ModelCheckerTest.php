@@ -144,13 +144,15 @@ class ModelCheckerTest extends TestCase
         $this->markTestSkipped('Requires Laravel facades setup for File facade');
 
         // Create file with syntax error that prevents class loading
-        file_put_contents($this->modelDir . '/BrokenModel.php',
-            '<?php namespace App\Models; class BrokenModel extends { syntax error }');
+        file_put_contents(
+            $this->modelDir . '/BrokenModel.php',
+            '<?php namespace App\Models; class BrokenModel extends { syntax error }'
+        );
 
         $issues = $this->checker->check();
 
         // Should contain class_not_found issue due to syntax error
-        $classNotFoundIssues = array_filter($issues, function($issue) {
+        $classNotFoundIssues = array_filter($issues, function ($issue) {
             return $issue['type'] === 'class_not_found';
         });
 
@@ -167,13 +169,15 @@ class ModelCheckerTest extends TestCase
     public function test_excludes_configured_models()
     {
         // Create excluded model file
-        file_put_contents($this->modelDir . '/ExcludedModel.php',
-            '<?php namespace App\Models; class ExcludedModel {}');
+        file_put_contents(
+            $this->modelDir . '/ExcludedModel.php',
+            '<?php namespace App\Models; class ExcludedModel {}'
+        );
 
         $issues = $this->checker->check();
 
         // Should not contain issues for excluded model
-        $excludedIssues = array_filter($issues, function($issue) {
+        $excludedIssues = array_filter($issues, function ($issue) {
             return isset($issue['data']['model']) &&
                    str_contains($issue['data']['model'], 'ExcludedModel');
         });
@@ -189,13 +193,15 @@ class ModelCheckerTest extends TestCase
     public function test_skips_abstract_model_classes()
     {
         // Create abstract model file
-        file_put_contents($this->modelDir . '/AbstractModel.php',
-            '<?php namespace App\Models; abstract class AbstractModel {}');
+        file_put_contents(
+            $this->modelDir . '/AbstractModel.php',
+            '<?php namespace App\Models; abstract class AbstractModel {}'
+        );
 
         $issues = $this->checker->check();
 
         // Should not contain issues for abstract class
-        $abstractIssues = array_filter($issues, function($issue) {
+        $abstractIssues = array_filter($issues, function ($issue) {
             return isset($issue['data']['model']) &&
                    str_contains($issue['data']['model'], 'AbstractModel');
         });
@@ -227,14 +233,16 @@ class ModelCheckerTest extends TestCase
             ]);
 
         // Create a concrete model file for testing
-        file_put_contents($this->modelDir . '/TestModel.php',
+        file_put_contents(
+            $this->modelDir . '/TestModel.php',
             '<?php namespace App\Models; use Illuminate\Database\Eloquent\Model; ' .
-            'class TestModel extends Model { protected $fillable = ["name"]; }');
+            'class TestModel extends Model { protected $fillable = ["name"]; }'
+        );
 
         $issues = $this->checker->check();
 
         // Should contain missing_fillable issue
-        $fillableIssues = array_filter($issues, function($issue) {
+        $fillableIssues = array_filter($issues, function ($issue) {
             return $issue['type'] === 'missing_fillable';
         });
 
@@ -249,14 +257,16 @@ class ModelCheckerTest extends TestCase
     public function test_detects_missing_tables()
     {
         // Create model file referencing non-existent table
-        file_put_contents($this->modelDir . '/MissingTableModel.php',
+        file_put_contents(
+            $this->modelDir . '/MissingTableModel.php',
             '<?php namespace App\Models; use Illuminate\Database\Eloquent\Model; ' .
-            'class MissingTableModel extends Model { protected $table = "non_existent_table"; }');
+            'class MissingTableModel extends Model { protected $table = "non_existent_table"; }'
+        );
 
         $issues = $this->checker->check();
 
         // Should contain table_missing or table_not_found issue
-        $tableIssues = array_filter($issues, function($issue) {
+        $tableIssues = array_filter($issues, function ($issue) {
             return in_array($issue['type'], ['table_missing', 'table_not_found']);
         });
 
@@ -276,9 +286,11 @@ class ModelCheckerTest extends TestCase
         $currentFillable = ['name'];
 
         // Create test model file
-        file_put_contents($filePath,
+        file_put_contents(
+            $filePath,
             '<?php namespace App\Models; use Illuminate\Database\Eloquent\Model; ' .
-            'class ImprovementTestModel extends Model { protected $fillable = ["name"]; }');
+            'class ImprovementTestModel extends Model { protected $fillable = ["name"]; }'
+        );
 
         // Use reflection to access protected method
         $reflection = new \ReflectionClass($this->checker);
@@ -325,8 +337,10 @@ class ModelCheckerTest extends TestCase
         $method->setAccessible(true);
 
         $filePath = $this->modelDir . '/NamespaceTest.php';
-        file_put_contents($filePath,
-            '<?php namespace App\Models\SubNamespace; class NamespaceTest {}');
+        file_put_contents(
+            $filePath,
+            '<?php namespace App\Models\SubNamespace; class NamespaceTest {}'
+        );
 
         $result = $method->invoke($this->checker, $filePath);
         $this->assertEquals('App\\Models\\SubNamespace', $result);
@@ -347,8 +361,10 @@ class ModelCheckerTest extends TestCase
     public function test_handles_reflection_errors_gracefully()
     {
         // Create model file that will cause reflection issues
-        file_put_contents($this->modelDir . '/ReflectionErrorModel.php',
-            '<?php namespace App\Models; class ReflectionErrorModel {}');
+        file_put_contents(
+            $this->modelDir . '/ReflectionErrorModel.php',
+            '<?php namespace App\Models; class ReflectionErrorModel {}'
+        );
 
         // Mock reflection to throw exception
         $mockReflection = Mockery::mock('ReflectionClass');
@@ -357,7 +373,7 @@ class ModelCheckerTest extends TestCase
         $issues = $this->checker->check();
 
         // Should contain reflection_error issue
-        $reflectionIssues = array_filter($issues, function($issue) {
+        $reflectionIssues = array_filter($issues, function ($issue) {
             return $issue['type'] === 'reflection_error';
         });
 

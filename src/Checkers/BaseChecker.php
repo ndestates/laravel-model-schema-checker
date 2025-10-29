@@ -217,8 +217,8 @@ abstract class BaseChecker implements CheckerInterface
     protected function getForeignKeyConstraints(string $tableName): array
     {
         try {
-            $databaseName = \DB::getDatabaseName();
-            $constraints = \DB::select("
+            $databaseName = DB::getDatabaseName();
+            $constraints = DB::select("
                 SELECT
                     COLUMN_NAME as `column`,
                     REFERENCED_TABLE_NAME as `references_table`,

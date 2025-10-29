@@ -116,6 +116,9 @@ class FilamentChecker extends BaseChecker
                 return;
             }
 
+            // PHPStan type assertion
+            assert(is_string($resourceClass) && class_exists($resourceClass));
+
             // Use reflection to get the model class without instantiating the resource
             $reflection = new \ReflectionClass($resourceClass);
             $getModelMethod = $reflection->getMethod('getModel');
@@ -124,7 +127,9 @@ class FilamentChecker extends BaseChecker
                 $modelClass = $resourceClass::getModel();
                 $model = new $modelClass();
 
-                $this->checkFilamentMethods($resourceClass, $model, ['form', 'table']);
+                if ($model instanceof \Illuminate\Database\Eloquent\Model) {
+                    $this->checkFilamentMethods($resourceClass, $model, ['form', 'table']);
+                }
             } else {
                 $this->addIssue('filament', 'filament_invalid_resource', [
                     'resource_class' => $resourceClass,
@@ -168,6 +173,10 @@ class FilamentChecker extends BaseChecker
         $startLine = $method->getStartLine();
         $endLine = $method->getEndLine();
         $lines = file($filePath);
+        if ($lines === false) {
+            $this->warn("Cannot read file {$filePath} for method {$method->getName()}");
+            return;
+        }
         $content = implode('', array_slice($lines, $startLine - 1, $endLine - $startLine + 1));
 
         // Check for ->relationship() calls
@@ -308,6 +317,10 @@ class FilamentChecker extends BaseChecker
         $startLine = $method->getStartLine();
         $endLine = $method->getEndLine();
         $lines = file($filePath);
+        if ($lines === false) {
+            $this->warn("Cannot read file {$filePath} for method {$method->getName()}");
+            return;
+        }
         $content = implode('', array_slice($lines, $startLine - 1, $endLine - $startLine + 1));
 
         $modelClass = get_class($model);

@@ -108,10 +108,14 @@ class MigrationCheckerTest extends TestCase
     public function test_scans_migration_directory_for_files()
     {
         // Create test migration files
-        file_put_contents($this->migrationDir . '/2023_01_01_000000_create_users_table.php',
-            '<?php use Illuminate\Database\Migrations\Migration; class CreateUsersTable extends Migration {}');
-        file_put_contents($this->migrationDir . '/2023_01_01_000001_create_posts_table.php',
-            '<?php use Illuminate\Database\Migrations\Migration; class CreatePostsTable extends Migration {}');
+        file_put_contents(
+            $this->migrationDir . '/2023_01_01_000000_create_users_table.php',
+            '<?php use Illuminate\Database\Migrations\Migration; class CreateUsersTable extends Migration {}'
+        );
+        file_put_contents(
+            $this->migrationDir . '/2023_01_01_000001_create_posts_table.php',
+            '<?php use Illuminate\Database\Migrations\Migration; class CreatePostsTable extends Migration {}'
+        );
         file_put_contents($this->migrationDir . '/not_a_migration.txt', 'not php'); // Should be ignored
 
         $issues = $this->checker->check();
@@ -134,7 +138,7 @@ class MigrationCheckerTest extends TestCase
         $issues = $this->checker->check();
 
         // Should detect syntax error
-        $syntaxErrors = array_filter($issues, function($issue) {
+        $syntaxErrors = array_filter($issues, function ($issue) {
             return $issue['type'] === 'syntax_error';
         });
 
@@ -173,7 +177,7 @@ class MigrationCheckerTest extends TestCase
         $issues = $this->checker->check();
 
         // Should detect nullable foreign key without default
-        $nullableFkIssues = array_filter($issues, function($issue) {
+        $nullableFkIssues = array_filter($issues, function ($issue) {
             return $issue['type'] === 'nullable_foreign_key_no_default';
         });
 
@@ -217,7 +221,7 @@ class MigrationCheckerTest extends TestCase
         $issues = $this->checker->check();
 
         // Should detect string without length
-        $stringIssues = array_filter($issues, function($issue) {
+        $stringIssues = array_filter($issues, function ($issue) {
             return $issue['type'] === 'string_without_length';
         });
 
@@ -261,7 +265,7 @@ class MigrationCheckerTest extends TestCase
         $issues = $this->checker->check();
 
         // Should detect nullable boolean
-        $booleanIssues = array_filter($issues, function($issue) {
+        $booleanIssues = array_filter($issues, function ($issue) {
             return $issue['type'] === 'boolean_nullable';
         });
 
@@ -306,7 +310,7 @@ class MigrationCheckerTest extends TestCase
         $issues = $this->checker->check();
 
         // Should detect foreign key without index
-        $indexIssues = array_filter($issues, function($issue) {
+        $indexIssues = array_filter($issues, function ($issue) {
             return $issue['type'] === 'foreign_key_without_index';
         });
 
@@ -326,13 +330,15 @@ class MigrationCheckerTest extends TestCase
     public function test_validates_migration_naming_conventions()
     {
         // Create migration with invalid name
-        file_put_contents($this->migrationDir . '/invalid_migration_name.php',
-            '<?php class InvalidMigration extends Migration {}');
+        file_put_contents(
+            $this->migrationDir . '/invalid_migration_name.php',
+            '<?php class InvalidMigration extends Migration {}'
+        );
 
         $issues = $this->checker->check();
 
         // Should detect invalid migration name
-        $namingIssues = array_filter($issues, function($issue) {
+        $namingIssues = array_filter($issues, function ($issue) {
             return $issue['type'] === 'invalid_migration_name';
         });
 
@@ -351,13 +357,15 @@ class MigrationCheckerTest extends TestCase
     public function test_validates_migration_descriptions()
     {
         // Create migration with poor description
-        file_put_contents($this->migrationDir . '/2023_01_01_000000_a.php',
-            '<?php class AMigration extends Migration {}');
+        file_put_contents(
+            $this->migrationDir . '/2023_01_01_000000_a.php',
+            '<?php class AMigration extends Migration {}'
+        );
 
         $issues = $this->checker->check();
 
         // Should detect poor migration description
-        $descriptionIssues = array_filter($issues, function($issue) {
+        $descriptionIssues = array_filter($issues, function ($issue) {
             return $issue['type'] === 'poor_migration_description';
         });
 
@@ -424,7 +432,7 @@ class MigrationCheckerTest extends TestCase
         $issues = $this->checker->check();
 
         // Should detect malformed method call
-        $malformedIssues = array_filter($issues, function($issue) {
+        $malformedIssues = array_filter($issues, function ($issue) {
             return $issue['type'] === 'malformed_method_call';
         });
 

@@ -31,8 +31,8 @@ class CheckerManager
         try {
             $env = $environment ?? app()->environment();
         } catch (\Throwable $e) {
-            // If Laravel app isn't available (e.g., in tests), use provided environment or default to 'testing'
-            $env = $environment ?? 'testing';
+            // If Laravel app isn't available (e.g., in tests), default to 'testing'
+            $env = 'testing';
         }
 
         // Merge environment-specific settings

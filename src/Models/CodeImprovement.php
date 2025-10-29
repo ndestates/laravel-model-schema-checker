@@ -89,6 +89,9 @@ class CodeImprovement implements CodeImprovementInterface
 
         try {
             $content = file_get_contents($this->filePath);
+            if ($content === false) {
+                return false;
+            }
             $newContent = str_replace($this->originalCode, $this->improvedCode, $content);
 
             if ($newContent !== $content) {

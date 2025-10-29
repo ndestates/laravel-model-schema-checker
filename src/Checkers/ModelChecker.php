@@ -155,6 +155,9 @@ class ModelChecker extends BaseChecker
         $fillableString = $this->generateFillableString($newFillable);
 
         $content = file_get_contents($filePath);
+        if ($content === false) {
+            return;
+        }
 
         // Try to find existing fillable property
         if (preg_match('/protected\s+\$fillable\s*=\s*\[.*?\];/s', $content, $matches)) {
@@ -203,6 +206,9 @@ class ModelChecker extends BaseChecker
     protected function getNamespaceFromFile(string $filePath): string
     {
         $content = file_get_contents($filePath);
+        if ($content === false) {
+            return '';
+        }
         if (preg_match('/namespace\s+([^;]+);/', $content, $matches)) {
             return $matches[1];
         }

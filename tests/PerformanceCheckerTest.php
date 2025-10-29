@@ -130,7 +130,7 @@ class UserController extends Controller {
         $issues = $this->checker->check();
 
         // Should detect N+1 query in loop
-        $nPlusOneIssues = array_filter($issues, function($issue) {
+        $nPlusOneIssues = array_filter($issues, function ($issue) {
             return $issue['type'] === 'potential_n_plus_one';
         });
 
@@ -166,7 +166,7 @@ class PostController extends Controller {
         $issues = $this->checker->check();
 
         // Should detect N+1 in each method
-        $eachIssues = array_filter($issues, function($issue) {
+        $eachIssues = array_filter($issues, function ($issue) {
             return $issue['type'] === 'n_plus_one_in_each';
         });
 
@@ -197,7 +197,7 @@ class CommentController extends Controller {
         $issues = $this->checker->check();
 
         // Should detect missing eager loading
-        $eagerIssues = array_filter($issues, function($issue) {
+        $eagerIssues = array_filter($issues, function ($issue) {
             return $issue['type'] === 'missing_eager_loading';
         });
 
@@ -233,7 +233,7 @@ class Report extends Model {
         $issues = $this->checker->check();
 
         // Should detect SELECT * queries
-        $selectAllIssues = array_filter($issues, function($issue) {
+        $selectAllIssues = array_filter($issues, function ($issue) {
             return $issue['type'] === 'select_all_query';
         });
 
@@ -266,7 +266,7 @@ class BatchController extends Controller {
         $issues = $this->checker->check();
 
         // Should detect query in loop
-        $loopIssues = array_filter($issues, function($issue) {
+        $loopIssues = array_filter($issues, function ($issue) {
             return $issue['type'] === 'query_in_loop';
         });
 

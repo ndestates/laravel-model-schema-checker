@@ -118,6 +118,14 @@ class MigrationChecker extends BaseChecker
     {
         $content = file_get_contents($filePath);
 
+        if ($content === false) {
+            $this->addIssue('migration', 'migration_file_unreadable', [
+                'file' => $filePath,
+                'message' => "Cannot read migration file: {$filePath}"
+            ]);
+            return;
+        }
+
         // Check for PHP syntax errors
         $this->checkMigrationSyntax($filePath);
 
@@ -230,7 +238,7 @@ class MigrationChecker extends BaseChecker
         }
     }
 
-    protected function checkMigrationNaming($migrationFiles): void
+    protected function checkMigrationNaming(array $migrationFiles): void
     {
         foreach ($migrationFiles as $file) {
             $fileName = is_string($file) ? basename($file) : $file->getFilename();
@@ -247,7 +255,13 @@ class MigrationChecker extends BaseChecker
 
             // Check for descriptive names
             $description = preg_replace('/^\d{4}_\d{2}_\d{2}_\d{6}_/', '', $fileName);
+            if ($description === null) {
+                continue;
+            }
             $description = preg_replace('/\.php$/', '', $description);
+            if ($description === null) {
+                continue;
+            }
 
             if (strlen($description) < 5) {
                 $this->addIssue('migration', 'poor_migration_description', [

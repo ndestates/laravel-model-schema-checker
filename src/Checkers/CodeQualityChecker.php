@@ -121,7 +121,7 @@ class CodeQualityChecker extends BaseChecker
         }
     }
 
-    protected function checkModelFile($file): void
+    protected function checkModelFile(\Symfony\Component\Finder\SplFileInfo $file): void
     {
         $content = File::get($file->getPathname());
         $className = $file->getFilenameWithoutExtension();
@@ -244,7 +244,7 @@ class CodeQualityChecker extends BaseChecker
         }
     }
 
-    protected function checkControllerFile($file): void
+    protected function checkControllerFile(\Symfony\Component\Finder\SplFileInfo $file): void
     {
         $content = File::get($file->getPathname());
         $className = $file->getFilenameWithoutExtension();
@@ -319,7 +319,7 @@ class CodeQualityChecker extends BaseChecker
         }
     }
 
-    protected function checkMigrationFileQuality($file): void
+    protected function checkMigrationFileQuality(\Symfony\Component\Finder\SplFileInfo $file): void
     {
         $content = File::get($file->getPathname());
 

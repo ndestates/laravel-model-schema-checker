@@ -250,5 +250,4 @@ class CheckerManagerTest extends TestCase
             $this->assertIsBool($checkerInfo['enabled']);
         }
     }
-
 }

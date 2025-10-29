@@ -132,11 +132,19 @@ class SupplierTestingExamplesTest extends TestCase
 }
 
 // Mock classes to replace deprecated addMethods() approach
-class FileSystemMock {
-    public function file_exists(string $path): bool {}
-    public function file_get_contents(string $path): string {}
+class FileSystemMock
+{
+    public function file_exists(string $path): bool
+    {
+    }
+    public function file_get_contents(string $path): string
+    {
+    }
 }
 
-class HttpClientMock {
-    public function get(string $url): array {}
+class HttpClientMock
+{
+    public function get(string $url): array
+    {
+    }
 }
