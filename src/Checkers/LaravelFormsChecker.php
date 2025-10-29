@@ -1356,7 +1356,12 @@ class LaravelFormsChecker extends BaseChecker
     protected function showIssueFix(array $issue): void
     {
         $type = $issue['type'];
-        $details = $issue['details'];
+        $details = $issue['details'] ?? [];
+
+        if (empty($details)) {
+            $this->info("  ⚠️  Cannot show fix details for issue type: {$type}");
+            return;
+        }
 
         switch ($type) {
             case 'missing_required_field':
@@ -1469,7 +1474,15 @@ class LaravelFormsChecker extends BaseChecker
     protected function applyIssueFix(string $content, array $issue): array
     {
         $type = $issue['type'];
-        $details = $issue['details'];
+        $details = $issue['details'] ?? [];
+
+        if (empty($details)) {
+            return [
+                'applied' => false,
+                'content' => $content,
+                'action' => "Skipped - missing details for issue type: {$type}"
+            ];
+        }
 
         switch ($type) {
             case 'missing_required_field':
