@@ -36,6 +36,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Included Fields
+    |--------------------------------------------------------------------------
+    |
+    | Fields that should be included in checks even if they match exclusion patterns.
+    | For example, specific *_id fields that should be checked.
+    |
+    */
+    'included_fields' => [
+        // Add specific *_id fields here if you want them checked
+        // 'specific_field_id',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Excluded Models
     |--------------------------------------------------------------------------
     |

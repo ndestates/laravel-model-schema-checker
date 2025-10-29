@@ -942,6 +942,15 @@ class LaravelFormsChecker extends BaseChecker
             $excludeFields = ['id', 'created_at', 'updated_at', 'deleted_at'];
             $missingFillable = array_diff($missingFillable, $excludeFields);
 
+            // Exclude foreign key fields ending with '_id' unless explicitly included in config
+            $includedFields = $this->config['included_fields'] ?? [];
+            $missingFillable = array_filter($missingFillable, function ($field) use ($includedFields) {
+                if (Str::endsWith($field, '_id')) {
+                    return in_array($field, $includedFields);
+                }
+                return true;
+            });
+
             foreach ($missingFillable as $field) {
                 $this->addIssue('forms', 'missing_fillable_field', [
                     'file' => $filePath,
@@ -1184,6 +1193,15 @@ class LaravelFormsChecker extends BaseChecker
             // Exclude common non-property fields
             $excludeFields = ['id', 'created_at', 'updated_at', 'deleted_at'];
             $missingProperties = array_diff($missingProperties, $excludeFields);
+
+            // Exclude foreign key fields ending with '_id' unless explicitly included in config
+            $includedFields = $this->config['included_fields'] ?? [];
+            $missingProperties = array_filter($missingProperties, function ($property) use ($includedFields) {
+                if (Str::endsWith($property, '_id')) {
+                    return in_array($property, $includedFields);
+                }
+                return true;
+            });
 
             foreach ($missingProperties as $property) {
                 $this->addIssue('forms', 'missing_livewire_property', [
