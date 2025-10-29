@@ -488,6 +488,21 @@ class ModelSchemaCheckCommand extends Command
             return;
         }
 
+        // Check if file writes are allowed in config
+        $config = config('model-schema-checker');
+        if (!($config['output']['allow_file_writes'] ?? false)) {
+            $this->error('❌ Automatic form fixes are disabled in configuration.');
+            $this->line('');
+            $this->line('To enable automatic fixes, set the following in your config/model-schema-checker.php:');
+            $this->line('    \'output\' => [');
+            $this->line('        \'allow_file_writes\' => true,');
+            $this->line('        // ... other output settings');
+            $this->line('    ],');
+            $this->line('');
+            $this->line('Or set the environment variable: MSC_ALLOW_FILE_WRITES=true');
+            return;
+        }
+
         $this->info('');
         $this->info('🔧 Applying Automatic Form Fixes...');
 

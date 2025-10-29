@@ -208,6 +208,7 @@ return [
         'verbose' => env('MSC_VERBOSE', false),
         'show_progress' => env('MSC_SHOW_PROGRESS', true),
         'fail_on_warnings' => env('MSC_FAIL_ON_WARNINGS', false),
+        'allow_file_writes' => env('MSC_ALLOW_FILE_WRITES', false),
     ],
 
     /*

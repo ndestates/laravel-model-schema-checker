@@ -1381,6 +1381,9 @@ class LaravelFormsChecker extends BaseChecker
 
         $this->info('💡 To apply these fixes automatically, run with --fix-forms option');
         $this->info('   Example: php artisan model:schema-check --fix-forms');
+        $this->info('');
+        $this->info('⚠️  Note: Automatic fixes require file write permissions and must be enabled in config.');
+        $this->info('   Set \'output.allow_file_writes\' => true in config/model-schema-checker.php');
     }
 
     protected function showIssueFix(array $issue): void
@@ -1461,6 +1464,20 @@ class LaravelFormsChecker extends BaseChecker
         foreach ($filesToModify as $file => $issues) {
             $this->info("📄 Processing: " . basename($file));
 
+            // Check if file writes are allowed in config
+            if (!($this->config['output']['allow_file_writes'] ?? false)) {
+                $results['errors']++;
+                $results['details'][] = basename($file) . ": File writes are disabled in configuration. Set 'output.allow_file_writes' to true to enable automatic fixes.";
+                continue;
+            }
+
+            // Check if file is writable
+            if (!is_writable($file)) {
+                $results['errors']++;
+                $results['details'][] = basename($file) . ": File is not writable";
+                continue;
+            }
+
             try {
                 $content = File::get($file);
                 $originalContent = $content;
@@ -1472,12 +1489,7 @@ class LaravelFormsChecker extends BaseChecker
                         $content = $fixResult['content'];
                         $modified = true;
                         $results['fixed']++;
-                        $results['details'][] = [
-                            'file' => $file,
-                            'issue' => $issue['type'],
-                            'field' => $issue['details']['field'] ?? 'N/A',
-                            'action' => $fixResult['action']
-                        ];
+                        $results['details'][] = basename($file) . ": " . $fixResult['action'];
                     } else {
                         $results['skipped']++;
                     }
@@ -1641,8 +1653,8 @@ class LaravelFormsChecker extends BaseChecker
     {
         $property = $details['property'];
 
-        // Find the class and add the property
-        $pattern = '/(class\s+\w+\s+extends\s+Component\s*\{)/';
+        // Find the class declaration and opening brace (handles multiline)
+        $pattern = '/(class\s+\w+\s+extends\s+[\w\\\\]+[\s\S]*?\{)/';
 
         if (preg_match($pattern, $content, $matches)) {
             $classDeclaration = $matches[1];
