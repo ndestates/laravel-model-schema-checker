@@ -473,7 +473,37 @@ class ModelSchemaCheckCommand extends Command
 
         $this->displayResults();
 
+        // Apply automatic fixes if requested
+        if ($this->option('fix-forms') && !$this->option('dry-run')) {
+            $this->applyFormFixes($checker);
+        }
+
         return $this->issueManager->hasIssues() ? Command::FAILURE : Command::SUCCESS;
+    }
+
+    protected function applyFormFixes($checker): void
+    {
+        if (!method_exists($checker, 'applyAutomaticFixes')) {
+            $this->warn('Form checker does not support automatic fixes.');
+            return;
+        }
+
+        $this->info('');
+        $this->info('🔧 Applying Automatic Form Fixes...');
+
+        $results = $checker->applyAutomaticFixes();
+
+        $this->info("✅ Fixed: {$results['fixed']} issues");
+        $this->info("⏭️  Skipped: {$results['skipped']} issues");
+        $this->info("❌ Errors: {$results['errors']} issues");
+
+        if (!empty($results['details'])) {
+            $this->info('');
+            $this->info('Fix Details:');
+            foreach ($results['details'] as $detail) {
+                $this->line("  • {$detail}");
+            }
+        }
     }
 
     protected function handleSyncMigrations(): int
