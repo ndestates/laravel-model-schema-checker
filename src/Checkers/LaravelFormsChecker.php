@@ -945,7 +945,7 @@ class LaravelFormsChecker extends BaseChecker
             // Exclude foreign key fields ending with '_id' unless explicitly included in config
             $includedFields = $this->config['included_fields'] ?? [];
             $missingFillable = array_filter($missingFillable, function ($field) use ($includedFields) {
-                if (Str::endsWith($field, '_id')) {
+                if (substr($field, -3) === '_id') {
                     return in_array($field, $includedFields);
                 }
                 return true;
@@ -1197,7 +1197,7 @@ class LaravelFormsChecker extends BaseChecker
             // Exclude foreign key fields ending with '_id' unless explicitly included in config
             $includedFields = $this->config['included_fields'] ?? [];
             $missingProperties = array_filter($missingProperties, function ($property) use ($includedFields) {
-                if (Str::endsWith($property, '_id')) {
+                if (substr($property, -3) === '_id') {
                     return in_array($property, $includedFields);
                 }
                 return true;
