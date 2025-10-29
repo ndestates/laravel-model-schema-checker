@@ -14,6 +14,15 @@ Thumbs.db
 .vscode/
 .idea/
 
+# DDEV - only ignore generated/temporary files
+.ddev/.dbimageBuild/
+.ddev/.ddev-docker-compose-*.yaml
+.ddev/.webimageBuild/
+.ddev/db_snapshots/
+.ddev/homeadditions/
+.ddev/web-entrypoint.d/
+.ddev/xhprof/
+
 # Test Laravel application
 test-package/
 
