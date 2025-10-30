@@ -53,7 +53,10 @@ class ModelSchemaCheckCommand extends Command
                             {--check-all : Run all available checks (alias for --all)}
                             {--fix-migrations : Generate alter migrations to fix detected migration issues}
                             {--rollback-migrations : Rollback the last batch of migrations}
-                            {--amend-migrations : Amend existing migration files with proper column specifications}';
+                            {--amend-migrations : Amend existing migration files with proper column specifications}
+                            {--save-output : Save results to a dated Markdown file for review}
+                            {--step-by-step : Apply fixes interactively one by one instead of all at once}
+                            {--rollback-fixes : Rollback previously applied automatic fixes}';
     protected IssueManager $issueManager;
     protected MigrationGenerator $migrationGenerator;
     protected DataExporter $dataExporter;
@@ -179,6 +182,10 @@ class ModelSchemaCheckCommand extends Command
 
         if ($this->option('amend-migrations')) {
             return $this->handleAmendMigrations();
+        }
+
+        if ($this->option('rollback-fixes')) {
+            return $this->handleRollbackFixes();
         }
 
         // Default: run model checks
@@ -783,6 +790,11 @@ class ModelSchemaCheckCommand extends Command
             return;
         }
 
+        // Save to file if requested
+        if ($this->option('save-output')) {
+            $this->saveResultsToFile();
+        }
+
         $this->info('');
         $this->info('Results Summary');
         $this->info('===============');
@@ -807,6 +819,101 @@ class ModelSchemaCheckCommand extends Command
         $this->displayCodeImprovements($issues);
     }
 
+    protected function saveResultsToFile(): void
+    {
+        $timestamp = now()->format('Y-m-d_H-i-s');
+        $filename = "model-schema-check_{$timestamp}.md";
+        $filepath = base_path($filename);
+
+        $content = $this->generateMarkdownContent();
+
+        File::put($filepath, $content);
+
+        $this->info("📄 Results saved to: {$filepath}");
+        $this->info("📄 Filename: {$filename}");
+        $this->info("💡 This file is saved in your project root directory for easy access");
+    }
+
+    protected function generateMarkdownContent(): string
+    {
+        $stats = $this->issueManager->getStats();
+        $issues = $this->issueManager->getIssues();
+
+        $content = "# Laravel Model Schema Checker Results\n\n";
+        $content .= "**Generated:** " . now()->format('Y-m-d H:i:s') . "\n\n";
+        $content .= "**Command:** `php artisan model:schema-check`\n\n";
+        $content .= "**File Location:** This report is saved in your project root directory for easy access.\n\n";
+
+        $content .= "## Results Summary\n\n";
+
+        if ($stats['total_issues'] === 0) {
+            $content .= "✅ **No issues found!**\n\n";
+            return $content;
+        }
+
+        $content .= "⚠️ **Found {$stats['total_issues']} issue(s)**\n\n";
+
+        // Group issues by type
+        $issuesByType = [];
+        foreach ($issues as $issue) {
+            $type = $issue['type'] ?? 'Unknown';
+            if (!isset($issuesByType[$type])) {
+                $issuesByType[$type] = [];
+            }
+            $issuesByType[$type][] = $issue;
+        }
+
+        // Display issues grouped by type
+        foreach ($issuesByType as $type => $typeIssues) {
+            $content .= "### {$type} Issues (" . count($typeIssues) . ")\n\n";
+            foreach ($typeIssues as $issue) {
+                $content .= "- " . ($issue['message'] ?? $issue['type']) . "\n";
+                if (isset($issue['file'])) {
+                    $content .= "  - 📁 `{$issue['file']}`\n";
+                }
+                $content .= "\n";
+            }
+        }
+
+        // Display code improvements
+        $improvements = array_filter($issues, fn($issue) => isset($issue['improvement']));
+        if (!empty($improvements)) {
+            $content .= "## Code Improvement Suggestions (" . count($improvements) . ")\n\n";
+
+            foreach ($improvements as $index => $issue) {
+                $improvement = $issue['improvement'];
+                $content .= "### " . ($index + 1) . ". {$improvement->getTitle()}\n\n";
+                $content .= "{$improvement->getDescription()}\n\n";
+
+                if ($improvement->canAutoFix()) {
+                    $content .= "**✅ Can be automatically fixed**\n\n";
+                }
+
+                if (isset($issue['file'])) {
+                    $content .= "**File:** `{$issue['file']}`\n\n";
+                }
+
+                $content .= "---\n\n";
+            }
+        }
+
+        $content .= "## Next Steps\n\n";
+        $content .= "1. **Review the issues above** and prioritize fixes based on severity\n";
+        $content .= "2. **Apply automatic fixes** where available using `--fix` option\n";
+        $content .= "3. **Use step-by-step fixes** with `--step-by-step` for controlled application\n";
+        $content .= "4. **Backup before changes** using `--backup-db` option\n";
+        $content .= "5. **Rollback if needed** using `--rollback-fixes` option\n\n";
+
+        $content .= "## Command Reference\n\n";
+        $content .= "- `php artisan model:schema-check --save-output` - Save results to file\n";
+        $content .= "- `php artisan model:schema-check --step-by-step` - Interactive fix application\n";
+        $content .= "- `php artisan model:schema-check --fix` - Apply all automatic fixes\n";
+        $content .= "- `php artisan model:schema-check --backup-db` - Create database backup\n";
+        $content .= "- `php artisan model:schema-check --rollback-fixes` - Rollback applied fixes\n";
+
+        return $content;
+    }
+
     protected function displayCodeImprovements(array $issues): void
     {
         $improvements = array_filter($issues, fn($issue) => isset($issue['improvement']));
@@ -818,24 +925,29 @@ class ModelSchemaCheckCommand extends Command
         $this->info('');
         $this->info('💡 Code Improvement Suggestions (' . count($improvements) . '):');
 
-        foreach ($improvements as $issue) {
-            $improvement = $issue['improvement'];
-            $this->info("  • {$improvement->getTitle()}");
-            $this->line("    {$improvement->getDescription()}");
+        if ($this->option('step-by-step')) {
+            $this->applyStepByStepFixes($improvements);
+        } else {
+            foreach ($improvements as $issue) {
+                $improvement = $issue['improvement'];
+                $this->info("  • {$improvement->getTitle()}");
+                $this->line("    {$improvement->getDescription()}");
 
-            if ($improvement->canAutoFix()) {
-                $this->info("    ✅ Can be automatically fixed");
+                if ($improvement->canAutoFix()) {
+                    $this->info("    ✅ Can be automatically fixed");
+                }
             }
-        }
 
-        if (!$this->option('dry-run') && $this->confirm('Apply automatic fixes?', false)) {
-            $this->applyCodeImprovements($improvements);
+            if (!$this->option('dry-run') && $this->confirm('Apply automatic fixes?', false)) {
+                $this->applyCodeImprovements($improvements);
+            }
         }
     }
 
     protected function applyCodeImprovements(array $improvements): void
     {
         $applied = 0;
+        $appliedFixes = [];
 
         foreach ($improvements as $issue) {
             $improvement = $issue['improvement'];
@@ -843,12 +955,102 @@ class ModelSchemaCheckCommand extends Command
             if ($improvement->canAutoFix() && $improvement->applyFix()) {
                 $this->info("✅ Applied: {$improvement->getTitle()}");
                 $applied++;
+
+                // Track applied fix for rollback
+                $appliedFixes[] = [
+                    'title' => $improvement->getTitle(),
+                    'description' => $improvement->getDescription(),
+                    'file' => $issue['file'] ?? null,
+                    'applied_at' => now()->toISOString(),
+                    'improvement_class' => get_class($improvement),
+                ];
             }
         }
 
         if ($applied > 0) {
             $this->info('');
             $this->info("🎉 Successfully applied {$applied} automatic fixes!");
+
+            // Save applied fixes for rollback
+            $this->saveAppliedFixes($appliedFixes);
+        }
+    }
+
+    protected function applyStepByStepFixes(array $improvements): void
+    {
+        $this->info('');
+        $this->info('🔧 Step-by-step fix mode enabled');
+        $this->info('You will be prompted for each fix individually.');
+
+        $applied = 0;
+        $skipped = 0;
+        $appliedFixes = [];
+
+        foreach ($improvements as $index => $issue) {
+            $improvement = $issue['improvement'];
+            $number = $index + 1;
+
+            $this->info('');
+            $this->info("--- Fix {$number} of " . count($improvements) . " ---");
+            $this->info("📋 {$improvement->getTitle()}");
+            $this->line("   {$improvement->getDescription()}");
+
+            if (isset($issue['file'])) {
+                $this->line("   📁 {$issue['file']}");
+            }
+
+            if ($improvement->canAutoFix()) {
+                $this->info("   ✅ Can be automatically fixed");
+
+                $apply = $this->choice(
+                    "Apply this fix?",
+                    ['yes' => 'Yes, apply this fix', 'no' => 'No, skip this fix', 'quit' => 'Quit step-by-step mode'],
+                    'no'
+                );
+
+                if ($apply === 'quit') {
+                    $this->info('🛑 Step-by-step mode cancelled by user.');
+                    break;
+                }
+
+                if ($apply === 'yes') {
+                    if (!$this->option('dry-run') && $improvement->applyFix()) {
+                        $this->info("✅ Applied: {$improvement->getTitle()}");
+                        $applied++;
+
+                        // Track applied fix for rollback
+                        $appliedFixes[] = [
+                            'title' => $improvement->getTitle(),
+                            'description' => $improvement->getDescription(),
+                            'file' => $issue['file'] ?? null,
+                            'applied_at' => now()->toISOString(),
+                            'improvement_class' => get_class($improvement),
+                        ];
+                    } else {
+                        $this->warn("❌ Failed to apply: {$improvement->getTitle()}");
+                    }
+                } else {
+                    $this->line("⏭️  Skipped: {$improvement->getTitle()}");
+                    $skipped++;
+                }
+            } else {
+                $this->warn("   ⚠️  Manual fix required");
+                $this->line("   Please fix manually as described above.");
+                $skipped++;
+            }
+        }
+
+        $this->info('');
+        $this->info("📊 Step-by-step results:");
+        $this->info("   ✅ Applied: {$applied}");
+        $this->info("   ⏭️  Skipped: {$skipped}");
+
+        if ($applied > 0) {
+            $this->info('');
+            $this->info("🎉 Successfully applied {$applied} fixes!");
+
+            // Save applied fixes for rollback
+            $this->saveAppliedFixes($appliedFixes);
         }
     }
 
@@ -1496,5 +1698,90 @@ return new class extends Migration
         $this->info('For now, use --fix-migrations to generate new alter migrations.');
 
         return Command::SUCCESS;
+    }
+
+    protected function handleRollbackFixes(): int
+    {
+        $this->info('Rolling back previously applied automatic fixes...');
+
+        $appliedFixes = $this->loadAppliedFixes();
+
+        if (empty($appliedFixes)) {
+            $this->warn('⚠️  No applied fixes found to rollback.');
+            $this->info('No fixes have been tracked for rollback.');
+            return Command::SUCCESS;
+        }
+
+        $this->info("Found " . count($appliedFixes) . " applied fixes to potentially rollback.");
+
+        // For now, we'll show what would be rolled back
+        // In a full implementation, we'd need to implement rollback logic for each improvement type
+        $this->warn('⚠️  Automatic rollback is not yet fully implemented.');
+        $this->info('This is a preview of what would be rolled back:');
+
+        foreach ($appliedFixes as $index => $fix) {
+            $this->info('');
+            $this->info("--- Fix " . ($index + 1) . " ---");
+            $this->info("📋 {$fix['title']}");
+            $this->line("   Applied: {$fix['applied_at']}");
+            if (isset($fix['file'])) {
+                $this->line("   📁 {$fix['file']}");
+            }
+        }
+
+        $this->info('');
+        $this->warn('To implement full rollback functionality:');
+        $this->info('1. Each CodeImprovement class needs a rollback() method');
+        $this->info('2. Backup original file contents before applying fixes');
+        $this->info('3. Restore from backups during rollback');
+
+        if ($this->confirm('Clear the applied fixes tracking (recommended after manual rollback)?', false)) {
+            $this->clearAppliedFixes();
+            $this->info('✅ Applied fixes tracking cleared.');
+        }
+
+        return Command::SUCCESS;
+    }
+
+    protected function saveAppliedFixes(array $fixes): void
+    {
+        if (empty($fixes)) {
+            return;
+        }
+
+        $storagePath = storage_path('app');
+        if (!File::exists($storagePath)) {
+            File::makeDirectory($storagePath, 0755, true);
+        }
+
+        $filepath = storage_path('app/applied-fixes.json');
+
+        $existingFixes = $this->loadAppliedFixes();
+        $allFixes = array_merge($existingFixes, $fixes);
+
+        File::put($filepath, json_encode($allFixes, JSON_PRETTY_PRINT));
+    }
+
+    protected function loadAppliedFixes(): array
+    {
+        $filepath = storage_path('app/applied-fixes.json');
+
+        if (!File::exists($filepath)) {
+            return [];
+        }
+
+        $content = File::get($filepath);
+        $fixes = json_decode($content, true);
+
+        return is_array($fixes) ? $fixes : [];
+    }
+
+    protected function clearAppliedFixes(): void
+    {
+        $filepath = storage_path('app/applied-fixes.json');
+
+        if (File::exists($filepath)) {
+            File::delete($filepath);
+        }
     }
 }
