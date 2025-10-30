@@ -1677,11 +1677,11 @@ class LaravelFormsChecker extends BaseChecker
         $field = $details['field'];
         $newType = $details['suggested_type'];
 
-        // Change input type
-        $pattern = '/(<input[^>]*name\s*=\s*["\']' . preg_quote($field, '/') . '["\'][^>]*type\s*=\s*["\'])[^"\']+(["\'][^>]*>)/i';
+        // Change input type - simple string replacement approach
+        $pattern = '/type\s*=\s*["\']text["\']([^>]*)name\s*=\s*["\']' . preg_quote($field, '/') . '["\']/i';
 
         if (preg_match($pattern, $content)) {
-            $newContent = preg_replace($pattern, '$1' . $newType . '$2', $content);
+            $newContent = str_replace('type="text"', 'type="' . $newType . '"', $content);
             return [
                 'applied' => true,
                 'content' => $newContent,
