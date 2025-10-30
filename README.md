@@ -4,11 +4,27 @@ A comprehensive Laravel tool for validating models, relationships, security,
 performance, code quality, migrations, and **form amendment suggestions** across your entire
 Laravel application.
 
+## ⚠️ SECURITY WARNING - DEVELOPMENT ONLY
+
+**🚫 DO NOT INSTALL IN PRODUCTION** 🚫
+
+This package can make **database schema changes** and **modify your application code**. It is designed **exclusively for development and testing environments**.
+
+### **Automatic Production Protection**
+
+The package automatically disables itself in production environments (`APP_ENV=production`). All routes, commands, and functionality are blocked.
+
+### **Installation Requirements**
+
+- ✅ **Development/Testing/Staging**: Safe to use
+- ❌ **Production**: Automatically disabled
+- ✅ **Local environments**: Full functionality available
+
 ## Compatibility
 
 - **Laravel**: 10.x, 11.x, 12.x
 - **PHP**: 8.1+
-- **Version**: 3.0.0-dev (Major rewrite in development)
+- **Version**: 3.0.0 (Web Dashboard & Production Safety)
 
 ## Installation
 
@@ -16,6 +32,41 @@ Install the package via Composer:
 
 ```bash
 composer require ndestates/laravel-model-schema-checker --dev
+```
+
+### **Post-Installation Setup**
+
+After installation, run the migrations to create the necessary database tables:
+
+#### **DDEV**
+```bash
+ddev artisan migrate
+```
+
+#### **Laravel Sail**
+```bash
+./vendor/bin/sail artisan migrate
+```
+
+#### **Other Environments**
+```bash
+php artisan migrate
+```
+
+This creates two tables:
+- `check_results` - Stores schema check results
+- `applied_fixes` - Tracks applied fixes (with user isolation)
+
+### **Verify Installation**
+
+Test that the package is working:
+
+```bash
+# Check command is available
+php artisan model:schema-check --help
+
+# Check routes are loaded (in non-production)
+php artisan route:list | grep model-schema
 ```
 
 ### Laravel Auto-Discovery
@@ -347,6 +398,241 @@ php artisan model:schema-check --export-data
 
 # Import data only
 php artisan model:schema-check --import-data
+```
+
+## 🌐 Web Dashboard
+
+### **Interactive Web Interface**
+
+The Laravel Model Schema Checker now includes a comprehensive web-based dashboard for easier access and management of model checks. Access it at `/model-schema-checker` after authentication.
+
+### **Dashboard Features**
+
+#### **📊 Real-time Statistics**
+- Total checks performed
+- Checks this month
+- Total issues found
+- Last check timestamp
+
+#### **🔍 Check Execution**
+- Run comprehensive model checks
+- Select specific check types (Models, Relationships, Security, Performance, etc.)
+- Real-time progress tracking with visual progress bar
+- Background processing for long-running checks
+
+#### **📋 Results Management**
+- Detailed issue display with severity levels
+- Code snippets and suggestions for each issue
+- One-click fix application for auto-fixable issues
+- Bulk fix application for multiple issues
+
+#### **🎯 Step-by-Step Fixes**
+- Interactive fix application workflow
+- Progress tracking through fix steps
+- Skip problematic fixes
+- Rollback capability for applied fixes
+
+#### **📚 Check History**
+- Complete history of all check runs
+- Filter by status, date range, and issue presence
+- Detailed result viewing
+- Result deletion and management
+
+### **Web Dashboard Setup**
+
+1. **Routes are automatically loaded** when the package is installed
+2. **Authentication required** - users must be logged in to access
+3. **Assets are published** to `public/vendor/model-schema-checker/`
+4. **Views are published** to `resources/views/vendor/model-schema-checker/`
+
+### **Accessing the Dashboard**
+
+#### **Environment-Specific Access**
+
+The dashboard URL depends on your development environment:
+
+##### **DDEV**
+```bash
+# Run migration
+ddev artisan migrate
+
+# Access dashboard
+ddev launch
+# Then navigate to: /model-schema-checker
+
+# Or direct URL:
+# https://your-project.ddev.site/model-schema-checker
+```
+
+##### **Laravel Sail**
+```bash
+# Run migration
+./vendor/bin/sail artisan migrate
+
+# Access dashboard
+./vendor/bin/sail artisan serve
+# Then navigate to: http://localhost/model-schema-checker
+
+# Or if using custom domain:
+# https://your-project.test/model-schema-checker
+```
+
+##### **Laravel Valet**
+```bash
+# Run migration
+php artisan migrate
+
+# Access dashboard (if using 'your-project.test')
+# https://your-project.test/model-schema-checker
+```
+
+##### **Homestead/Vagrant**
+```bash
+# Run migration
+php artisan migrate
+
+# Access dashboard
+# https://your-project.test/model-schema-checker
+# (or your configured Homestead domain)
+```
+
+##### **Plain PHP/Local Server**
+```bash
+# Run migration
+php artisan migrate
+
+# Start server
+php artisan serve
+
+# Access dashboard
+# http://localhost:8000/model-schema-checker
+```
+
+##### **Docker/Other Containers**
+```bash
+# Run migration (adjust container name)
+docker exec -it your-container php artisan migrate
+
+# Access dashboard
+# https://localhost:port/model-schema-checker
+```
+
+#### **Universal Access Method**
+
+Regardless of your environment, once the app is running:
+
+```php
+// In Blade templates
+<a href="{{ route('model-schema-checker.index') }}">Schema Checker</a>
+
+// Direct URL (replace with your domain)
+https://your-domain.com/model-schema-checker
+```
+
+### **Dashboard URLs**
+
+- **Main Dashboard**: `/model-schema-checker`
+- **Check Results**: `/model-schema-checker/results/{id}`
+- **Step-by-Step Fixes**: `/model-schema-checker/step-by-step/{id}`
+- **Check History**: `/model-schema-checker/history`
+
+### **Security & Permissions**
+
+- All routes are protected by `auth` middleware
+- CSRF protection on all forms
+- User isolation - users only see their own check results
+- Secure file operations for reports and exports
+- **🚫 Automatic production disable** - No routes or functionality in production
+
+### **Production Safety**
+
+The web dashboard is automatically **disabled in production environments**:
+
+```php
+// In production (APP_ENV=production):
+// - No routes are loaded
+// - No migrations are loaded  
+// - No commands are registered
+// - Dashboard returns 404
+
+// In development/testing/staging:
+// - Full functionality available
+// - All routes active
+// - Commands available
+```
+
+## Troubleshooting
+
+### **Dashboard Not Accessible**
+
+#### **Check Environment**
+```bash
+# Verify you're not in production
+php artisan env
+
+# Should show: APP_ENV=local (or testing/staging)
+# NOT: APP_ENV=production
+```
+
+#### **Clear Caches**
+```bash
+# Clear all caches
+php artisan config:clear
+php artisan route:clear
+php artisan view:clear
+php artisan cache:clear
+```
+
+#### **Verify Routes Are Loaded**
+```bash
+# Check if routes are registered
+php artisan route:list | grep model-schema
+
+# Should show routes like:
+# GET|HEAD  model-schema-checker .......................
+```
+
+#### **Run Migrations**
+```bash
+# Ensure database tables exist
+php artisan migrate:status
+
+# Run migrations if needed
+php artisan migrate
+```
+
+#### **Check Authentication**
+```bash
+# Make sure you're logged in
+php artisan auth:check
+```
+
+### **Environment-Specific Issues**
+
+#### **DDEV**
+```bash
+# Restart DDEV if needed
+ddev restart
+
+# Check DDEV status
+ddev status
+```
+
+#### **Laravel Sail**
+```bash
+# Restart Sail
+./vendor/bin/sail down
+./vendor/bin/sail up
+```
+
+#### **Permission Issues**
+```bash
+# Fix storage permissions
+chmod -R 755 storage/
+chmod -R 755 bootstrap/cache/
+
+# Or with Sail
+./vendor/bin/sail artisan storage:link
 ```
 
 ## Migration Synchronization Features

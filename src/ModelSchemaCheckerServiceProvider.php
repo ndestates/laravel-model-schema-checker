@@ -49,6 +49,11 @@ class ModelSchemaCheckerServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // Only load in non-production environments
+        if ($this->app->environment('production')) {
+            return;
+        }
+
         // Register CheckerManager in boot() when all services are available
         $this->app->singleton(
             \NDEstates\LaravelModelSchemaChecker\Services\CheckerManager::class,
@@ -59,10 +64,29 @@ class ModelSchemaCheckerServiceProvider extends ServiceProvider
             }
         );
 
+        // Load web routes
+        $this->loadRoutesFrom(__DIR__ . '/../routes/web.php');
+
+        // Load migrations
+        $this->loadMigrationsFrom(__DIR__ . '/../database/migrations');
+
         // Publish configuration file
         $this->publishes([
             __DIR__ . '/../config/model-schema-checker.php' => config_path('model-schema-checker.php'),
         ], 'config');
+
+        // Publish views
+        $this->publishes([
+            __DIR__ . '/../resources/views' => resource_path('views/vendor/model-schema-checker'),
+        ], 'views');
+
+        // Publish assets
+        $this->publishes([
+            __DIR__ . '/../resources/assets' => public_path('vendor/model-schema-checker'),
+        ], 'assets');
+
+        // Load views
+        $this->loadViewsFrom(__DIR__ . '/../resources/views', 'model-schema-checker');
 
         // Register console commands
         if ($this->app->runningInConsole()) {

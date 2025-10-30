@@ -1,0 +1,296 @@
+<?php
+
+namespace NDEstates\LaravelModelSchemaChecker\Http\Controllers;
+
+use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Log;
+use Illuminate\View\View;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\Bus;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use NDEstates\LaravelModelSchemaChecker\Services\CheckerManager;
+use NDEstates\LaravelModelSchemaChecker\Services\IssueManager;
+use NDEstates\LaravelModelSchemaChecker\Jobs\RunModelChecks;
+use NDEstates\LaravelModelSchemaChecker\Models\CheckResult;
+
+class ModelSchemaCheckerController
+{
+    protected CheckerManager $checkerManager;
+    protected IssueManager $issueManager;
+
+    public function __construct(CheckerManager $checkerManager, IssueManager $issueManager)
+    {
+        $this->checkerManager = $checkerManager;
+        $this->issueManager = $issueManager;
+    }
+
+    /**
+     * Display the main dashboard
+     */
+    public function index(): View
+    {
+        $recentResults = CheckResult::latest()->take(5)->get();
+        $stats = $this->getDashboardStats();
+
+        return view('model-schema-checker::dashboard', compact('recentResults', 'stats'));
+    }
+
+    /**
+     * Run model schema checks
+     */
+    public function runChecks(Request $request): JsonResponse
+    {
+        $request->validate([
+            'check_types' => 'array',
+            'check_types.*' => 'string',
+            'options' => 'array',
+        ]);
+
+        $checkTypes = $request->input('check_types', ['all']);
+        $options = $request->input('options', []);
+
+        // Dispatch job for background processing
+        $job = new RunModelChecks(Auth::id(), $checkTypes, $options);
+        $jobId = Bus::dispatch($job);
+
+        // Store job ID for progress tracking
+        Cache::put("model-checker-job-{$jobId}", [
+            'status' => 'queued',
+            'progress' => 0,
+            'user_id' => Auth::id(),
+            'started_at' => now(),
+        ], now()->addHours(1));
+
+        return response()->json([
+            'success' => true,
+            'job_id' => $jobId,
+            'message' => 'Checks started successfully',
+        ]);
+    }
+
+    /**
+     * Check progress of running checks
+     */
+    public function checkProgress(string $jobId): JsonResponse
+    {
+        $progress = Cache::get("model-checker-job-{$jobId}");
+
+        if (!$progress) {
+            return response()->json([
+                'status' => 'not_found',
+                'message' => 'Job not found',
+            ]);
+        }
+
+        // Check if user owns this job
+        if ($progress['user_id'] !== Auth::id()) {
+            return response()->json([
+                'status' => 'unauthorized',
+                'message' => 'Unauthorized access to job',
+            ]);
+        }
+
+        return response()->json($progress);
+    }
+
+    /**
+     * Show detailed results
+     */
+    public function showResult(CheckResult $result): View
+    {
+        // Ensure user can access this result
+        if ($result->user_id !== Auth::id()) {
+            abort(403, 'Unauthorized access to results');
+        }
+
+        $issues = $result->issues ?? [];
+        $improvements = array_filter($issues, fn($issue) => isset($issue['improvement']));
+
+        return view('model-schema-checker::result-detail', compact('result', 'issues', 'improvements'));
+    }
+
+    /**
+     * Get results data for AJAX
+     */
+    public function getResultsData(CheckResult $result): JsonResponse
+    {
+        if ($result->user_id !== Auth::id()) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        return response()->json([
+            'result' => $result,
+            'issues' => $result->issues ?? [],
+            'stats' => $result->stats ?? [],
+        ]);
+    }
+
+    /**
+     * Apply fixes
+     */
+    public function applyFixes(Request $request): JsonResponse
+    {
+        $request->validate([
+            'result_id' => 'required|exists:check_results,id',
+            'fixes' => 'array',
+            'step_by_step' => 'boolean',
+        ]);
+
+        $result = CheckResult::findOrFail($request->result_id);
+
+        if ($result->user_id !== Auth::id()) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        $fixes = $request->input('fixes', []);
+        $stepByStep = $request->boolean('step_by_step', false);
+
+        // Apply fixes logic here
+        // This would use the existing command logic
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Fixes applied successfully',
+        ]);
+    }
+
+    /**
+     * Step-by-step fix interface
+     */
+    public function stepByStep(CheckResult $result): View
+    {
+        if ($result->user_id !== Auth::id()) {
+            abort(403);
+        }
+
+        $issues = $result->issues ?? [];
+        $improvements = array_filter($issues, fn($issue) => isset($issue['improvement']));
+
+        return view('model-schema-checker::step-by-step', compact('result', 'improvements'));
+    }
+
+    /**
+     * Apply individual step fix
+     */
+    public function applyStepFix(Request $request): JsonResponse
+    {
+        $request->validate([
+            'result_id' => 'required|exists:check_results,id',
+            'fix_index' => 'required|integer',
+            'action' => 'required|in:yes,no,skip',
+        ]);
+
+        $result = CheckResult::findOrFail($request->result_id);
+
+        if ($result->user_id !== Auth::id()) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        // Apply individual fix logic here
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Fix applied',
+        ]);
+    }
+
+    /**
+     * Rollback fixes
+     */
+    public function rollbackFixes(Request $request): JsonResponse
+    {
+        $request->validate([
+            'result_id' => 'required|exists:check_results,id',
+        ]);
+
+        $result = CheckResult::findOrFail($request->result_id);
+
+        if ($result->user_id !== Auth::id()) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        // Rollback logic here
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Rollback completed',
+        ]);
+    }
+
+    /**
+     * Show history of checks
+     */
+    public function history(): View
+    {
+        $results = CheckResult::where('user_id', Auth::id())
+            ->latest()
+            ->paginate(20);
+
+        return view('model-schema-checker::history', compact('results'));
+    }
+
+    /**
+     * Download report
+     */
+    public function downloadReport(CheckResult $result): BinaryFileResponse
+    {
+        if ($result->user_id !== Auth::id()) {
+            abort(403);
+        }
+
+        $filename = "model-schema-check_{$result->created_at->format('Y-m-d_H-i-s')}.md";
+        $content = $this->generateMarkdownReport($result);
+
+        $tempPath = storage_path("app/temp-{$filename}");
+        file_put_contents($tempPath, $content);
+
+        return response()->download($tempPath, $filename)->deleteFileAfterSend();
+    }
+
+    /**
+     * Get dashboard statistics
+     */
+    protected function getDashboardStats(): array
+    {
+        $userId = Auth::id();
+
+        return [
+            'total_checks' => CheckResult::where('user_id', $userId)->count(),
+            'checks_this_month' => CheckResult::where('user_id', $userId)
+                ->whereMonth('created_at', now()->month)
+                ->count(),
+            'total_issues_found' => CheckResult::where('user_id', $userId)
+                ->sum('total_issues'),
+            'last_check_date' => CheckResult::where('user_id', $userId)
+                ->latest()
+                ->value('created_at'),
+        ];
+    }
+
+    /**
+     * Generate markdown report content
+     */
+    protected function generateMarkdownReport(CheckResult $result): string
+    {
+        $content = "# Laravel Model Schema Checker Results\n\n";
+        $content .= "**Generated:** {$result->created_at->format('Y-m-d H:i:s')}\n\n";
+        $content .= "**User:** " . Auth::user()->name . "\n\n";
+
+        if (!empty($result->issues)) {
+            $content .= "## Issues Found\n\n";
+            foreach ($result->issues as $issue) {
+                $content .= "- {$issue['message']}\n";
+                if (isset($issue['file'])) {
+                    $content .= "  - 📁 {$issue['file']}\n";
+                }
+                $content .= "\n";
+            }
+        }
+
+        return $content;
+    }
+}

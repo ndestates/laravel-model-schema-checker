@@ -237,4 +237,61 @@ class ServiceProviderTest extends TestCase
         // Should handle multiple calls gracefully
         $this->assertTrue(true);
     }
+
+    /**
+     * Test that service provider disables itself in production environment
+     *
+     * Validates that the package automatically disables all functionality
+     * in production environments to prevent security risks.
+     */
+    public function test_service_provider_disables_in_production()
+    {
+        // Create a mock application in production environment
+        $app = $this->createMockApplication();
+        $app->method('environment')->willReturn('production');
+
+        // Create provider with production app
+        $provider = new ModelSchemaCheckerServiceProvider($app);
+
+        // Mock the methods that should NOT be called in production
+        $provider->expects($this->never())->method('loadRoutesFrom');
+        $provider->expects($this->never())->method('loadMigrationsFrom');
+        $provider->expects($this->never())->method('loadViewsFrom');
+
+        // Boot the provider - should return early in production
+        $provider->boot();
+
+        // Verify that production environment is detected
+        $this->assertEquals('production', $app->environment());
+    }
+
+    /**
+     * Test that service provider enables itself in non-production environments
+     *
+     * Validates that the package works normally in development, testing, and staging.
+     */
+    public function test_service_provider_enables_in_development()
+    {
+        $environments = ['local', 'testing', 'staging', 'development'];
+
+        foreach ($environments as $env) {
+            // Create a mock application in non-production environment
+            $app = $this->createMockApplication();
+            $app->method('environment')->willReturn($env);
+
+            // Create provider with non-production app
+            $provider = new ModelSchemaCheckerServiceProvider($app);
+
+            // Mock the methods that SHOULD be called in non-production
+            $provider->expects($this->once())->method('loadRoutesFrom');
+            $provider->expects($this->once())->method('loadMigrationsFrom');
+            $provider->expects($this->once())->method('loadViewsFrom');
+
+            // Boot the provider - should load everything in non-production
+            $provider->boot();
+
+            // Verify that non-production environment is detected
+            $this->assertNotEquals('production', $app->environment());
+        }
+    }
 }
