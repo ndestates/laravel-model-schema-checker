@@ -1137,6 +1137,11 @@ class LaravelFormsChecker extends BaseChecker
         $className = $file->getFilenameWithoutExtension();
         $filePath = $file->getPathname();
 
+        // Skip non-form components
+        if (!$this->isFormComponent($content, $className)) {
+            return;
+        }
+
         // Try to identify the model this component is for
         $associatedModel = $this->identifyLivewireModel($content, $className, $modelFields);
 
@@ -1173,6 +1178,44 @@ class LaravelFormsChecker extends BaseChecker
         }
 
         return null;
+    }
+
+    protected function isFormComponent(string $content, string $className): bool
+    {
+        // Check component name patterns that suggest it's a form
+        $formPatterns = ['Form', 'Create', 'Edit', 'Update', 'Store', 'Submit'];
+        foreach ($formPatterns as $pattern) {
+            if (stripos($className, $pattern) !== false) {
+                return true;
+            }
+        }
+
+        // Check for form-related methods
+        $formMethods = ['save', 'update', 'create', 'store', 'submit', 'handleSubmit'];
+        foreach ($formMethods as $method) {
+            if (preg_match("/public\s+function\s+{$method}\s*\(/", $content)) {
+                return true;
+            }
+        }
+
+        // Check for validation rules (forms typically have validation)
+        if (preg_match('/protected\s+\$rules\s*=/', $content) ||
+            preg_match('/public\s+function\s+rules\(\)/', $content)) {
+            return true;
+        }
+
+        // Check for form-related properties or methods
+        if (preg_match('/\$this->validate\(/', $content) ||
+            preg_match('/\$this->reset\(/', $content)) {
+            return true;
+        }
+
+        // Check for Livewire form directives in comments or docblocks (indicating form usage)
+        if (preg_match('/@livewire.*form|wire:model|wire:submit/', $content)) {
+            return true;
+        }
+
+        return false;
     }
 
     protected function checkLivewirePropertyFields(string $content, string $className, string $filePath, array $modelData): void

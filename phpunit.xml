@@ -6,6 +6,10 @@
     <testsuites>
         <testsuite name="Test Suite">
             <directory>tests</directory>
+            <exclude>tests/BasicTest.php</exclude>
+            <exclude>tests/IssueManagerTest.php</exclude>
+            <exclude>tests/MigrationCheckerTest.php</exclude>
+            <exclude>tests/SupplierTestingExamplesTest.php</exclude>
         </testsuite>
         <testsuite name="ReliableTests">
             <file>tests/BasicTest.php</file>
