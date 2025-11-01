@@ -33,8 +33,11 @@ class ModelSchemaCheckerController
      */
     public function index(): View
     {
-        $recentResults = CheckResult::latest()->take(5)->get();
-        $stats = $this->getDashboardStats();
+        // Get user ID (1 for guest in development, actual user ID if authenticated)
+        $userId = $this->getCurrentUserId();
+        
+        $recentResults = CheckResult::where('user_id', $userId)->latest()->take(5)->get();
+        $stats = $this->getDashboardStats($userId);
 
         return view('model-schema-checker::dashboard', compact('recentResults', 'stats'));
     }
@@ -54,14 +57,15 @@ class ModelSchemaCheckerController
         $options = $request->input('options', []);
 
         // Dispatch job for background processing
-        $job = new RunModelChecks(Auth::id(), $checkTypes, $options);
+        $userId = $this->getCurrentUserId();
+        $job = new RunModelChecks($userId, $checkTypes, $options);
         $jobId = Bus::dispatch($job);
 
         // Store job ID for progress tracking
         Cache::put("model-checker-job-{$jobId}", [
             'status' => 'queued',
             'progress' => 0,
-            'user_id' => Auth::id(),
+            'user_id' => $userId,
             'started_at' => now(),
         ], now()->addHours(1));
 
@@ -87,7 +91,7 @@ class ModelSchemaCheckerController
         }
 
         // Check if user owns this job
-        if ($progress['user_id'] !== Auth::id()) {
+        if ($progress['user_id'] !== $this->getCurrentUserId()) {
             return response()->json([
                 'status' => 'unauthorized',
                 'message' => 'Unauthorized access to job',
@@ -103,7 +107,7 @@ class ModelSchemaCheckerController
     public function showResult(CheckResult $result): View
     {
         // Ensure user can access this result
-        if ($result->user_id !== Auth::id()) {
+        if ($result->user_id !== $this->getCurrentUserId()) {
             abort(403, 'Unauthorized access to results');
         }
 
@@ -118,7 +122,7 @@ class ModelSchemaCheckerController
      */
     public function getResultsData(CheckResult $result): JsonResponse
     {
-        if ($result->user_id !== Auth::id()) {
+        if ($result->user_id !== $this->getCurrentUserId()) {
             return response()->json(['error' => 'Unauthorized'], 403);
         }
 
@@ -142,7 +146,7 @@ class ModelSchemaCheckerController
 
         $result = CheckResult::findOrFail($request->result_id);
 
-        if ($result->user_id !== Auth::id()) {
+        if ($result->user_id !== $this->getCurrentUserId()) {
             return response()->json(['error' => 'Unauthorized'], 403);
         }
 
@@ -163,7 +167,7 @@ class ModelSchemaCheckerController
      */
     public function stepByStep(CheckResult $result): View
     {
-        if ($result->user_id !== Auth::id()) {
+        if ($result->user_id !== $this->getCurrentUserId()) {
             abort(403);
         }
 
@@ -186,7 +190,7 @@ class ModelSchemaCheckerController
 
         $result = CheckResult::findOrFail($request->result_id);
 
-        if ($result->user_id !== Auth::id()) {
+        if ($result->user_id !== $this->getCurrentUserId()) {
             return response()->json(['error' => 'Unauthorized'], 403);
         }
 
@@ -209,7 +213,7 @@ class ModelSchemaCheckerController
 
         $result = CheckResult::findOrFail($request->result_id);
 
-        if ($result->user_id !== Auth::id()) {
+        if ($result->user_id !== $this->getCurrentUserId()) {
             return response()->json(['error' => 'Unauthorized'], 403);
         }
 
@@ -226,7 +230,7 @@ class ModelSchemaCheckerController
      */
     public function history(): View
     {
-        $results = CheckResult::where('user_id', Auth::id())
+        $results = CheckResult::where('user_id', $this->getCurrentUserId())
             ->latest()
             ->paginate(20);
 
@@ -238,7 +242,7 @@ class ModelSchemaCheckerController
      */
     public function downloadReport(CheckResult $result): BinaryFileResponse
     {
-        if ($result->user_id !== Auth::id()) {
+        if ($result->user_id !== $this->getCurrentUserId()) {
             abort(403);
         }
 
@@ -254,9 +258,9 @@ class ModelSchemaCheckerController
     /**
      * Get dashboard statistics
      */
-    protected function getDashboardStats(): array
+    protected function getDashboardStats(?int $userId = null): array
     {
-        $userId = Auth::id();
+        $userId = $userId ?? $this->getCurrentUserId();
 
         return [
             'total_checks' => CheckResult::where('user_id', $userId)->count(),
@@ -274,11 +278,26 @@ class ModelSchemaCheckerController
     /**
      * Generate markdown report content
      */
+    /**
+     * Get current user ID (handles guest users in development)
+     */
+    protected function getCurrentUserId(): int
+    {
+        if (Auth::check()) {
+            return $this->getCurrentUserId();
+        }
+
+        // In development environments, use a guest user ID of 1
+        // In production, this won't be reached due to auth middleware
+        return 1;
+    }
+
     protected function generateMarkdownReport(CheckResult $result): string
     {
         $content = "# Laravel Model Schema Checker Results\n\n";
         $content .= "**Generated:** {$result->created_at->format('Y-m-d H:i:s')}\n\n";
-        $content .= "**User:** " . Auth::user()->name . "\n\n";
+        $userName = Auth::check() ? Auth::user()->name : 'Guest User (Development)';
+        $content .= "**User:** {$userName}\n\n";
 
         if (!empty($result->issues)) {
             $content .= "## Issues Found\n\n";

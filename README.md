@@ -441,7 +441,9 @@ The Laravel Model Schema Checker now includes a comprehensive web-based dashboar
 ### **Web Dashboard Setup**
 
 1. **Routes are automatically loaded** when the package is installed
-2. **Authentication required** - users must be logged in to access
+2. **Smart authentication handling**:
+   - **Production**: Authentication required (automatically disabled anyway)
+   - **Development**: Works with or without authentication (guest users supported)
 3. **Assets are published** to `public/vendor/model-schema-checker/`
 4. **Views are published** to `resources/views/vendor/model-schema-checker/`
 
@@ -538,9 +540,12 @@ https://your-domain.com/model-schema-checker
 
 ### **Security & Permissions**
 
-- All routes are protected by `auth` middleware
+- **Smart authentication handling**:
+  - **Production**: Authentication required (`auth` middleware)
+  - **Development**: Works with or without authentication (guest users supported)
 - CSRF protection on all forms
 - User isolation - users only see their own check results
+- Guest users in development use a shared user ID (1)
 - Secure file operations for reports and exports
 - **🚫 Automatic production disable** - No routes or functionality in production
 
@@ -560,6 +565,32 @@ The web dashboard is automatically **disabled in production environments**:
 // - All routes active
 // - Commands available
 ```
+
+### **Guest User Access (Development)**
+
+In development environments, you **don't need to be logged in** to use the dashboard:
+
+- **No authentication required** in non-production environments
+- **Guest users** are automatically supported
+- **Shared data space** for all guest users (user ID: 1)
+- **Development mode indicator** shown in navigation
+
+#### **Access Without Login**
+
+```bash
+# Just navigate to the URL directly
+https://your-app.com/model-schema-checker
+
+# No login required in development!
+```
+
+#### **Guest User Features**
+
+- ✅ **Full functionality** available to guest users
+- ✅ **Run schema checks** and apply fixes
+- ✅ **View results** and history
+- ✅ **Step-by-step fixes** with rollback
+- ✅ **All data persisted** between sessions
 
 ## Troubleshooting
 

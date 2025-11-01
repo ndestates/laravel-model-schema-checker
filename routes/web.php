@@ -14,7 +14,10 @@ use NDEstates\LaravelModelSchemaChecker\Http\Controllers\ModelSchemaCheckerContr
 |
 */
 
-Route::middleware(['web', 'auth'])->prefix('model-schema-checker')->name('model-schema-checker.')->group(function () {
+// Use different middleware based on environment
+$middleware = app()->environment('production') ? ['web', 'auth'] : ['web'];
+
+Route::middleware($middleware)->prefix('model-schema-checker')->name('model-schema-checker.')->group(function () {
 
     // Main dashboard
     Route::get('/', [ModelSchemaCheckerController::class, 'index'])->name('index');

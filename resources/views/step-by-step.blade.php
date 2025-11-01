@@ -64,11 +64,15 @@
                         </div>
                     </div>
                     <div class="flex items-center space-x-4">
-                        <span class="text-gray-500">Welcome, {{ Auth::user()->name }}</span>
-                        <form method="POST" action="{{ route('logout') }}">
-                            @csrf
-                            <button type="submit" class="text-gray-700 hover:text-gray-900">Logout</button>
-                        </form>
+                        @auth
+                            <span class="text-gray-500">Welcome, {{ Auth::user()->name }}</span>
+                            <form method="POST" action="{{ route('logout') }}">
+                                @csrf
+                                <button type="submit" class="text-gray-700 hover:text-gray-900">Logout</button>
+                            </form>
+                        @else
+                            <span class="text-gray-500">Guest User (Development Mode)</span>
+                        @endauth
                     </div>
                 </div>
             </div>
