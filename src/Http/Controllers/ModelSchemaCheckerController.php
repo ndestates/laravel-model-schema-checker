@@ -24,6 +24,11 @@ class ModelSchemaCheckerController
 
     public function __construct(CheckerManager $checkerManager, IssueManager $issueManager)
     {
+        // PRODUCTION SAFETY: This controller should never be accessible in production
+        if ($this->isProductionEnvironment()) {
+            abort(403, 'Laravel Model Schema Checker is not available in production environments.');
+        }
+
         $this->checkerManager = $checkerManager;
         $this->issueManager = $issueManager;
     }
@@ -311,5 +316,48 @@ class ModelSchemaCheckerController
         }
 
         return $content;
+    }
+
+    /**
+     * Check if we're running in a production environment
+     * Multiple layers of protection to prevent reverse engineering
+     */
+    protected function isProductionEnvironment(): bool
+    {
+        // Use Laravel's app environment helper
+        $env = app()->environment();
+
+        // Primary check: standard Laravel environments
+        if (in_array(strtolower($env), ['production', 'prod', 'live'])) {
+            return true;
+        }
+
+        // Secondary check: environment variables that might indicate production
+        if (env('APP_ENV') === 'production' || env('APP_ENV') === 'prod' || env('APP_ENV') === 'live') {
+            return true;
+        }
+
+        // Tertiary check: server environment variables
+        if (isset($_SERVER['APP_ENV']) && in_array(strtolower($_SERVER['APP_ENV']), ['production', 'prod', 'live'])) {
+            return true;
+        }
+
+        // Quaternary check: check for production-like hostnames
+        if (isset($_SERVER['HTTP_HOST'])) {
+            $host = strtolower($_SERVER['HTTP_HOST']);
+            // Common production patterns
+            if (strpos($host, '.com') !== false ||
+                strpos($host, '.org') !== false ||
+                strpos($host, '.net') !== false ||
+                !preg_match('/\b(localhost|127\.0\.0\.1|\.local|\.dev|\.test)\b/', $host)) {
+                // Additional check: if not clearly development, be conservative
+                if (!preg_match('/\b(dev|staging|test|demo)\b/', $host)) {
+                    // This is a heuristic - in production deployments, be extra cautious
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 }

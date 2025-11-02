@@ -4,6 +4,7 @@ namespace NDEstates\LaravelModelSchemaChecker;
 
 use Illuminate\Support\ServiceProvider;
 use NDEstates\LaravelModelSchemaChecker\Commands\ModelSchemaCheckCommand;
+use NDEstates\LaravelModelSchemaChecker\Commands\PublishAssetsCommand;
 
 class ModelSchemaCheckerServiceProvider extends ServiceProvider
 {
@@ -80,10 +81,10 @@ class ModelSchemaCheckerServiceProvider extends ServiceProvider
             __DIR__ . '/../resources/views' => resource_path('views/vendor/model-schema-checker'),
         ], 'views');
 
-        // Publish assets
+        // Publish built assets
         $this->publishes([
-            __DIR__ . '/../resources/assets' => public_path('vendor/model-schema-checker'),
-        ], 'assets');
+            __DIR__ . '/../dist' => public_path('vendor/model-schema-checker'),
+        ], 'model-schema-checker-assets');
 
         // Load views
         $this->loadViewsFrom(__DIR__ . '/../resources/views', 'model-schema-checker');
@@ -92,6 +93,7 @@ class ModelSchemaCheckerServiceProvider extends ServiceProvider
         if ($this->app->runningInConsole()) {
             $this->commands([
                 ModelSchemaCheckCommand::class,
+                PublishAssetsCommand::class,
             ]);
         }
     }

@@ -20,6 +20,33 @@ The package automatically disables itself in production environments (`APP_ENV=p
 - ❌ **Production**: Automatically disabled
 - ✅ **Local environments**: Full functionality available
 
+## Production Safety Features
+
+This package includes multiple layers of protection to prevent accidental or malicious use in production environments:
+
+### **🔒 Layer 1: Service Provider Protection**
+- Service provider checks `app()->environment('production')` and exits early
+- No routes, commands, or services are registered in production
+
+### **🛡️ Layer 2: Command-Level Protection**
+- All Artisan commands check for production environment before execution
+- Commands exit with error code 1 and display security warnings
+
+### **🚫 Layer 3: Controller-Level Protection**
+- Web controller constructor checks for production environment
+- Aborts with HTTP 403 error if accessed in production
+
+### **🔍 Layer 4: Multi-Factor Environment Detection**
+- Primary: Laravel's `app()->environment()` check
+- Secondary: `APP_ENV` environment variable
+- Tertiary: `$_SERVER['APP_ENV']` server variable
+- Quaternary: Hostname pattern analysis (heuristic detection)
+
+### **🧪 Comprehensive Testing**
+- Unit tests verify all production safety measures
+- Tests ensure commands, routes, and controllers are properly blocked
+- Reverse engineering protection validated
+
 ## Compatibility
 
 - **Laravel**: 10.x, 11.x, 12.x
@@ -440,12 +467,29 @@ The Laravel Model Schema Checker now includes a comprehensive web-based dashboar
 
 ### **Web Dashboard Setup**
 
-1. **Routes are automatically loaded** when the package is installed
-2. **Smart authentication handling**:
+1. **Run database migrations** to create required tables:
+   ```bash
+   php artisan migrate
+   ```
+
+2. **Publish assets** for proper styling:
+   ```bash
+   php artisan model-schema-checker:publish-assets
+   ```
+   
+   Or manually:
+   ```bash
+   php artisan vendor:publish --tag=model-schema-checker-assets
+   ```
+
+3. **Routes are automatically loaded** when the package is installed
+4. **Smart authentication handling**:
    - **Production**: Authentication required (automatically disabled anyway)
    - **Development**: Works with or without authentication (guest users supported)
-3. **Assets are published** to `public/vendor/model-schema-checker/`
-4. **Views are published** to `resources/views/vendor/model-schema-checker/`
+5. **Views can be published** (optional) to `resources/views/vendor/model-schema-checker/`:
+   ```bash
+   php artisan vendor:publish --tag=model-schema-checker-views
+   ```
 
 ### **Accessing the Dashboard**
 
