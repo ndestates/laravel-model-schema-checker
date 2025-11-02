@@ -271,4 +271,28 @@ return [
         'ttl' => env('MSC_CACHE_TTL', 3600), // seconds
         'store' => env('MSC_CACHE_STORE', 'file'),
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Migration Settings
+    |--------------------------------------------------------------------------
+    |
+    | Settings for migration-related operations including the forgiving migration feature.
+    |
+    */
+    'migrations' => [
+        'forgiving' => [
+            'enabled' => env('MSC_MIGRATIONS_FORGIVING_ENABLED', true),
+            'auto_mark_ran' => env('MSC_MIGRATIONS_FORGIVING_AUTO_MARK_RAN', true),
+            'report_path' => env('MSC_MIGRATIONS_FORGIVING_REPORT_PATH', storage_path('logs')),
+            'table_exists_patterns' => [
+                'table.*already exists',
+                'already exists',
+                'Base table or view already exists',
+                'SQLSTATE\[42S01\]',
+                'Duplicate entry.*for key.*PRIMARY',
+                'SQLSTATE\[23000\].*Duplicate entry',
+            ],
+        ],
+    ],
 ];

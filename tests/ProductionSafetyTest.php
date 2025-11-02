@@ -6,6 +6,7 @@ use PHPUnit\Framework\TestCase;
 use NDEstates\LaravelModelSchemaChecker\ModelSchemaCheckerServiceProvider;
 use NDEstates\LaravelModelSchemaChecker\Commands\ModelSchemaCheckCommand;
 use NDEstates\LaravelModelSchemaChecker\Commands\PublishAssetsCommand;
+use NDEstates\LaravelModelSchemaChecker\Commands\MigrateForgivingCommand;
 
 class ProductionSafetyTest extends TestCase
 {
@@ -22,6 +23,12 @@ class ProductionSafetyTest extends TestCase
         $this->assertTrue(method_exists(PublishAssetsCommand::class, 'handle'));
     }
 
+    public function test_migrate_forgiving_command_has_production_environment_checks()
+    {
+        $this->assertTrue(method_exists(MigrateForgivingCommand::class, 'isProductionEnvironment'));
+        $this->assertTrue(method_exists(MigrateForgivingCommand::class, 'handle'));
+    }
+
     public function test_controller_has_production_environment_checks()
     {
         // Test that the controller class exists and has the method
@@ -35,6 +42,7 @@ class ProductionSafetyTest extends TestCase
         $classes = [
             ModelSchemaCheckCommand::class,
             PublishAssetsCommand::class,
+            MigrateForgivingCommand::class,
             \NDEstates\LaravelModelSchemaChecker\Http\Controllers\ModelSchemaCheckerController::class,
         ];
 
@@ -57,7 +65,7 @@ class ProductionSafetyTest extends TestCase
     public function test_commands_contain_production_error_messages()
     {
         // Test that commands contain production safety error messages
-        $commandClasses = [ModelSchemaCheckCommand::class, PublishAssetsCommand::class];
+        $commandClasses = [ModelSchemaCheckCommand::class, PublishAssetsCommand::class, MigrateForgivingCommand::class];
 
         foreach ($commandClasses as $class) {
             $reflection = new \ReflectionClass($class);

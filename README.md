@@ -265,6 +265,7 @@ MSC_CACHE_TTL=3600
 - Foreign key index requirements
 - Database-agnostic validation
 - Configurable schema validation
+- **Forgiving Migration Runner**: Safely run migrations while skipping existing tables
 
 ### Security
 - XSS vulnerability detection
@@ -307,6 +308,7 @@ MSC_CACHE_TTL=3600
 - **Multiple Output Formats**: Console, JSON, XML support
 - **Smart Exclusions**: Automatic exclusion of common files/models
 - **Production Ready**: Comprehensive error detection and reporting
+- **Forgiving Migration Runner**: Safely run migrations while skipping existing tables
 
 ## 📊 **Development Status**
 
@@ -427,6 +429,86 @@ php artisan model:schema-check --export-data
 php artisan model:schema-check --import-data
 ```
 
+### Forgiving Migration Runner
+
+The package includes a **forgiving migration runner** that safely runs migrations while skipping tables that already exist. This is perfect for:
+
+- **Database-first development** where tables exist before migrations
+- **Legacy databases** that need migration tracking
+- **Team environments** where migrations may have been run manually
+- **Testing environments** with pre-populated databases
+
+#### **Command Line Usage**
+
+```bash
+# Run all pending migrations, skipping existing tables
+php artisan migrate:forgiving
+
+# Run specific migration file
+php artisan migrate:forgiving --path=database/migrations/2024_01_01_000000_create_users_table.php
+
+# Force run (ignore production safety)
+php artisan migrate:forgiving --force
+
+# Dry run to see what would be executed
+php artisan migrate:forgiving --dry-run
+
+# Check for migration issues before running
+php artisan migrate:forgiving --check-migrations
+
+# Auto-fix simple issues and then run migrations
+php artisan migrate:forgiving --check-migrations --fix-migrations
+```
+
+#### **Migration Validation Features**
+
+When using `--check-migrations`, the command will validate migrations for:
+
+- **PHP Syntax Errors**: Detects invalid PHP code in migration files
+- **Invalid Column Definitions**: Finds string columns without length, malformed method calls
+- **Missing Foreign Key Indexes**: Identifies foreign keys without performance indexes
+- **Migration Naming Conventions**: Checks for proper Laravel migration naming
+- **Database Schema Consistency**: Validates against current database structure
+
+**Auto-fixable Issues** (with `--fix-migrations`):
+- String columns without length specifications
+- Nullable foreign keys missing default values
+- Malformed method calls (e.g., `$table->string('key'(255))` → `$table->string('key', 255)`)
+
+**Non-fixable Issues** (requires manual intervention):
+- Missing foreign key dependencies (wrong migration order)
+- Database connection problems
+- Complex syntax errors requiring code restructuring
+
+#### **Configuration Options**
+
+Configure the forgiving migration behavior in `config/model-schema-checker.php`:
+
+```php
+'migration' => [
+    'forgiving' => [
+        'enabled' => true,
+        'auto_mark_ran' => true, // Mark skipped migrations as "ran"
+        'table_exists_patterns' => [
+            'Table .* already exists',  // MySQL
+            'relation .* already exists', // PostgreSQL
+            'table .* already exists',   // SQLite
+        ],
+        'report_path' => storage_path('logs/migration-forgiving-report.json'),
+    ],
+],
+```
+
+#### **Web Dashboard Integration**
+
+The forgiving migration feature is also available in the web dashboard under the **"Migration Tools"** section:
+
+- **Real-time Status**: See current migration status and pending migrations
+- **One-Click Execution**: Run forgiving migrations with a single button click
+- **Progress Tracking**: Visual progress bar and status updates
+- **Error Handling**: Detailed error messages and recovery suggestions
+- **Production Safety**: Automatically disabled in production environments
+
 ## 🌐 Web Dashboard
 
 ### **Interactive Web Interface**
@@ -464,6 +546,14 @@ The Laravel Model Schema Checker now includes a comprehensive web-based dashboar
 - Filter by status, date range, and issue presence
 - Detailed result viewing
 - Result deletion and management
+
+#### **🛠️ Migration Tools**
+- **Forgiving Migration Runner**: Safely run migrations while skipping existing tables
+- **Migration Status Overview**: Real-time view of pending and completed migrations
+- **One-Click Migration Execution**: Run migrations directly from the web interface
+- **Progress Tracking**: Visual progress bars and status updates during migration runs
+- **Error Recovery**: Detailed error messages with recovery suggestions
+- **Production Safety**: Automatic blocking in production environments
 
 ### **Web Dashboard Setup**
 
@@ -581,6 +671,8 @@ https://your-domain.com/model-schema-checker
 - **Check Results**: `/model-schema-checker/results/{id}`
 - **Step-by-Step Fixes**: `/model-schema-checker/step-by-step/{id}`
 - **Check History**: `/model-schema-checker/history`
+- **Migration Status**: `/model-schema-checker/migrations/status`
+- **Run Forgiving Migration**: `/model-schema-checker/migrations/forgiving` (POST)
 
 ### **Security & Permissions**
 

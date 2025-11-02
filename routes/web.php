@@ -46,4 +46,8 @@ Route::middleware($middleware)->prefix('model-schema-checker')->name('model-sche
     Route::get('/history', [ModelSchemaCheckerController::class, 'history'])->name('history');
     Route::get('/reports/{result}/download', [ModelSchemaCheckerController::class, 'downloadReport'])->name('reports.download');
 
+    // Migration operations
+    Route::post('/migrations/forgiving', [ModelSchemaCheckerController::class, 'runForgivingMigrations'])->name('migrations.forgiving');
+    Route::get('/migrations/status', [ModelSchemaCheckerController::class, 'getMigrationStatus'])->name('migrations.status');
+
 });

@@ -214,6 +214,80 @@
                 </div>
             </div>
 
+            <!-- Migration Tools -->
+            <div class="bg-white shadow rounded-lg mb-8">
+                <div class="px-4 py-5 sm:p-6">
+                    <h3 class="text-lg leading-6 font-medium text-gray-900 mb-4">Database Migration Tools</h3>
+
+                    <!-- Migration Status -->
+                    <div class="mb-6">
+                        <h4 class="text-md font-medium text-gray-900 mb-2">Migration Status</h4>
+                        <div id="migrationStatus" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div class="bg-gray-50 p-4 rounded-lg">
+                                <div class="text-2xl font-bold text-blue-600" id="totalMigrations">-</div>
+                                <div class="text-sm text-gray-600">Total Migrations</div>
+                            </div>
+                            <div class="bg-gray-50 p-4 rounded-lg">
+                                <div class="text-2xl font-bold text-green-600" id="ranMigrations">-</div>
+                                <div class="text-sm text-gray-600">Ran Migrations</div>
+                            </div>
+                            <div class="bg-gray-50 p-4 rounded-lg">
+                                <div class="text-2xl font-bold text-orange-600" id="pendingMigrations">-</div>
+                                <div class="text-sm text-gray-600">Pending Migrations</div>
+                            </div>
+                        </div>
+                        <button type="button" id="refreshMigrationStatus" class="mt-2 inline-flex items-center px-3 py-1 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                            Refresh Status
+                        </button>
+                    </div>
+
+                    <!-- Forgiving Migration -->
+                    <div class="border-t pt-6">
+                        <h4 class="text-md font-medium text-gray-900 mb-2">Forgiving Migration Runner</h4>
+                        <p class="text-sm text-gray-600 mb-4">
+                            Run migrations that skip tables which already exist. Useful when setting up a project with partial database schema.
+                        </p>
+
+                        <form id="migrationForm" class="space-y-4">
+                            @csrf
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label for="migrationDatabase" class="block text-sm font-medium text-gray-700">Database Connection</label>
+                                    <select id="migrationDatabase" name="database" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                                        <option value="">Default</option>
+                                        @foreach(config('database.connections') as $name => $config)
+                                            <option value="{{ $name }}">{{ $name }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <div>
+                                    <label for="migrationPath" class="block text-sm font-medium text-gray-700">Migration Path</label>
+                                    <input type="text" id="migrationPath" name="path" value="{{ database_path('migrations') }}" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                                </div>
+                            </div>
+
+                            <div class="flex items-center space-x-4">
+                                <button type="submit" id="runMigrationBtn" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
+                                    <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white hidden" id="migrationLoadingSpinner" fill="none" viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                    Run Forgiving Migrations
+                                </button>
+                            </div>
+                        </form>
+
+                        <!-- Migration Results -->
+                        <div id="migrationResults" class="mt-4 hidden">
+                            <div class="bg-gray-50 border rounded-lg p-4">
+                                <h5 class="text-sm font-medium text-gray-900 mb-2">Migration Results</h5>
+                                <pre id="migrationOutput" class="text-xs text-gray-600 whitespace-pre-wrap max-h-40 overflow-y-auto"></pre>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Recent Results -->
             <div class="bg-white shadow rounded-lg">
                 <div class="px-4 py-5 sm:p-6">
@@ -361,6 +435,101 @@
             spinner.classList.add('hidden');
             runBtn.textContent = 'Run Checks';
         }
+
+        // Migration functionality
+        document.getElementById('refreshMigrationStatus').addEventListener('click', function() {
+            loadMigrationStatus();
+        });
+
+        document.getElementById('migrationForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const formData = new FormData(this);
+            const runBtn = document.getElementById('runMigrationBtn');
+            const spinner = document.getElementById('migrationLoadingSpinner');
+            const resultsDiv = document.getElementById('migrationResults');
+            const outputPre = document.getElementById('migrationOutput');
+
+            // Show loading state
+            runBtn.disabled = true;
+            spinner.classList.remove('hidden');
+            runBtn.textContent = 'Running Migrations...';
+
+            // Prepare data
+            const data = {
+                database: formData.get('database') || null,
+                path: formData.get('path') || null,
+            };
+
+            fetch('{{ route("model-schema-checker.migrations.forgiving") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(data => {
+                resultsDiv.classList.remove('hidden');
+                if (data.success) {
+                    outputPre.textContent = data.output || 'Migrations completed successfully!';
+                    outputPre.className = 'text-xs text-green-600 whitespace-pre-wrap max-h-40 overflow-y-auto';
+                } else {
+                    outputPre.textContent = data.output || data.message || 'Migration failed';
+                    outputPre.className = 'text-xs text-red-600 whitespace-pre-wrap max-h-40 overflow-y-auto';
+                }
+
+                // Refresh migration status
+                loadMigrationStatus();
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                resultsDiv.classList.remove('hidden');
+                outputPre.textContent = 'Error: ' + error.message;
+                outputPre.className = 'text-xs text-red-600 whitespace-pre-wrap max-h-40 overflow-y-auto';
+            })
+            .finally(() => {
+                // Reset form
+                runBtn.disabled = false;
+                spinner.classList.add('hidden');
+                runBtn.textContent = 'Run Forgiving Migrations';
+            });
+        });
+
+        function loadMigrationStatus() {
+            const statusDiv = document.getElementById('migrationStatus');
+            const totalEl = document.getElementById('totalMigrations');
+            const ranEl = document.getElementById('ranMigrations');
+            const pendingEl = document.getElementById('pendingMigrations');
+
+            fetch('{{ route("model-schema-checker.migrations.status") }}')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        console.error('Migration status error:', data.error);
+                        totalEl.textContent = 'Error';
+                        ranEl.textContent = 'Error';
+                        pendingEl.textContent = 'Error';
+                        return;
+                    }
+
+                    totalEl.textContent = data.total_migrations;
+                    ranEl.textContent = data.ran_migrations;
+                    pendingEl.textContent = data.pending_migrations;
+                })
+                .catch(error => {
+                    console.error('Error loading migration status:', error);
+                    totalEl.textContent = 'Error';
+                    ranEl.textContent = 'Error';
+                    pendingEl.textContent = 'Error';
+                });
+        }
+
+        // Load migration status on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadMigrationStatus();
+        });
     </script>
 </body>
 </html>

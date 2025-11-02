@@ -48,6 +48,91 @@ class ModelSchemaCheckerController
     }
 
     /**
+     * Run forgiving migrations
+     */
+    public function runForgivingMigrations(Request $request): JsonResponse
+    {
+        $request->validate([
+            'database' => 'nullable|string',
+            'path' => 'nullable|string',
+        ]);
+
+        try {
+            // Use Artisan to call the command
+            $exitCode = \Illuminate\Support\Facades\Artisan::call('model-schema-checker:migrate-forgiving', [
+                '--database' => $request->input('database'),
+                '--path' => $request->input('path'),
+            ]);
+
+            $output = \Illuminate\Support\Facades\Artisan::output();
+
+            if ($exitCode === 0) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Forgiving migrations completed successfully',
+                    'output' => $output,
+                ]);
+            } else {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Forgiving migrations failed',
+                    'output' => $output,
+                ], 500);
+            }
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error running forgiving migrations: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Get migration status
+     */
+    public function getMigrationStatus(): JsonResponse
+    {
+        try {
+            $migrator = app('migrator');
+            $files = $migrator->getMigrationFiles($this->getMigrationPaths());
+            $ran = $migrator->getRepository()->getRan();
+
+            $pendingMigrations = collect($files)->reject(function ($file) use ($ran) {
+                return in_array($this->getMigrationName($file), $ran);
+            });
+
+            $status = [
+                'total_migrations' => count($files),
+                'ran_migrations' => count($ran),
+                'pending_migrations' => $pendingMigrations->count(),
+                'pending_list' => $pendingMigrations->values()->toArray(),
+            ];
+
+            return response()->json($status);
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Could not get migration status: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Get migration paths (helper method)
+     */
+    protected function getMigrationPaths(): array
+    {
+        return [database_path('migrations')];
+    }
+
+    /**
+     * Get migration name from file path (helper method)
+     */
+    protected function getMigrationName(string $file): string
+    {
+        return str_replace('.php', '', basename($file));
+    }
+
+    /**
      * Run model schema checks
      */
     public function runChecks(Request $request): JsonResponse

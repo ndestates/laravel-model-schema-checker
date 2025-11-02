@@ -5,6 +5,7 @@ namespace NDEstates\LaravelModelSchemaChecker;
 use Illuminate\Support\ServiceProvider;
 use NDEstates\LaravelModelSchemaChecker\Commands\ModelSchemaCheckCommand;
 use NDEstates\LaravelModelSchemaChecker\Commands\PublishAssetsCommand;
+use NDEstates\LaravelModelSchemaChecker\Commands\MigrateForgivingCommand;
 
 class ModelSchemaCheckerServiceProvider extends ServiceProvider
 {
@@ -94,6 +95,7 @@ class ModelSchemaCheckerServiceProvider extends ServiceProvider
             $this->commands([
                 ModelSchemaCheckCommand::class,
                 PublishAssetsCommand::class,
+                MigrateForgivingCommand::class,
             ]);
         }
     }
