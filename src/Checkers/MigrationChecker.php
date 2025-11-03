@@ -111,6 +111,9 @@ class MigrationChecker extends BaseChecker
         // Check migration naming conventions
         $this->checkMigrationNaming($migrationFiles);
 
+        // Display results summary
+        $this->displayResultsSummary();
+
         return $this->issues;
     }
 
@@ -344,5 +347,29 @@ class MigrationChecker extends BaseChecker
         } catch (\Exception $e) {
             $this->warn("Could not check database schema: " . $e->getMessage());
         }
+    }
+
+    /**
+     * Display results summary for migration checking
+     */
+    protected function displayResultsSummary(): void
+    {
+        $issueCount = count($this->issues);
+
+        if ($issueCount === 0) {
+            $this->info('✅ No migration issues found!');
+            return;
+        }
+
+        $this->warn("⚠️  Found {$issueCount} migration issue(s):");
+
+        foreach ($this->issues as $issue) {
+            $this->line("  • " . ($issue['message'] ?? $issue['type']));
+            if (isset($issue['file'])) {
+                $this->line("    📁 " . $issue['file']);
+            }
+        }
+
+        $this->newLine();
     }
 }

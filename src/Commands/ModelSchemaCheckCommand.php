@@ -57,6 +57,7 @@ class ModelSchemaCheckCommand extends Command
                             {--save-output : Save results to a dated Markdown file for review}
                             {--step-by-step : Apply fixes interactively one by one instead of all at once}
                             {--rollback-fixes : Rollback previously applied automatic fixes}';
+    protected CheckerManager $checkerManager;
     protected IssueManager $issueManager;
     protected MigrationGenerator $migrationGenerator;
     protected DataExporter $dataExporter;

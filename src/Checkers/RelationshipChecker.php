@@ -38,6 +38,9 @@ class RelationshipChecker extends BaseChecker
             }
         }
 
+        // Display results summary
+        $this->displayResultsSummary();
+
         return $this->issues;
     }
 
@@ -310,5 +313,29 @@ class RelationshipChecker extends BaseChecker
         return class_exists('\Illuminate\Support\Facades\File') && method_exists('\Illuminate\Support\Facades\File', 'get')
             ? \Illuminate\Support\Facades\File::get($path)
             : file_get_contents($path);
+    }
+
+    /**
+     * Display results summary for relationship checking
+     */
+    protected function displayResultsSummary(): void
+    {
+        $issueCount = count($this->issues);
+
+        if ($issueCount === 0) {
+            $this->info('✅ No relationship issues found!');
+            return;
+        }
+
+        $this->warn("⚠️  Found {$issueCount} relationship issue(s):");
+
+        foreach ($this->issues as $issue) {
+            $this->line("  • " . ($issue['message'] ?? $issue['type']));
+            if (isset($issue['file'])) {
+                $this->line("    📁 " . $issue['file']);
+            }
+        }
+
+        $this->newLine();
     }
 }

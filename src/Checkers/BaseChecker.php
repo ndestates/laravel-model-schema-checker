@@ -162,6 +162,26 @@ abstract class BaseChecker implements CheckerInterface
     }
 
     /**
+     * Helper method to output line messages
+     */
+    protected function line(string $message): void
+    {
+        if (isset($this->command)) {
+            $this->command->line($message);
+        }
+    }
+
+    /**
+     * Helper method to output new lines
+     */
+    protected function newLine(int $count = 1): void
+    {
+        if (isset($this->command)) {
+            $this->command->newLine($count);
+        }
+    }
+
+    /**
      * Get table columns from database
      */
     protected function getTableColumns(string $tableName): array
