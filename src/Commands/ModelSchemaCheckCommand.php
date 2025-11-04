@@ -1820,6 +1820,11 @@ return new class extends Migration
             return true;
         }
 
+        // Check for DDEV environment (always treat as development)
+        if (isset($_SERVER['DDEV_PROJECT']) || isset($_SERVER['DDEV_HOSTNAME']) || getenv('DDEV_PROJECT')) {
+            return false; // DDEV is always development
+        }
+
         // Quaternary check: check for production-like hostnames
         if (isset($_SERVER['HTTP_HOST'])) {
             $host = strtolower($_SERVER['HTTP_HOST']);
@@ -1827,9 +1832,9 @@ return new class extends Migration
             if (strpos($host, '.com') !== false ||
                 strpos($host, '.org') !== false ||
                 strpos($host, '.net') !== false ||
-                !preg_match('/\b(localhost|127\.0\.0\.1|\.local|\.dev|\.test)\b/', $host)) {
+                !preg_match('/\b(localhost|127\.0\.0\.1|\.local|\.dev|\.test|\.ddev\.site)\b/', $host)) {
                 // Additional check: if not clearly development, be conservative
-                if (!preg_match('/\b(dev|staging|test|demo)\b/', $host)) {
+                if (!preg_match('/\b(dev|staging|test|demo|\.ddev)\b/', $host)) {
                     // This is a heuristic - in production deployments, be extra cautious
                     return true;
                 }

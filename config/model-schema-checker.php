@@ -125,6 +125,11 @@ return [
             'skip_performance_checks' => true,
             'allow_missing_indexes' => true,
         ],
+        'ddev' => [
+            'strict_mode' => false,
+            'skip_performance_checks' => true,
+            'allow_missing_indexes' => true,
+        ],
         'testing' => [
             'strict_mode' => true,
             'skip_performance_checks' => false,
