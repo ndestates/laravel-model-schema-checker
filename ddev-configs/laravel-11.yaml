@@ -1,0 +1,17 @@
+name: test-laravel-11
+type: laravel
+docroot: public
+php_version: "8.2"
+database:
+  type: mariadb
+  version: "10.6"
+use_dns_when_possible: true
+composer_version: "2"
+webserver_type: nginx-fpm
+xdebug_enabled: false
+additional_hostnames: []
+additional_fqdns: []
+upload_dirs: []
+working_dir:
+  web: /var/www/html
+omit_containers: [dba]

@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+<ruleset name="LaravelModelSchemaChecker">
+    <description>PHP CodeSniffer rules for Laravel Model Schema Checker</description>
+
+    <!-- Use PSR-12 as base -->
+    <rule ref="PSR12">
+        <exclude name="PSR12.Files.FileHeader"/>
+        <exclude name="PSR12.Operators.OperatorSpacing"/>
+    </rule>
+
+    <!-- Additional rules -->
+    <rule ref="Generic.Files.LineLength">
+        <properties>
+            <property name="lineLimit" value="120"/>
+        </properties>
+    </rule>
+
+    <!-- Exclude test files from some rules -->
+    <rule ref="PSR12.Files.FileHeader">
+        <exclude-pattern>tests/*</exclude-pattern>
+    </rule>
+
+    <!-- Files to check -->
+    <file>src/</file>
+    <file>tests/</file>
+
+    <!-- Exclude vendor directory -->
+    <exclude-pattern>vendor/*</exclude-pattern>
+</ruleset>

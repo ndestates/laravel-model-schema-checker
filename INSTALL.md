@@ -23,12 +23,19 @@ composer require ndestates/laravel-model-schema-checker
 
 Check that the package is installed correctly:
 ```bash
-php vendor/ndestates/laravel-model-schema-checker/check.php --help
+php artisan model:schema-check --help
 ```
 
-### Step 3: Optional Configuration
+### Step 3: Configuration
 
-Publish the configuration file to customize settings:
+The configuration file is automatically published to `config/model-schema-checker.php` during installation. You can customize the settings directly in this file:
+
+```bash
+# The config file is now available at:
+config/model-schema-checker.php
+```
+
+If you need to re-publish the config file (to get updates), you can still use:
 ```bash
 php artisan vendor:publish --provider="NDEstates\LaravelModelSchemaChecker\ModelSchemaCheckerServiceProvider" --tag="config"
 ```
@@ -57,23 +64,47 @@ php artisan vendor:publish --provider="NDEstates\LaravelModelSchemaChecker\Model
 ### Basic Model Checking
 ```bash
 # Dry run (safe, shows what would change)
-php vendor/ndestates/laravel-model-schema-checker/check.php --dry-run
+php artisan model:schema-check --dry-run
 
 # Actually fix the models
-php vendor/ndestates/laravel-model-schema-checker/check.php --fix
+php artisan model:schema-check --fix
 ```
 
 ### Migration Generation
 ```bash
 # Generate migrations for schema differences
-php vendor/ndestates/laravel-model-schema-checker/check.php --generate-migrations
+php artisan model:schema-check --generate-migrations
 ```
 
 ### Analysis and Reporting
 ```bash
 # Full analysis with JSON output
-php vendor/ndestates/laravel-model-schema-checker/check.php --analyze --json
+php artisan model:schema-check --analyze --json
 ```
+
+## Web Dashboard Setup
+
+The package includes a web dashboard for visual analysis and management:
+
+1. **Run database migrations** to create required tables:
+   ```bash
+   php artisan migrate
+   ```
+
+2. **Publish assets** for proper styling:
+   ```bash
+   php artisan model-schema-checker:publish-assets
+   ```
+   
+   Or manually:
+   ```bash
+   php artisan vendor:publish --tag=model-schema-checker-assets
+   ```
+
+3. **Access the dashboard** at `/model-schema-checker/dashboard`
+4. **Smart authentication handling**:
+   - **Production**: Authentication required (automatically disabled anyway)
+   - **Development**: Works with or without authentication (guest users supported)
 
 ## Troubleshooting
 
@@ -86,7 +117,8 @@ composer dump-autoload
 ### Permission Issues
 If you get permission errors:
 ```bash
-chmod +x vendor/ndestates/laravel-model-schema-checker/check.php
+# Make sure artisan is executable
+chmod +x artisan
 ```
 
 ### Laravel Not Detected

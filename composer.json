@@ -1,6 +1,7 @@
 {
     "name": "ndestates/laravel-model-schema-checker",
-    "description": "A comprehensive Laravel tool for validating model fillable properties against database schema and checking Filament relationship integrity",
+    "description": "A comprehensive Laravel application validator for security, performance, relationships, migrations, and code quality. DEVELOPMENT ONLY - DO NOT install in production environments.",
+    "version": "3.0.0",
     "type": "library",
     "license": "MIT",
     "authors": [
@@ -11,13 +12,18 @@
     ],
     "require": {
         "php": "^8.1",
-        "illuminate/support": "^10.0|^11.0",
-        "illuminate/database": "^10.0|^11.0",
-        "illuminate/console": "^10.0|^11.0"
+        "illuminate/support": "^10.0|^11.0|^12.0",
+        "illuminate/database": "^10.0|^11.0|^12.0",
+        "illuminate/console": "^10.0|^11.0|^12.0"
     },
     "require-dev": {
-        "phpunit/phpunit": "^10.0",
-        "orchestra/testbench": "^8.0"
+        "phpunit/phpunit": "^10.0|^11.0",
+        "pestphp/pest": "^2.0",
+        "pestphp/pest-plugin-laravel": "^2.0",
+        "orchestra/testbench": "^8.0|^9.0|^10.0",
+        "phpstan/phpstan": "^1.10",
+        "squizlabs/php_codesniffer": "^3.7",
+        "phpmd/phpmd": "^2.13"
     },
     "autoload": {
         "psr-4": {
@@ -29,11 +35,21 @@
             "NDEstates\\LaravelModelSchemaChecker\\Tests\\": "tests/"
         }
     },
-    "bin": [
-        "bin/laravel-model-schema-checker"
-    ],
     "scripts": {
-        "test": "phpunit"
+        "test": "phpunit",
+        "test:coverage": "phpunit --coverage-html=coverage",
+        "test:all": [
+            "@test",
+            "@stan",
+            "@cs",
+            "@md"
+        ],
+        "test:integration": "./test-ddev.sh",
+        "test:local": "./test-local.sh",
+        "stan": "phpstan analyse",
+        "cs": "phpcs",
+        "cs:fix": "phpcbf",
+        "md": "phpmd src text codesize,unusedcode,naming"
     },
     "extra": {
         "laravel": {
@@ -43,5 +59,10 @@
         }
     },
     "minimum-stability": "stable",
-    "prefer-stable": true
+    "prefer-stable": true,
+    "config": {
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        }
+    }
 }
