@@ -97,6 +97,12 @@ class ModelSchemaCheckerServiceProvider extends ServiceProvider
             __DIR__ . '/../dist' => public_path('vendor/model-schema-checker'),
         ], 'model-schema-checker-assets');
 
+        // Auto-publish assets if they don't exist
+        $assetsPath = public_path('vendor/model-schema-checker/css/app.css');
+        if (!file_exists($assetsPath)) {
+            $this->publishAssets();
+        }
+
         // Load views
         $this->loadViewsFrom(__DIR__ . '/../resources/views', 'model-schema-checker');
 
@@ -123,5 +129,46 @@ class ModelSchemaCheckerServiceProvider extends ServiceProvider
         }
 
         copy($from, $to);
+    }
+
+    /**
+     * Force publish the assets
+     */
+    protected function publishAssets(): void
+    {
+        $from = __DIR__ . '/../dist';
+        $to = public_path('vendor/model-schema-checker');
+
+        if (!file_exists($to)) {
+            mkdir($to, 0755, true);
+        }
+
+        $this->copyDirectory($from, $to);
+    }
+
+    /**
+     * Copy directory recursively
+     */
+    protected function copyDirectory(string $from, string $to): void
+    {
+        $files = scandir($from);
+
+        foreach ($files as $file) {
+            if ($file === '.' || $file === '..') {
+                continue;
+            }
+
+            $source = $from . '/' . $file;
+            $destination = $to . '/' . $file;
+
+            if (is_dir($source)) {
+                if (!file_exists($destination)) {
+                    mkdir($destination, 0755, true);
+                }
+                $this->copyDirectory($source, $destination);
+            } else {
+                copy($source, $destination);
+            }
+        }
     }
 }
