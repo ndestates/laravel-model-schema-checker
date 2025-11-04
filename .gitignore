@@ -22,3 +22,7 @@ logs/
 # Temporary files
 *.tmp
 *.bak
+
+# Test applications
+test-app/
+test-laravel-project/
