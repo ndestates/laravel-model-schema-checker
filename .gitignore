@@ -18,6 +18,10 @@ Thumbs.db
 .ddev/.dbimageBuild/
 .ddev/.ddev-docker-compose-*.yaml
 .ddev/.webimageBuild/
+
+# Test environments
+/test-app/
+/test-package/
 .ddev/db_snapshots/
 .ddev/homeadditions/
 .ddev/web-entrypoint.d/

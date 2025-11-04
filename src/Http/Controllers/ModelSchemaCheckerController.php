@@ -459,6 +459,13 @@ class ModelSchemaCheckerController
      */
     protected function isProductionEnvironment(): bool
     {
+        // Check for DDEV environment FIRST (always treat as development)
+        if (isset($_SERVER['DDEV_PROJECT']) || isset($_SERVER['DDEV_HOSTNAME']) || 
+            getenv('DDEV_PROJECT') || getenv('IS_DDEV_PROJECT') ||
+            (isset($_SERVER['IS_DDEV_PROJECT']) && $_SERVER['IS_DDEV_PROJECT'])) {
+            return false; // DDEV is always development
+        }
+
         // Use Laravel's app environment helper
         $env = app()->environment();
 
@@ -475,11 +482,6 @@ class ModelSchemaCheckerController
         // Tertiary check: server environment variables
         if (isset($_SERVER['APP_ENV']) && in_array(strtolower($_SERVER['APP_ENV']), ['production', 'prod', 'live'])) {
             return true;
-        }
-
-        // Check for DDEV environment (always treat as development)
-        if (isset($_SERVER['DDEV_PROJECT']) || isset($_SERVER['DDEV_HOSTNAME']) || getenv('DDEV_PROJECT')) {
-            return false; // DDEV is always development
         }
 
         // Quaternary check: check for production-like hostnames

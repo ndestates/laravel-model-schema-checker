@@ -155,6 +155,7 @@ class ModelChecker extends BaseChecker
             // Create code improvement suggestion to remove orphaned fillable properties
             $this->createOrphanedFillableImprovement($filePath, $className, $orphanedFillable, $fillable);
         }
+    }
 
     protected function checkModelTable(\Illuminate\Database\Eloquent\Model $model, string $className, string $filePath): void
     {
