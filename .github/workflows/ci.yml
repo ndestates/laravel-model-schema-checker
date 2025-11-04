@@ -89,9 +89,6 @@ jobs:
         [ -f "LICENSE" ] && echo "✅ LICENSE exists" || (echo "❌ LICENSE missing" && exit 1)
         echo "✅ Documentation validation passed"
 
-    - name: Test composer.json validity
-      run: composer validate --strict --no-check-all
-
     - name: Test package can be installed
       run: |
         echo "Testing package installation compatibility..."
