@@ -101,15 +101,17 @@ php artisan route:list | grep model-schema
 The package uses Laravel's auto-discovery feature, so it will be automatically
 registered.
 
-### Publish Configuration (Optional)
+### Configuration
 
-You can publish the configuration file to customize the behavior:
+The configuration file is automatically published to `config/model-schema-checker.php` during installation. You can customize the behavior directly in this file.
+
+If you need to re-publish the config file (to get updates), you can use:
 
 ```bash
 php artisan vendor:publish --provider="NDEstates\LaravelModelSchemaChecker\ModelSchemaCheckerServiceProvider" --tag="config"
 ```
 
-This will create a `config/model-schema-checker.php` file where you can customize:
+This will create/update a `config/model-schema-checker.php` file where you can customize:
 
 - Model directory
 - Excluded fields and models

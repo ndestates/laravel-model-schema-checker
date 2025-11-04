@@ -72,10 +72,20 @@ class ModelSchemaCheckerServiceProvider extends ServiceProvider
         // Load migrations
         $this->loadMigrationsFrom(__DIR__ . '/../database/migrations');
 
-        // Publish configuration file
-        $this->publishes([
-            __DIR__ . '/../config/model-schema-checker.php' => config_path('model-schema-checker.php'),
-        ], 'config');
+        // Auto-publish configuration file if it doesn't exist
+        $configPath = config_path('model-schema-checker.php');
+        if (!file_exists($configPath)) {
+            $this->publishes([
+                __DIR__ . '/../config/model-schema-checker.php' => $configPath,
+            ], 'config');
+            // Force publish the config immediately
+            $this->publishConfig();
+        } else {
+            // Still allow manual re-publishing
+            $this->publishes([
+                __DIR__ . '/../config/model-schema-checker.php' => $configPath,
+            ], 'config');
+        }
 
         // Publish views
         $this->publishes([
@@ -98,5 +108,20 @@ class ModelSchemaCheckerServiceProvider extends ServiceProvider
                 MigrateForgivingCommand::class,
             ]);
         }
+    }
+
+    /**
+     * Force publish the configuration file
+     */
+    protected function publishConfig(): void
+    {
+        $from = __DIR__ . '/../config/model-schema-checker.php';
+        $to = config_path('model-schema-checker.php');
+
+        if (!file_exists(dirname($to))) {
+            mkdir(dirname($to), 0755, true);
+        }
+
+        copy($from, $to);
     }
 }

@@ -26,9 +26,16 @@ Check that the package is installed correctly:
 php artisan model:schema-check --help
 ```
 
-### Step 3: Optional Configuration
+### Step 3: Configuration
 
-Publish the configuration file to customize settings:
+The configuration file is automatically published to `config/model-schema-checker.php` during installation. You can customize the settings directly in this file:
+
+```bash
+# The config file is now available at:
+config/model-schema-checker.php
+```
+
+If you need to re-publish the config file (to get updates), you can still use:
 ```bash
 php artisan vendor:publish --provider="NDEstates\LaravelModelSchemaChecker\ModelSchemaCheckerServiceProvider" --tag="config"
 ```
