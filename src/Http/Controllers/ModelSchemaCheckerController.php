@@ -502,4 +502,19 @@ class ModelSchemaCheckerController
 
         return false;
     }
+
+    /**
+     * Get the current user ID for data isolation
+     * Returns authenticated user ID, or 1 for guests in development
+     */
+    protected function getCurrentUserId(): int
+    {
+        if (Auth::check() && Auth::id()) {
+            return Auth::id();
+        }
+
+        // In development environments, use a guest user ID of 1
+        // In production, this won't be reached due to auth middleware
+        return 1;
+    }
 }
