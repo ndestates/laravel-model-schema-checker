@@ -40,6 +40,16 @@ jobs:
         extensions: pdo, pdo_mysql, pdo_sqlite
         coverage: none
 
+    - name: Create test database
+      run: |
+        mkdir -p /tmp/test-db
+        touch /tmp/test-db/test.sqlite
+
+    - name: Set up test environment
+      run: |
+        echo "DB_CONNECTION=sqlite" >> $GITHUB_ENV
+        echo "DB_DATABASE=/tmp/test-db/test.sqlite" >> $GITHUB_ENV
+
     - name: Cache Composer dependencies
       uses: actions/cache@v3
       with:
@@ -50,8 +60,8 @@ jobs:
     - name: Install dependencies
       run: composer install --no-progress --prefer-dist --optimize-autoloader
 
-    - name: Run PHPUnit tests
-      run: vendor/bin/phpunit --testsuite="ReliableTests"
+    - name: Run tests (full test suite with Pest)
+      run: vendor/bin/pest --verbose
 
     - name: Run PHPStan static analysis
       run: vendor/bin/phpstan analyse --error-format=github || echo "PHPStan found issues but continuing..."
