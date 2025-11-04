@@ -5,913 +5,1158 @@ namespace NDEstates\LaravelModelSchemaChecker\Commands;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
-use Illuminate\Support\Str;
-use ReflectionClass;
+use NDEstates\LaravelModelSchemaChecker\Services\CheckerManager;
+use NDEstates\LaravelModelSchemaChecker\Services\IssueManager;
+use NDEstates\LaravelModelSchemaChecker\Services\MigrationGenerator;
+use NDEstates\LaravelModelSchemaChecker\Services\DataExporter;
+use NDEstates\LaravelModelSchemaChecker\Services\DataImporter;
+use NDEstates\LaravelModelSchemaChecker\Services\MigrationCleanup;
 
 class ModelSchemaCheckCommand extends Command
 {
-    protected $signature = 'model:schema-check 
+        protected $description = 'Comprehensive Laravel application validation: models, relationships, security, performance, code quality, and form analysis with amendment suggestions';
+
+    protected $signature = 'model:schema-check
                             {--dry-run : Show what would be changed without making changes}
                             {--fix : Fix model fillable properties}
-                            {--generate-migrations : Generate Laravel migrations}
+                            {--fix-forms : Automatically fix form issues}
                             {--json : Output results in JSON format}
-                            {--filament : Check Filament forms and relationships}
-                            {--filament-resource= : Check specific Filament resource}
-                            {--security : Check for XSS and CSRF vulnerabilities}
-                            {--laravel-forms : Check Laravel forms (Blade templates, Livewire)}
-                            {--relationships : Check model relationships and foreign keys}
-                            {--migrations : Check migration consistency and indexes}
-                            {--validation : Check validation rules against schema}
-                            {--performance : Check for N+1 queries and optimization opportunities}
-                            {--quality : Check code quality and Laravel best practices}
                             {--all : Run all available checks}
-                            {--sync-migrations : Generate fresh migrations from current database schema}
-                            {--export-data : Export database data to preserve during migration sync}
-                            {--import-data : Import previously exported data}
-                            {--cleanup-migrations : Remove old migration files safely}';
+                            {--generate-migrations : Generate Laravel migrations}
+                            {--run-migrations : Run generated migrations}
+                            {--backup-db : Create database backup before making changes}
+                            {--backup : Create database backup}
+                            {--analyze : Run comprehensive analysis}
+                            {--generate-schema : Generate schema documentation}
+                            {--generate-schema-sql : Generate schema SQL}
+                            {--check-filament : Check Filament relationships}
+                            {--check-security : Check for security vulnerabilities}
+                            {--check-relationships : Check model relationships and foreign keys}
+                            {--check-migrations : Check migration consistency, indexes, and foreign keys}
+                            {--check-validation : Check validation rules against database schema}
+                            {--check-performance : Check for N+1 queries and optimization opportunities}
+                            {--check-code-quality : Check Laravel best practices and code quality}
+                            {--check-code-quality-path=* : Specify paths to check for code quality (can be used multiple times)}
+                            {--check-code-quality-exclude=* : Exclude specific paths from code quality checks (can be used multiple times)}
+                            {--check-models : Check model quality (fillable, relationships, etc.)}
+                            {--check-models-exclude=* : Exclude specific model files from checks (can be used multiple times)}
+                            {--check-controllers : Check controller quality and best practices}
+                            {--check-controllers-exclude=* : Exclude specific controller files from checks (can be used multiple times)}
+                            {--check-migrations-quality : Check migration file quality and best practices}
+                            {--check-migrations-quality-exclude=* : Exclude specific migration files from quality checks (can be used multiple times)}
+                            {--check-laravel-forms : Check Blade templates and Livewire forms}
+                            {--check-encrypted-fields : Check encrypted fields in database, models, controllers, and views}
+                            {--sync-migrations : Generate fresh migrations from database schema}
+                            {--export-data : Export database data to compressed SQL file}
+                            {--import-data : Import database data from compressed SQL file}
+                            {--cleanup-migrations : Safely remove old migration files with backup}
+                            {--check-all : Run all available checks (alias for --all)}
+                            {--fix-migrations : Generate alter migrations to fix detected migration issues}
+                            {--rollback-migrations : Rollback the last batch of migrations}
+                            {--amend-migrations : Amend existing migration files with proper column specifications}
+                            {--save-output : Save results to a dated Markdown file for review}
+                            {--step-by-step : Apply fixes interactively one by one instead of all at once}
+                            {--rollback-fixes : Rollback previously applied automatic fixes}';
+    protected CheckerManager $checkerManager;
+    protected IssueManager $issueManager;
+    protected MigrationGenerator $migrationGenerator;
+    protected DataExporter $dataExporter;
+    protected DataImporter $dataImporter;
+    protected MigrationCleanup $migrationCleanup;
 
-    protected $description = 'Comprehensive Laravel model, schema, security, and code quality checker with migration synchronization';
-
-    protected array $config;
-    protected array $issues = [];
-    protected array $stats = [
-        'models_checked' => 0,
-        'issues_found' => 0,
-        'fixes_applied' => 0,
-    ];
-
-    public function handle(): int
+    public function __construct(CheckerManager $checkerManager, IssueManager $issueManager, MigrationGenerator $migrationGenerator, DataExporter $dataExporter, DataImporter $dataImporter, MigrationCleanup $migrationCleanup)
     {
-        $this->config = config('model-schema-checker', [
-            'models_dir' => app_path('Models'),
-            'excluded_fields' => [
-                'id', 'created_at', 'updated_at', 'created_by', 
-                'updated_by', 'deleted_by', 'deleted_at',
-                'email_verified_at', 'remember_token'
-            ],
-            'database_connection' => env('DB_CONNECTION', 'mysql'),
-        ]);
+        parent::__construct();
+        $this->checkerManager = $checkerManager;
+        $this->issueManager = $issueManager;
+        $this->migrationGenerator = $migrationGenerator;
+        $this->dataExporter = $dataExporter;
+        $this->dataImporter = $dataImporter;
+        $this->migrationCleanup = $migrationCleanup;
+    }
 
-        $this->info('Laravel Model Schema Checker');
-        $this->info('================================');
+    public function handle()
+    {
+        // PRODUCTION SAFETY: This tool is designed for development only
+        if ($this->isProductionEnvironment()) {
+            $this->error('🚫 SECURITY ERROR: Laravel Model Schema Checker is disabled in production environments.');
+            $this->error('');
+            $this->error('This tool is designed exclusively for development and testing environments.');
+            $this->error('Running schema analysis tools in production can pose significant security risks.');
+            $this->error('');
+            $this->error('If you believe this is an error, please check your APP_ENV setting.');
+            return 1;
+        }
+
+        $this->info('Laravel Model Schema Checker v3.0');
+        $this->info('=====================================');
 
         if ($this->option('dry-run')) {
             $this->warn('Running in DRY-RUN mode - no changes will be made');
         }
 
-        $this->checkModels();
-        
-        if ($this->option('filament') || $this->option('all')) {
-            $this->checkFilamentForms();
+        // Route to appropriate functionality based on options
+        if ($this->option('backup') || $this->option('backup-db')) {
+            return $this->handleBackup();
         }
-        
-        if ($this->option('security') || $this->option('all')) {
-            $this->checkSecurityVulnerabilities();
-        }
-        
-        if ($this->option('laravel-forms') || $this->option('all')) {
-            $this->checkLaravelForms();
-        }
-        
-        if ($this->option('relationships') || $this->option('all')) {
-            $this->checkModelRelationships();
-        }
-        
-        if ($this->option('migrations') || $this->option('all')) {
-            $this->checkMigrationConsistency();
-        }
-        
-        if ($this->option('validation') || $this->option('all')) {
-            $this->checkValidationRules();
-        }
-        
-        if ($this->option('performance') || $this->option('all')) {
-            $this->checkPerformanceIssues();
-        }
-        
-        if ($this->option('quality') || $this->option('all')) {
-            $this->checkCodeQuality();
-        }
-        
-        // Handle data export/import operations first
-        if ($this->option('export-data')) {
-            $this->exportDatabaseData();
-            return Command::SUCCESS;
-        }
-        
-        if ($this->option('import-data')) {
-            $this->importDatabaseData();
-            return Command::SUCCESS;
-        }
-        
-        // Handle migration synchronization
-        if ($this->option('sync-migrations')) {
-            $this->syncMigrationsFromDatabase();
-            return Command::SUCCESS;
-        }
-        
-        if ($this->option('cleanup-migrations')) {
-            $this->cleanupMigrationFiles();
-            return Command::SUCCESS;
-        }
-        
-        $this->displayResults();
 
         if ($this->option('generate-migrations')) {
-            $this->generateMigrations();
+            return $this->handleGenerateMigrations();
+        }
+
+        if ($this->option('run-migrations')) {
+            return $this->handleRunMigrations();
+        }
+
+        if ($this->option('analyze')) {
+            return $this->handleAnalyze();
+        }
+
+        if ($this->option('generate-schema')) {
+            return $this->handleGenerateSchema();
+        }
+
+        if ($this->option('generate-schema-sql')) {
+            return $this->handleGenerateSchemaSql();
+        }
+
+        if ($this->option('check-filament')) {
+            return $this->handleCheckFilament();
+        }
+
+        if ($this->option('check-security')) {
+            return $this->handleCheckSecurity();
+        }
+
+        if ($this->option('check-relationships')) {
+            return $this->handleCheckRelationships();
+        }
+
+        if ($this->option('check-migrations')) {
+            return $this->handleCheckMigrations();
+        }
+
+        if ($this->option('check-validation')) {
+            return $this->handleCheckValidation();
+        }
+
+        if ($this->option('check-performance')) {
+            return $this->handleCheckPerformance();
+        }
+
+        if ($this->option('check-code-quality')) {
+            return $this->handleCheckCodeQuality();
+        }
+
+        if ($this->option('check-models')) {
+            return $this->handleCheckModels();
+        }
+
+        if ($this->option('check-controllers')) {
+            return $this->handleCheckControllers();
+        }
+
+        if ($this->option('check-migrations-quality')) {
+            return $this->handleCheckMigrationsQuality();
+        }
+
+        if ($this->option('check-laravel-forms')) {
+            return $this->handleCheckLaravelForms();
+        }
+
+        if ($this->option('check-encrypted-fields')) {
+            return $this->handleCheckEncryptedFields();
+        }
+
+        if ($this->option('sync-migrations')) {
+            return $this->handleSyncMigrations();
+        }
+
+        if ($this->option('export-data')) {
+            return $this->handleExportData();
+        }
+
+        if ($this->option('import-data')) {
+            return $this->handleImportData();
+        }
+
+        if ($this->option('cleanup-migrations')) {
+            return $this->handleCleanupMigrations();
+        }
+
+        if ($this->option('fix-migrations')) {
+            return $this->handleFixMigrations();
+        }
+
+        if ($this->option('rollback-migrations')) {
+            return $this->handleRollbackMigrations();
+        }
+
+        if ($this->option('amend-migrations')) {
+            return $this->handleAmendMigrations();
+        }
+
+        if ($this->option('rollback-fixes')) {
+            return $this->handleRollbackFixes();
+        }
+
+        // Default: run model checks
+        return $this->handleModelChecks();
+    }
+
+    protected function handleModelChecks(): int
+    {
+        // Set command on checker manager for output
+        $this->checkerManager->setCommand($this);
+
+        // Run the checks
+        $issues = $this->checkerManager->runAllChecks();
+
+        // Display results
+        $this->displayResults();
+
+        // Always return success - don't fail on issues
+        return Command::SUCCESS;
+    }
+
+    protected function handleGenerateMigrations(): int
+    {
+        $this->info('Generating migrations...');
+        $this->warn('⚠️  Migration generation not yet implemented in v3.0');
+        $this->info('This feature will be available in a future update.');
+        return Command::SUCCESS;
+    }
+
+    protected function handleRunMigrations(): int
+    {
+        $this->info('Running migrations...');
+        $this->warn('⚠️  Migration running not yet implemented in v3.0');
+        $this->info('Please run migrations manually: php artisan migrate');
+        return Command::SUCCESS;
+    }
+
+    protected function handleAnalyze(): int
+    {
+        $this->info('Running comprehensive analysis...');
+        $this->warn('⚠️  Analysis functionality not yet implemented in v3.0');
+        $this->info('Running basic model checks instead...');
+        return $this->handleModelChecks();
+    }
+
+    protected function handleGenerateSchema(): int
+    {
+        $this->info('Generating schema documentation...');
+        $this->warn('⚠️  Schema generation not yet implemented in v3.0');
+        $this->info('This feature will be available in a future update.');
+        return Command::SUCCESS;
+    }
+
+    protected function handleGenerateSchemaSql(): int
+    {
+        $this->info('Generating schema SQL...');
+        $this->warn('⚠️  Schema SQL generation not yet implemented in v3.0');
+        $this->info('This feature will be available in a future update.');
+        return Command::SUCCESS;
+    }
+
+    protected function handleCheckFilament(): int
+    {
+        $this->info('Checking Filament relationships...');
+
+        $checker = $this->checkerManager->getChecker('filament');
+        if (!$checker) {
+            $this->error('FilamentChecker not found. Make sure it is properly registered.');
+            return Command::FAILURE;
+        }
+
+        $issues = $checker->check();
+        $this->issueManager->addIssues($issues);
+
+        $this->displayResults();
+
+        return $this->issueManager->hasIssues() ? Command::FAILURE : Command::SUCCESS;
+    }
+
+    protected function handleCheckSecurity(): int
+    {
+        $this->info('Checking for security vulnerabilities...');
+
+        $checker = $this->checkerManager->getChecker('security');
+        if (!$checker) {
+            $this->error('SecurityChecker not found. Make sure it is properly registered.');
+            return Command::FAILURE;
+        }
+
+        $issues = $checker->check();
+        $this->issueManager->addIssues($issues);
+
+        $this->displayResults();
+
+        return $this->issueManager->hasIssues() ? Command::FAILURE : Command::SUCCESS;
+    }
+
+    protected function handleCheckEncryptedFields(): int
+    {
+        $this->info('Checking encrypted fields in database, models, controllers, and views...');
+
+        $this->checkEncryptedFieldSizes();
+        $this->checkModelEncryption();
+        $this->checkControllerEncryption();
+        $this->checkViewEncryptionExposure();
+
+        $this->displayResults();
+
+        if ($this->option('fix') && !$this->option('dry-run')) {
+            $this->fixEncryptedFieldIssues();
+        }
+
+        return $this->issueManager->hasIssues() ? Command::FAILURE : Command::SUCCESS;
+    }
+
+    protected function handleCheckRelationships(): int
+    {
+        $this->info('Checking model relationships...');
+
+        $checker = $this->checkerManager->getChecker('relationship');
+        if (!$checker) {
+            $this->error('RelationshipChecker not found. Make sure it is properly registered.');
+            return Command::FAILURE;
+        }
+
+        $issues = $checker->check();
+        $this->issueManager->addIssues($issues);
+
+        $this->displayResults();
+
+        return $this->issueManager->hasIssues() ? Command::FAILURE : Command::SUCCESS;
+    }
+
+    protected function handleCheckMigrations(): int
+    {
+        $this->info('Checking migration consistency...');
+
+        $checker = $this->checkerManager->getChecker('migration');
+        if (!$checker) {
+            $this->error('MigrationChecker not found. Make sure it is properly registered.');
+            return Command::FAILURE;
+        }
+
+        $issues = $checker->check();
+        $this->issueManager->addIssues($issues);
+
+        $this->displayResults();
+
+        return $this->issueManager->hasIssues() ? Command::FAILURE : Command::SUCCESS;
+    }
+
+    protected function handleCheckValidation(): int
+    {
+        $this->info('Checking validation rules...');
+
+        $checker = $this->checkerManager->getChecker('validation');
+        if (!$checker) {
+            $this->error('ValidationChecker not found. Make sure it is properly registered.');
+            return Command::FAILURE;
+        }
+
+        $issues = $checker->check();
+        $this->issueManager->addIssues($issues);
+
+        $this->displayResults();
+
+        return $this->issueManager->hasIssues() ? Command::FAILURE : Command::SUCCESS;
+    }
+
+    protected function handleCheckPerformance(): int
+    {
+        $this->info('Checking for performance issues...');
+
+        $checker = $this->checkerManager->getChecker('performance');
+        if (!$checker) {
+            $this->error('PerformanceChecker not found. Make sure it is properly registered.');
+            return Command::FAILURE;
+        }
+
+        $issues = $checker->check();
+        $this->issueManager->addIssues($issues);
+
+        $this->displayResults();
+
+        return $this->issueManager->hasIssues() ? Command::FAILURE : Command::SUCCESS;
+    }
+
+    protected function handleCheckCodeQuality(): int
+    {
+        $this->info('Checking code quality...');
+
+        $checker = $this->checkerManager->getChecker('code quality');
+        if (!$checker) {
+            $this->error('CodeQualityChecker not found. Make sure it is properly registered.');
+            return Command::FAILURE;
+        }
+
+        // Set path filtering options
+        $includePaths = $this->option('check-code-quality-path') ?: [];
+        $excludePaths = $this->option('check-code-quality-exclude') ?: [];
+
+        if (!empty($includePaths) || !empty($excludePaths)) {
+            $checker->setPathFilters($includePaths, $excludePaths);
+        }
+
+        $issues = $checker->check();
+        $this->issueManager->addIssues($issues);
+
+        $this->displayResults();
+
+        return $this->issueManager->hasIssues() ? Command::FAILURE : Command::SUCCESS;
+    }
+
+    protected function handleCheckModels(): int
+    {
+        $this->info('Checking model quality...');
+
+        $checker = $this->checkerManager->getChecker('code quality');
+        if (!$checker) {
+            $this->error('CodeQualityChecker not found. Make sure it is properly registered.');
+            return Command::FAILURE;
+        }
+
+        // Automatically include Models path and handle excludes
+        $excludePaths = $this->option('check-models-exclude') ?: [];
+        $checker->setPathFilters(['Models'], $excludePaths);
+
+        $issues = $checker->check();
+        $this->issueManager->addIssues($issues);
+
+        $this->displayResults();
+
+        return $this->issueManager->hasIssues() ? Command::FAILURE : Command::SUCCESS;
+    }
+
+    protected function handleCheckControllers(): int
+    {
+        $this->info('Checking controller quality...');
+
+        $checker = $this->checkerManager->getChecker('code quality');
+        if (!$checker) {
+            $this->error('CodeQualityChecker not found. Make sure it is properly registered.');
+            return Command::FAILURE;
+        }
+
+        // Automatically include Controllers path and handle excludes
+        $excludePaths = $this->option('check-controllers-exclude') ?: [];
+        $checker->setPathFilters(['Http/Controllers'], $excludePaths);
+
+        $issues = $checker->check();
+        $this->issueManager->addIssues($issues);
+
+        $this->displayResults();
+
+        return $this->issueManager->hasIssues() ? Command::FAILURE : Command::SUCCESS;
+    }
+
+    protected function handleCheckMigrationsQuality(): int
+    {
+        $this->info('Checking migration quality...');
+
+        $checker = $this->checkerManager->getChecker('code quality');
+        if (!$checker) {
+            $this->error('CodeQualityChecker not found. Make sure it is properly registered.');
+            return Command::FAILURE;
+        }
+
+        // Automatically include migrations path and handle excludes
+        $excludePaths = $this->option('check-migrations-quality-exclude') ?: [];
+        $checker->setPathFilters(['migrations'], $excludePaths);
+
+        $issues = $checker->check();
+        $this->issueManager->addIssues($issues);
+
+        $this->displayResults();
+
+        return $this->issueManager->hasIssues() ? Command::FAILURE : Command::SUCCESS;
+    }
+
+    protected function handleCheckLaravelForms(): int
+    {
+        $this->info('Checking Laravel forms...');
+
+        $checker = $this->checkerManager->getChecker('laravel forms');
+        if (!$checker) {
+            $this->error('LaravelFormsChecker not found. Make sure it is properly registered.');
+            return Command::FAILURE;
+        }
+
+        $issues = $checker->check();
+        $this->issueManager->addIssues($issues);
+
+        $this->displayResults();
+
+        // Apply automatic fixes if requested
+        if ($this->option('fix-forms') && !$this->option('dry-run')) {
+            $this->applyFormFixes($checker);
+        }
+
+        return $this->issueManager->hasIssues() ? Command::FAILURE : Command::SUCCESS;
+    }
+
+    protected function applyFormFixes($checker): void
+    {
+        if (!method_exists($checker, 'applyAutomaticFixes')) {
+            $this->warn('Form checker does not support automatic fixes.');
+            return;
+        }
+
+        // Check if file writes are allowed in config
+        $config = config('model-schema-checker');
+        if (!($config['output']['allow_file_writes'] ?? false)) {
+            $this->error('❌ Automatic form fixes are disabled in configuration.');
+            $this->line('');
+            $this->line('To enable automatic fixes, set the following in your config/model-schema-checker.php:');
+            $this->line('    \'output\' => [');
+            $this->line('        \'allow_file_writes\' => true,');
+            $this->line('        // ... other output settings');
+            $this->line('    ],');
+            $this->line('');
+            $this->line('Or set the environment variable: MSC_ALLOW_FILE_WRITES=true');
+            return;
+        }
+
+        $this->info('');
+        $this->info('🔧 Applying Automatic Form Fixes...');
+
+        $results = $checker->applyAutomaticFixes();
+
+        $this->info("✅ Fixed: {$results['fixed']} issues");
+        $this->info("⏭️  Skipped: {$results['skipped']} issues");
+        $this->info("❌ Errors: {$results['errors']} issues");
+
+        if (!empty($results['details'])) {
+            $this->info('');
+            $this->info('Fix Details:');
+            foreach ($results['details'] as $detail) {
+                $this->line("  • {$detail}");
+            }
+        }
+    }
+
+    protected function handleSyncMigrations(): int
+    {
+        $this->info('Generating migrations from database schema...');
+
+        try {
+            $migrations = $this->migrationGenerator->generateMigrationsFromSchema();
+
+            if (empty($migrations)) {
+                $this->info('No new migrations needed. All tables already have corresponding migrations.');
+                return Command::SUCCESS;
+            }
+
+            $this->info("Generated " . count($migrations) . " migration(s):");
+
+            foreach ($migrations as $migration) {
+                $this->line("  - {$migration['filename']} (for table: {$migration['table']})");
+            }
+
+            if ($this->confirm('Do you want to save these migrations to disk?', true)) {
+                $savedFiles = $this->migrationGenerator->saveMigrations();
+
+                $this->info('Migrations saved successfully:');
+                foreach ($savedFiles as $file) {
+                    $this->line("  - {$file}");
+                }
+
+                $this->warn('Remember to review the generated migrations before running them!');
+            } else {
+                $this->info('Migrations were not saved. Use --sync-migrations again to save them.');
+            }
+
+            return Command::SUCCESS;
+        } catch (\Exception $e) {
+            $this->error("Failed to generate migrations: {$e->getMessage()}");
+            return Command::FAILURE;
+        }
+    }
+
+    protected function handleExportData(): int
+    {
+        $this->info('Exporting database data...');
+
+        try {
+            $exportFile = $this->dataExporter->exportDatabaseDataToCompressedFile();
+
+            $this->info('Database data exported successfully!');
+            $this->line("Export file: {$exportFile}");
+
+            $fileSize = File::size($exportFile);
+            $this->line("File size: " . number_format($fileSize / 1024 / 1024, 2) . " MB");
+
+            return Command::SUCCESS;
+        } catch (\Exception $e) {
+            $this->error("Failed to export database data: {$e->getMessage()}");
+            return Command::FAILURE;
+        }
+    }
+
+    protected function handleImportData(): int
+    {
+        $filePath = $this->ask('Enter the path to the SQL file to import');
+
+        if (!$filePath) {
+            $this->error('No file path provided.');
+            return Command::FAILURE;
+        }
+
+        if (!File::exists($filePath)) {
+            $this->error("File does not exist: {$filePath}");
+            return Command::FAILURE;
+        }
+
+        $this->info('Validating import file...');
+
+        try {
+            $validationIssues = $this->dataImporter->validateImportFile($filePath);
+
+            if (!empty($validationIssues)) {
+                $this->error('Import file validation failed:');
+                foreach ($validationIssues as $issue) {
+                    $this->line("  - {$issue}");
+                }
+                return Command::FAILURE;
+            }
+
+            $this->info('Getting import preview...');
+            $preview = $this->dataImporter->getImportPreview($filePath);
+
+            $this->info('Import Preview:');
+            $this->line("  - Total statements: {$preview['total_statements']}");
+            $this->line("  - Tables to create: " . implode(', ', $preview['tables_to_create']));
+            $this->line("  - Tables to import: " . implode(', ', $preview['tables_to_import']));
+            $this->line("  - Estimated rows: {$preview['estimated_rows']}");
+
+            if (!empty($preview['warnings'])) {
+                $this->warn('Warnings:');
+                foreach ($preview['warnings'] as $warning) {
+                    $this->line("  - {$warning}");
+                }
+            }
+
+            if (!$this->confirm('Do you want to proceed with the import?', false)) {
+                $this->info('Import cancelled.');
+                return Command::SUCCESS;
+            }
+
+            $this->info('Starting database import...');
+
+            $options = [];
+            if ($this->option('dry-run')) {
+                $options['dry_run'] = true;
+                $this->warn('Running in dry-run mode - no changes will be made');
+            }
+
+            $result = $this->dataImporter->importDatabaseData($filePath, $options);
+
+            if ($result['success']) {
+                $this->info('Import completed successfully!');
+                $this->line("  - Tables imported: {$result['tables_imported']}");
+                $this->line("  - Rows imported: {$result['rows_imported']}");
+
+                if (!empty($result['warnings'])) {
+                    $this->warn('Warnings:');
+                    foreach ($result['warnings'] as $warning) {
+                        $this->line("  - {$warning}");
+                    }
+                }
+            } else {
+                $this->error('Import failed:');
+                foreach ($result['errors'] as $error) {
+                    $this->line("  - {$error}");
+                }
+                return Command::FAILURE;
+            }
+
+            return Command::SUCCESS;
+        } catch (\Exception $e) {
+            $this->error("Import failed: {$e->getMessage()}");
+            return Command::FAILURE;
+        }
+    }
+
+    protected function handleCleanupMigrations(): int
+    {
+        $this->info('Migration cleanup utility');
+        $this->info('=======================');
+
+        // Get cleanup preview
+        $preview = $this->migrationCleanup->getCleanupPreview();
+
+        $this->info('Current migration status:');
+        $this->line("  - Total migration files: {$preview['total_migration_files']}");
+        $this->line("  - Files that can be cleaned: {$preview['files_to_delete']}");
+        $this->line("  - Space that can be saved: " . number_format($preview['total_size_to_save'] / 1024, 2) . " KB");
+
+        if ($preview['files_to_delete'] === 0) {
+            $this->info('No migration files need cleanup.');
+            return Command::SUCCESS;
+        }
+
+        // Show files that would be deleted
+        $this->info('Files to be cleaned up:');
+        foreach ($preview['files'] as $file) {
+            $this->line("  - {$file['filename']} (" . number_format($file['size'] / 1024, 2) . " KB)");
+        }
+
+        // Ask for cleanup options
+        $cleanupType = $this->choice(
+            'What type of cleanup would you like to perform?',
+            [
+                'preview' => 'Show detailed preview only',
+                'all' => 'Clean all eligible files',
+                'older_than' => 'Clean files older than specified days',
+                'larger_than' => 'Clean files larger than specified KB',
+                'custom' => 'Custom cleanup criteria'
+            ],
+            'preview'
+        );
+
+        $options = [];
+
+        switch ($cleanupType) {
+            case 'older_than':
+                $days = (int) $this->ask('Clean files older than how many days?', 30);
+                $options['older_than_days'] = $days;
+                break;
+
+            case 'larger_than':
+                $size = (int) $this->ask('Clean files larger than how many KB?', 100);
+                $options['larger_than_kb'] = $size;
+                break;
+
+            case 'custom':
+                if ($this->confirm('Include system tables (migrations, jobs, etc.)?', false)) {
+                    $options['include_system_tables'] = true;
+                }
+                if ($this->confirm('Skip backup creation?', false)) {
+                    $options['no_backup'] = true;
+                }
+                break;
+
+            case 'preview':
+                return Command::SUCCESS;
+
+            case 'all':
+            default:
+                // Use default options
+                break;
+        }
+
+        if ($cleanupType !== 'preview') {
+            if (!$this->confirm('Do you want to proceed with the cleanup?', false)) {
+                $this->info('Cleanup cancelled.');
+                return Command::SUCCESS;
+            }
+
+            if ($this->option('dry-run')) {
+                $options['dry_run'] = true;
+                $this->warn('Running in dry-run mode - no files will be deleted');
+            }
+
+            $this->info('Starting migration cleanup...');
+
+            try {
+                $result = $this->migrationCleanup->cleanupMigrationFiles($options);
+
+                $this->info('Cleanup completed!');
+                $this->line("  - Files backed up: {$result['files_backed_up']}");
+                $this->line("  - Files deleted: {$result['files_deleted']}");
+                $this->line("  - Space saved: " . number_format($result['total_size_saved'] / 1024, 2) . " KB");
+
+                if (!empty($result['warnings'])) {
+                    $this->warn('Warnings:');
+                    foreach ($result['warnings'] as $warning) {
+                        $this->line("  - {$warning}");
+                    }
+                }
+
+                if (!empty($result['errors'])) {
+                    $this->error('Errors:');
+                    foreach ($result['errors'] as $error) {
+                        $this->line("  - {$error}");
+                    }
+                }
+            } catch (\Exception $e) {
+                $this->error("Cleanup failed: {$e->getMessage()}");
+                return Command::FAILURE;
+            }
         }
 
         return Command::SUCCESS;
     }
 
-    protected function checkModels(): void
-    {
-        $modelsPath = $this->config['models_dir'];
-
-        if (!File::exists($modelsPath)) {
-            $this->error("Models directory not found: {$modelsPath}");
-            return;
-        }
-
-        $modelFiles = File::allFiles($modelsPath);
-
-        foreach ($modelFiles as $file) {
-            if ($file->getExtension() === 'php') {
-                $this->checkModel($file);
-            }
-        }
-    }
-
-    protected function checkModel(\SplFileInfo $file): void
-    {
-        $namespace = $this->getNamespaceFromFile($file->getPathname());
-        $className = $namespace . '\\' . $file->getFilenameWithoutExtension();
-
-        if (!class_exists($className)) {
-            return;
-        }
-
-        try {
-            $reflection = new ReflectionClass($className);
-            
-            if (!$reflection->isSubclassOf('Illuminate\Database\Eloquent\Model')) {
-                return;
-            }
-
-            $model = app($className);
-            $this->stats['models_checked']++;
-
-            $this->info("Checking model: {$className}");
-
-            $this->checkModelFillableProperties($model, $className);
-
-        } catch (\Exception $e) {
-            $this->warn("Could not check model {$className}: " . $e->getMessage());
-        }
-    }
-
-    protected function getNamespaceFromFile(string $filePath): string
-    {
-        $content = File::get($filePath);
-        
-        if (preg_match('/namespace\s+([^;]+);/i', $content, $matches)) {
-            return trim($matches[1]);
-        }
-        
-        return 'App\\Models';
-    }
-
-    protected function checkModelFillableProperties(\Illuminate\Database\Eloquent\Model $model, string $className): void
-    {
-        $tableName = $model->getTable();
-        
-        if (!$this->tableExists($tableName)) {
-            $this->addIssue($className, 'missing_table', [
-                'table' => $tableName,
-                'message' => "Table '{$tableName}' does not exist"
-            ]);
-            return;
-        }
-
-        $fillable = $model->getFillable();
-        $tableColumns = $this->getTableColumns($tableName);
-        $excludedFields = $this->config['excluded_fields'];
-
-        // Remove excluded fields from table columns for comparison
-        $relevantColumns = array_diff($tableColumns, $excludedFields);
-
-        // Check for fillable properties not in database
-        $extraFillable = array_diff($fillable, $tableColumns);
-        if (!empty($extraFillable)) {
-            $this->addIssue($className, 'extra_fillable', [
-                'fields' => $extraFillable,
-                'message' => 'Fillable properties not found in database table'
-            ]);
-        }
-
-        // Check for database columns not in fillable
-        $missingFillable = array_diff($relevantColumns, $fillable);
-        if (!empty($missingFillable)) {
-            $this->addIssue($className, 'missing_fillable', [
-                'fields' => $missingFillable,
-                'message' => 'Database columns not in fillable array'
-            ]);
-        }
-
-        if ($this->option('fix') && !$this->option('dry-run')) {
-            $this->fixModelFillable($className, $relevantColumns);
-        }
-    }
-
-    protected function tableExists(string $tableName): bool
-    {
-        try {
-            return DB::getSchemaBuilder()->hasTable($tableName);
-        } catch (\Exception $e) {
-            return false;
-        }
-    }
-
-    protected function addIssue(string $model, string $type, array $data): void
-    {
-        $this->issues[] = [
-            'model' => $model,
-            'type' => $type,
-            'data' => $data
-        ];
-        $this->stats['issues_found']++;
-    }
-
-    protected function fixModelFillable(string $className, array $columns): void
-    {
-        // Assert that the class exists before using ReflectionClass
-        if (!class_exists($className)) {
-            $this->error("Class {$className} does not exist");
-            return;
-        }
-
-        $reflection = new ReflectionClass($className);
-        $filePath = $reflection->getFileName();
-
-        if ($filePath === false || !File::exists($filePath)) {
-            $this->warn("Could not locate file for model: {$className}");
-            return;
-        }
-
-        $content = File::get($filePath);
-        
-        // Create new fillable array
-        $fillableString = $this->generateFillableString($columns);
-        
-        // Replace existing fillable array or add new one
-        if (preg_match('/protected\s+\$fillable\s*=\s*\[[^\]]*\];/s', $content)) {
-            $content = preg_replace(
-                '/protected\s+\$fillable\s*=\s*\[[^\]]*\];/s',
-                "protected \$fillable = {$fillableString};",
-                $content
-            );
-        } else {
-            // Add fillable array after class declaration
-            $content = preg_replace(
-                '/(class\s+\w+[^{]*{)/',
-                "$1\n    protected \$fillable = {$fillableString};\n",
-                $content
-            );
-        }
-
-        if ($content !== null) {
-            File::put($filePath, $content);
-            $this->info("Fixed fillable array for: {$className}");
-            $this->stats['fixes_applied']++;
-        } else {
-            $this->error("Failed to update fillable array for: {$className}");
-        }
-    }
-
-    protected function generateFillableString(array $columns): string
-    {
-        $excludedFields = $this->config['excluded_fields'];
-        $fillableColumns = array_diff($columns, $excludedFields);
-        
-        $formatted = array_map(function ($column) {
-            return "        '{$column}'";
-        }, $fillableColumns);
-        
-        return "[\n" . implode(",\n", $formatted) . "\n    ]";
-    }
-
     protected function displayResults(): void
     {
-        $this->info('');
-        $this->info('Results:');
-        $this->info('========');
-        $this->info("Models checked: {$this->stats['models_checked']}");
-        $this->info("Issues found: {$this->stats['issues_found']}");
-        
-        if ($this->option('fix') && !$this->option('dry-run')) {
-            $this->info("Fixes applied: {$this->stats['fixes_applied']}");
-        }
-
-        if (!empty($this->issues)) {
-            $this->info('');
-            $this->warn('Issues found:');
-            $this->displayIssues();
-        }
+        $stats = $this->issueManager->getStats();
 
         if ($this->option('json')) {
             $this->outputJson();
+            return;
+        }
+
+        // Save to file if requested
+        if ($this->option('save-output')) {
+            $this->saveResultsToFile();
+        }
+
+        $this->info('');
+        $this->info('Results Summary');
+        $this->info('===============');
+
+        if ($stats['total_issues'] === 0) {
+            $this->info('✅ No issues found!');
+            return;
+        }
+
+        $this->warn("⚠️  Found {$stats['total_issues']} issue(s)");
+
+        // Display issues
+        $issues = $this->issueManager->getIssues();
+        foreach ($issues as $issue) {
+            $this->line("  • " . ($issue['message'] ?? $issue['type']));
+            if (isset($issue['file'])) {
+                $this->line("    📁 " . $issue['file']);
+            }
+        }
+
+        // Display code improvements
+        $this->displayCodeImprovements($issues);
+    }
+
+    protected function saveResultsToFile(): void
+    {
+        $timestamp = now()->format('Y-m-d_H-i-s');
+        $filename = "model-schema-check_{$timestamp}.md";
+        $filepath = base_path($filename);
+
+        $content = $this->generateMarkdownContent();
+
+        File::put($filepath, $content);
+
+        $this->info("📄 Results saved to: {$filepath}");
+        $this->info("📄 Filename: {$filename}");
+        $this->info("💡 This file is saved in your project root directory for easy access");
+    }
+
+    protected function generateMarkdownContent(): string
+    {
+        $stats = $this->issueManager->getStats();
+        $issues = $this->issueManager->getIssues();
+
+        $content = "# Laravel Model Schema Checker Results\n\n";
+        $content .= "**Generated:** " . now()->format('Y-m-d H:i:s') . "\n\n";
+        $content .= "**Command:** `php artisan model:schema-check`\n\n";
+        $content .= "**File Location:** This report is saved in your project root directory for easy access.\n\n";
+
+        $content .= "## Results Summary\n\n";
+
+        if ($stats['total_issues'] === 0) {
+            $content .= "✅ **No issues found!**\n\n";
+            return $content;
+        }
+
+        $content .= "⚠️ **Found {$stats['total_issues']} issue(s)**\n\n";
+
+        // Group issues by type
+        $issuesByType = [];
+        foreach ($issues as $issue) {
+            $type = $issue['type'] ?? 'Unknown';
+            if (!isset($issuesByType[$type])) {
+                $issuesByType[$type] = [];
+            }
+            $issuesByType[$type][] = $issue;
+        }
+
+        // Display issues grouped by type
+        foreach ($issuesByType as $type => $typeIssues) {
+            $content .= "### {$type} Issues (" . count($typeIssues) . ")\n\n";
+            foreach ($typeIssues as $issue) {
+                $content .= "- " . ($issue['message'] ?? $issue['type']) . "\n";
+                if (isset($issue['file'])) {
+                    $content .= "  - 📁 `{$issue['file']}`\n";
+                }
+                $content .= "\n";
+            }
+        }
+
+        // Display code improvements
+        $improvements = array_filter($issues, fn($issue) => isset($issue['improvement']));
+        if (!empty($improvements)) {
+            $content .= "## Code Improvement Suggestions (" . count($improvements) . ")\n\n";
+
+            foreach ($improvements as $index => $issue) {
+                $improvement = $issue['improvement'];
+                $content .= "### " . ($index + 1) . ". {$improvement->getTitle()}\n\n";
+                $content .= "{$improvement->getDescription()}\n\n";
+
+                if ($improvement->canAutoFix()) {
+                    $content .= "**✅ Can be automatically fixed**\n\n";
+                }
+
+                if (isset($issue['file'])) {
+                    $content .= "**File:** `{$issue['file']}`\n\n";
+                }
+
+                $content .= "---\n\n";
+            }
+        }
+
+        $content .= "## Next Steps\n\n";
+        $content .= "1. **Review the issues above** and prioritize fixes based on severity\n";
+        $content .= "2. **Apply automatic fixes** where available using `--fix` option\n";
+        $content .= "3. **Use step-by-step fixes** with `--step-by-step` for controlled application\n";
+        $content .= "4. **Backup before changes** using `--backup-db` option\n";
+        $content .= "5. **Rollback if needed** using `--rollback-fixes` option\n\n";
+
+        $content .= "## Command Reference\n\n";
+        $content .= "- `php artisan model:schema-check --save-output` - Save results to file\n";
+        $content .= "- `php artisan model:schema-check --step-by-step` - Interactive fix application\n";
+        $content .= "- `php artisan model:schema-check --fix` - Apply all automatic fixes\n";
+        $content .= "- `php artisan model:schema-check --backup-db` - Create database backup\n";
+        $content .= "- `php artisan model:schema-check --rollback-fixes` - Rollback applied fixes\n";
+
+        return $content;
+    }
+
+    protected function displayCodeImprovements(array $issues): void
+    {
+        $improvements = array_filter($issues, fn($issue) => isset($issue['improvement']));
+
+        if (empty($improvements)) {
+            return;
+        }
+
+        $this->info('');
+        $this->info('💡 Code Improvement Suggestions (' . count($improvements) . '):');
+
+        if ($this->option('step-by-step')) {
+            $this->applyStepByStepFixes($improvements);
+        } else {
+            foreach ($improvements as $issue) {
+                $improvement = $issue['improvement'];
+                $this->info("  • {$improvement->getTitle()}");
+                $this->line("    {$improvement->getDescription()}");
+
+                if ($improvement->canAutoFix()) {
+                    $this->info("    ✅ Can be automatically fixed");
+                }
+            }
+
+            if (!$this->option('dry-run') && $this->confirm('Apply automatic fixes?', false)) {
+                $this->applyCodeImprovements($improvements);
+            }
         }
     }
 
-    protected function displayIssues(): void
+    protected function applyCodeImprovements(array $improvements): void
     {
-        foreach ($this->issues as $issue) {
-            if (str_starts_with($issue['type'], 'filament_')) {
-                $this->warn("Resource: {$issue['model']}");
-                $this->line("  Type: {$issue['type']}");
-                $this->line("  Message: {$issue['data']['message']}");
-                
-                if (isset($issue['data']['relationship'])) {
-                    $this->line("  Relationship: {$issue['data']['relationship']}");
+        $applied = 0;
+        $appliedFixes = [];
+
+        foreach ($improvements as $issue) {
+            $improvement = $issue['improvement'];
+
+            if ($improvement->canAutoFix() && $improvement->applyFix()) {
+                $this->info("✅ Applied: {$improvement->getTitle()}");
+                $applied++;
+
+                // Track applied fix for rollback
+                $appliedFixes[] = [
+                    'title' => $improvement->getTitle(),
+                    'description' => $improvement->getDescription(),
+                    'file' => $issue['file'] ?? null,
+                    'applied_at' => now()->toISOString(),
+                    'improvement_class' => get_class($improvement),
+                ];
+            }
+        }
+
+        if ($applied > 0) {
+            $this->info('');
+            $this->info("🎉 Successfully applied {$applied} automatic fixes!");
+
+            // Save applied fixes for rollback
+            $this->saveAppliedFixes($appliedFixes);
+        }
+    }
+
+    protected function applyStepByStepFixes(array $improvements): void
+    {
+        $this->info('');
+        $this->info('🔧 Step-by-step fix mode enabled');
+        $this->info('You will be prompted for each fix individually.');
+
+        $applied = 0;
+        $skipped = 0;
+        $appliedFixes = [];
+
+        foreach ($improvements as $index => $issue) {
+            $improvement = $issue['improvement'];
+            $number = $index + 1;
+
+            $this->info('');
+            $this->info("--- Fix {$number} of " . count($improvements) . " ---");
+            $this->info("📋 {$improvement->getTitle()}");
+            $this->line("   {$improvement->getDescription()}");
+
+            if (isset($issue['file'])) {
+                $this->line("   📁 {$issue['file']}");
+            }
+
+            if ($improvement->canAutoFix()) {
+                $this->info("   ✅ Can be automatically fixed");
+
+                $apply = $this->choice(
+                    "Apply this fix?",
+                    ['yes' => 'Yes, apply this fix', 'no' => 'No, skip this fix', 'quit' => 'Quit step-by-step mode'],
+                    'no'
+                );
+
+                if ($apply === 'quit') {
+                    $this->info('🛑 Step-by-step mode cancelled by user.');
+                    break;
                 }
-                
-                if (isset($issue['data']['field'])) {
-                    $this->line("  Field: {$issue['data']['field']}");
-                }
-                
-                if (isset($issue['data']['component_type'])) {
-                    $this->line("  Component: {$issue['data']['component_type']}");
-                }
-                
-                if (isset($issue['data']['model'])) {
-                    $this->line("  Model: {$issue['data']['model']}");
-                }
-                
-                if (isset($issue['data']['file'])) {
-                    $this->line("  File: {$issue['data']['file']}:{$issue['data']['line']}");
-                }
-            } elseif (in_array($issue['type'], ['csrf_missing', 'xss_unescaped_output'])) {
-                $this->warn("Security Issue: {$issue['model']}");
-                $this->line("  Type: {$issue['type']}");
-                $this->line("  Message: {$issue['data']['message']}");
-                
-                if (isset($issue['data']['file'])) {
-                    $this->line("  File: {$issue['data']['file']}");
-                }
-                
-                if (isset($issue['data']['unescaped_output'])) {
-                    $this->line("  Code: {$issue['data']['unescaped_output']}");
-                }
-                
-                if (isset($issue['data']['form_tag'])) {
-                    $this->line("  Form: {$issue['data']['form_tag']}");
-                }
-            } elseif (str_starts_with($issue['type'], 'filament_field_')) {
-                $this->warn("Field Alignment: {$issue['model']}");
-                $this->line("  Type: {$issue['type']}");
-                $this->line("  Message: {$issue['data']['message']}");
-                
-                if (isset($issue['data']['field'])) {
-                    $this->line("  Field: {$issue['data']['field']}");
-                }
-                
-                if (isset($issue['data']['model'])) {
-                    $this->line("  Model: {$issue['data']['model']}");
-                }
-                
-                if (isset($issue['data']['file'])) {
-                    $this->line("  File: {$issue['data']['file']}:{$issue['data']['line']}");
+
+                if ($apply === 'yes') {
+                    if (!$this->option('dry-run') && $improvement->applyFix()) {
+                        $this->info("✅ Applied: {$improvement->getTitle()}");
+                        $applied++;
+
+                        // Track applied fix for rollback
+                        $appliedFixes[] = [
+                            'title' => $improvement->getTitle(),
+                            'description' => $improvement->getDescription(),
+                            'file' => $issue['file'] ?? null,
+                            'applied_at' => now()->toISOString(),
+                            'improvement_class' => get_class($improvement),
+                        ];
+                    } else {
+                        $this->warn("❌ Failed to apply: {$improvement->getTitle()}");
+                    }
+                } else {
+                    $this->line("⏭️  Skipped: {$improvement->getTitle()}");
+                    $skipped++;
                 }
             } else {
-                $this->warn("Model: {$issue['model']}");
-                $this->line("  Type: {$issue['type']}");
-                $this->line("  Message: {$issue['data']['message']}");
-                
-                if (isset($issue['data']['fields'])) {
-                    $this->line("  Fields: " . implode(', ', $issue['data']['fields']));
-                }
-                
-                if (isset($issue['data']['table'])) {
-                    $this->line("  Table: {$issue['data']['table']}");
-                }
+                $this->warn("   ⚠️  Manual fix required");
+                $this->line("   Please fix manually as described above.");
+                $skipped++;
             }
-            
-            $this->line('');
+        }
+
+        $this->info('');
+        $this->info("📊 Step-by-step results:");
+        $this->info("   ✅ Applied: {$applied}");
+        $this->info("   ⏭️  Skipped: {$skipped}");
+
+        if ($applied > 0) {
+            $this->info('');
+            $this->info("🎉 Successfully applied {$applied} fixes!");
+
+            // Save applied fixes for rollback
+            $this->saveAppliedFixes($appliedFixes);
         }
     }
 
     protected function outputJson(): void
     {
-        $output = [
-            'stats' => $this->stats,
-            'issues' => $this->issues
+        $result = [
+            'timestamp' => now()->toISOString(),
+            'stats' => $this->issueManager->getStats(),
+            'issues' => $this->issueManager->getIssues(),
+            'checkers' => $this->checkerManager->getAvailableCheckers(),
         ];
-        
-        $jsonOutput = json_encode($output, JSON_PRETTY_PRINT);
-        if ($jsonOutput !== false) {
-            $this->line($jsonOutput);
-        } else {
-            $this->error('Failed to encode JSON output');
-        }
-    }
 
-    protected function generateMigrations(): void
-    {
-        $this->info('Generating migrations...');
-        
-        foreach ($this->issues as $issue) {
-            if ($issue['type'] === 'missing_fillable') {
-                $this->generateMigrationForMissingColumns($issue);
-            }
-        }
-    }
-
-    protected function generateMigrationForMissingColumns(array $issue): void
-    {
-        // This would generate migrations for missing columns
-        // Implementation would depend on specific requirements
-        $this->info("Would generate migration for: {$issue['model']}");
-    }
-
-    protected function checkFilamentForms(): void
-    {
-        $this->info('');
-        $this->info('Checking Filament Forms & Relationships');
-        $this->info('=========================================');
-
-        // Check if a specific resource is requested
-        $specificResource = $this->option('filament-resource');
-
-        if ($specificResource) {
-            // Ensure specificResource is a string
-            $specificResource = (string) $specificResource;
-            // Handle different resource name formats
-            if (!str_contains($specificResource, '\\')) {
-                // If no backslashes, assume it's just the class name in the standard Filament location
-                $specificResource = 'App\\Filament\\Admin\\Resources\\' . $specificResource;
-            }
-            $this->info("Checking specific resource: {$specificResource}");
-            try {
-                $this->checkFilamentResource($specificResource);
-            } catch (\Throwable $e) {
-                $this->error("Error checking resource {$specificResource}: " . $e->getMessage());
-            }
-            return;
-        }
-        
-        $filamentPath = app_path('Filament');
-        if (!File::exists($filamentPath)) {
-            $this->warn('No Filament directory found. Skipping Filament checks.');
+        $jsonResult = json_encode($result, JSON_PRETTY_PRINT);
+        if ($jsonResult === false) {
+            $this->error('Failed to encode result to JSON');
             return;
         }
 
-        // Also check if Filament package is installed
-        if (!class_exists(\Filament\FilamentServiceProvider::class) && !class_exists(\Filament\Resources\Resource::class)) {
-            $this->warn('Filament package not found. Make sure Filament is installed: composer require filament/filament');
-            return;
-        }
-
-        $resources = $this->findFilamentResources($filamentPath);
-
-        foreach ($resources as $resourceClass) {
-            $this->info("Checking Resource: {$resourceClass}");
-            try {
-                $this->checkFilamentResource($resourceClass);
-            } catch (\Throwable $e) {
-                $this->error("Error checking resource {$resourceClass}: " . $e->getMessage());
-            }
-        }
+        $this->line($jsonResult);
     }
 
-    protected function findFilamentResources(string $path): array
+    protected function checkEncryptedFieldSizes(): void
     {
-        $files = File::allFiles($path);
-        $resources = [];
+        $this->info('  🔍 Checking database schema for encrypted field sizes...');
 
-        foreach ($files as $file) {
-            try {
-                $class = $this->getClassFromFile($file->getPathname());
-                if ($class && class_exists($class, false)) { // Don't autoload
-                    // Check if Filament is available before checking subclass
-                    if (class_exists(\Filament\Resources\Resource::class) && is_subclass_of($class, \Filament\Resources\Resource::class)) {
-                        $resources[] = $class;
-                    }
-                } else {
-                    $this->warn("Skipping file with invalid class: {$file->getPathname()}");
-                }
-            } catch (\Throwable $e) {
-                $this->error("Cannot process file {$file->getPathname()}: " . $e->getMessage());
-                // Continue with other files
-            }
-        }
+        $tables = DB::select('SHOW TABLES');
+        $databaseName = DB::getDatabaseName();
 
-        return $resources;
-    }
+        foreach ($tables as $table) {
+            $tableName = $table->{'Tables_in_' . $databaseName};
 
-    protected function checkFilamentResource(string $resourceClass): void
-    {
-        // Check if Filament is available
-        if (!class_exists(\Filament\Resources\Resource::class)) {
-            $this->warn("Filament not installed, skipping resource check for {$resourceClass}");
-            return;
-        }
-
-        try {
-            // Assert that the class exists before using ReflectionClass
-            if (!class_exists($resourceClass)) {
-                $this->error("Filament resource class {$resourceClass} does not exist");
-                return;
+            // Skip system tables and common non-encrypted tables
+            if (in_array($tableName, ['migrations', 'failed_jobs', 'cache', 'sessions', 'jobs'])) {
+                continue;
             }
 
-            // Use reflection to get the model class without instantiating the resource
-            $reflection = new \ReflectionClass($resourceClass);
-            $getModelMethod = $reflection->getMethod('getModel');
-            
-            if ($getModelMethod->isStatic()) {
-                $modelClass = $resourceClass::getModel();
-                $model = new $modelClass();
+            $columns = DB::select("
+                SELECT COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, COLUMN_TYPE
+                FROM information_schema.COLUMNS
+                WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?
+                ORDER BY ORDINAL_POSITION
+            ", [$databaseName, $tableName]);
 
-                $this->checkFilamentMethods($resourceClass, $model, ['form', 'table']);
-            } else {
-                $this->error("Cannot check resource {$resourceClass}: getModel() is not static");
-            }
-        } catch (\Throwable $e) {
-            $this->error("Cannot check resource {$resourceClass}: " . $e->getMessage());
-            // Continue with other resources instead of failing completely
-        }
-    }
+            foreach ($columns as $column) {
+                $columnName = $column->COLUMN_NAME;
+                $dataType = $column->DATA_TYPE;
+                $maxLength = $column->CHARACTER_MAXIMUM_LENGTH;
+                $columnType = $column->COLUMN_TYPE;
 
-    protected function checkFilamentMethods(string $resourceClass, \Illuminate\Database\Eloquent\Model $model, array $methodNames): void
-    {
-        $reflection = new \ReflectionClass($resourceClass);
+                // Check for potentially encrypted fields based on naming patterns
+                $encryptedFieldPatterns = [
+                    '/encrypted/i',
+                    '/cipher/i',
+                    '/token/i',
+                    '/secret/i',
+                    '/key/i',
+                    '/password/i',
+                    '/ssn/i',
+                    '/social_security/i',
+                    '/credit_card/i',
+                    '/api_key/i'
+                ];
 
-        foreach ($methodNames as $methodName) {
-            if ($reflection->hasMethod($methodName)) {
-                $method = $reflection->getMethod($methodName);
-                if ($method->isStatic()) {
-                    $this->findAndCheckRelationshipsInFilamentMethod($method, $model, $resourceClass);
-                    if ($methodName === 'form') {
-                        $this->checkFilamentFormFieldAlignment($method, $model, $resourceClass);
-                    }
-                }
-            }
-        }
-    }
-
-    protected function findAndCheckRelationshipsInFilamentMethod(\ReflectionMethod $method, \Illuminate\Database\Eloquent\Model $model, string $resourceClass): void
-    {
-        $filePath = $method->getFileName();
-        if ($filePath === false) {
-            $this->warn("Cannot get file path for method {$method->getName()}");
-            return;
-        }
-
-        $startLine = $method->getStartLine();
-        $endLine = $method->getEndLine();
-        $lines = file($filePath);
-        $content = implode('', array_slice($lines, $startLine - 1, $endLine - $startLine + 1));
-
-        // Check for ->relationship() calls
-        if (preg_match_all('/->relationship\(\s*\'([a-zA-Z0-9_]+)\'/', $content, $matches, PREG_OFFSET_CAPTURE)) {
-            foreach ($matches[1] as $match) {
-                $relationshipName = $match[0];
-                $offset = $match[1];
-                $lineNumber = $this->getLineNumberFromOffset($content, $offset) + $startLine -1;
-                $this->validateFilamentRelationship($model, $relationshipName, $resourceClass, $filePath, $lineNumber);
-            }
-        }
-
-        // Check for Select::make()->relationship() patterns and other relationship-based components
-        if (preg_match_all('/(Select|BelongsToSelect|BelongsToManySelect|HasManySelect|HasManyThroughSelect)::make\(\s*[\'\"]([a-zA-Z0-9_]+)[\'\"]\s*\)\s*->.*?relationship\(\s*[\'\"]([a-zA-Z0-9_]+)[\'\"]/', $content, $matches, PREG_OFFSET_CAPTURE)) {
-            for ($i = 0; $i < count($matches[0]); $i++) {
-                $componentType = isset($matches[1][$i][0]) ? $matches[1][$i][0] : 'Select';
-                $fieldName = isset($matches[2][$i][0]) ? $matches[2][$i][0] : 'unknown';
-                $relationshipName = isset($matches[3][$i][0]) ? $matches[3][$i][0] : 'unknown';
-                // Use approximate line number
-                $lineNumber = $startLine + intval($i * 5);
-                $this->validateFilamentSelectRelationship($model, $relationshipName, $fieldName, $resourceClass, $filePath, $lineNumber, $componentType);
-            }
-        }
-    }
-
-    protected function validateFilamentRelationship(\Illuminate\Database\Eloquent\Model $model, string $relationshipName, string $resourceClass, string $filePath, int $lineNumber): void
-    {
-        $modelClass = get_class($model);
-        if (!method_exists($model, $relationshipName)) {
-            $this->addIssue($resourceClass, 'filament_broken_relationship', [
-                'relationship' => $relationshipName,
-                'model' => $modelClass,
-                'file' => $filePath,
-                'line' => $lineNumber,
-                'message' => "Broken Relationship: Method '{$relationshipName}' not found on model '{$modelClass}'."
-            ]);
-            return;
-        }
-
-        try {
-            $relation = $model->$relationshipName();
-            if (!$relation instanceof \Illuminate\Database\Eloquent\Relations\Relation) {
-                $this->addIssue($resourceClass, 'filament_invalid_relationship', [
-                    'relationship' => $relationshipName,
-                    'model' => $modelClass,
-                    'file' => $filePath,
-                    'line' => $lineNumber,
-                    'message' => "Invalid Relationship Return Type: Method '{$relationshipName}' does not return a valid Eloquent Relation object."
-                ]);
-            }
-        } catch (\Throwable $e) {
-            $this->addIssue($resourceClass, 'filament_relationship_error', [
-                'relationship' => $relationshipName,
-                'model' => $modelClass,
-                'file' => $filePath,
-                'line' => $lineNumber,
-                'message' => "Error executing relationship method '{$relationshipName}': " . $e->getMessage()
-            ]);
-        }
-    }
-
-    protected function validateFilamentSelectRelationship(\Illuminate\Database\Eloquent\Model $model, string $relationshipName, string $fieldName, string $resourceClass, string $filePath, int $lineNumber, string $componentType = 'Select'): void
-    {
-        $modelClass = get_class($model);
-        
-        // First check if the relationship method exists
-        if (!method_exists($model, $relationshipName)) {
-            $this->addIssue($resourceClass, 'filament_select_broken_relationship', [
-                'component_type' => $componentType,
-                'field' => $fieldName,
-                'relationship' => $relationshipName,
-                'model' => $modelClass,
-                'file' => $filePath,
-                'line' => $lineNumber,
-                'message' => "Broken {$componentType} Relationship: Field '{$fieldName}' references relationship '{$relationshipName}' which doesn't exist."
-            ]);
-            return;
-        }
-
-        try {
-            $relation = $model->$relationshipName();
-            
-            // Check if relationship returns null
-            if ($relation === null) {
-                $this->addIssue($resourceClass, 'filament_null_relationship', [
-                    'component_type' => $componentType,
-                    'field' => $fieldName,
-                    'relationship' => $relationshipName,
-                    'model' => $modelClass,
-                    'file' => $filePath,
-                    'line' => $lineNumber,
-                    'message' => "Null Relationship: Field '{$fieldName}' relationship '{$relationshipName}' returns null."
-                ]);
-                return;
-            }
-            
-            // Check if it's a valid Relation instance
-            if (!$relation instanceof \Illuminate\Database\Eloquent\Relations\Relation) {
-                $this->addIssue($resourceClass, 'filament_invalid_select_relationship', [
-                    'component_type' => $componentType,
-                    'field' => $fieldName,
-                    'relationship' => $relationshipName,
-                    'model' => $modelClass,
-                    'file' => $filePath,
-                    'line' => $lineNumber,
-                    'message' => "Invalid Relationship: Field '{$fieldName}' relationship '{$relationshipName}' does not return a valid Relation object."
-                ]);
-                return;
-            }
-            
-        } catch (\Throwable $e) {
-            $this->addIssue($resourceClass, 'filament_select_relationship_error', [
-                'component_type' => $componentType,
-                'field' => $fieldName,
-                'relationship' => $relationshipName,
-                'model' => $modelClass,
-                'file' => $filePath,
-                'line' => $lineNumber,
-                'message' => "Error in Relationship: Field '{$fieldName}' relationship '{$relationshipName}' threw exception: " . $e->getMessage()
-            ]);
-        }
-    }
-
-    protected function getClassFromFile(string $path): ?string
-    {
-        $content = file_get_contents($path);
-        $tokens = token_get_all($content);
-        $namespace = '';
-        for ($i = 0; $i < count($tokens); $i++) {
-            if ($tokens[$i][0] === T_NAMESPACE) {
-                for ($j = $i + 1; $j < count($tokens); $j++) {
-                    if ($tokens[$j] === ';') {
-                        $namespace = trim($namespace);
-                        break;
-                    }
-                    $namespace .= is_array($tokens[$j]) ? $tokens[$j][1] : $tokens[$j];
-                }
-            }
-
-            if ($tokens[$i][0] === T_CLASS) {
-                for ($j = $i + 1; $j < count($tokens); $j++) {
-                    if ($tokens[$j] === '{') {
-                        if (isset($tokens[$i + 2]) && is_array($tokens[$i + 2]) && isset($tokens[$i + 2][1])) {
-                            $className = $tokens[$i + 2][1];
-                            return $namespace . '\\' . $className;
-                        }
+                $isLikelyEncrypted = false;
+                foreach ($encryptedFieldPatterns as $pattern) {
+                    if (preg_match($pattern, $columnName)) {
+                        $isLikelyEncrypted = true;
                         break;
                     }
                 }
-            }
-        }
-        return null;
-    }
 
-    protected function getLineNumberFromOffset(string $content, int $offset): int
-    {
-        return substr_count(substr($content, 0, $offset), "\n") + 1;
-    }
+                if ($isLikelyEncrypted) {
+                    // Check if field size is adequate for encrypted data
+                    $recommendedMinSize = 255; // Laravel encrypted fields need at least 255 chars
 
-    protected function checkFilamentFormFieldAlignment(\ReflectionMethod $method, \Illuminate\Database\Eloquent\Model $model, string $resourceClass): void
-    {
-        $filePath = $method->getFileName();
-        if ($filePath === false) {
-            $this->warn("Cannot get file path for method {$method->getName()}");
-            return;
-        }
-
-        $startLine = $method->getStartLine();
-        $endLine = $method->getEndLine();
-        $lines = file($filePath);
-        $content = implode('', array_slice($lines, $startLine - 1, $endLine - $startLine + 1));
-
-        $modelClass = get_class($model);
-        $tableName = $model->getTable();
-        $tableColumns = $this->getTableColumns($tableName);
-        $fillable = $model->getFillable();
-
-        // Find all Filament field definitions like TextInput::make('field_name'), Select::make('field_name'), etc.
-        $fieldPatterns = [
-            '/(\w+)::make\(\s*[\'"]([a-zA-Z0-9_]+)[\'"]\s*\)/',  // Basic field pattern
-            '/(\w+)::make\(\s*[\'"]([a-zA-Z0-9_]+)[\'"]\s*\)\s*->/',  // Field with method chaining
-        ];
-
-        $foundFields = [];
-
-        foreach ($fieldPatterns as $pattern) {
-            if (preg_match_all($pattern, $content, $matches, PREG_OFFSET_CAPTURE)) {
-                for ($i = 0; $i < count($matches[0]); $i++) {
-                    $fieldName = $matches[2][$i][0];
-                    $offset = $matches[2][$i][1];
-                    $lineNumber = $this->getLineNumberFromOffset($content, $offset) + $startLine - 1;
-
-                    if (!in_array($fieldName, $foundFields)) {
-                        $foundFields[] = $fieldName;
-                        $this->validateFilamentField($fieldName, $tableColumns, $fillable, $modelClass, $resourceClass, $filePath, $lineNumber);
-                    }
-                }
-            }
-        }
-    }
-
-    protected function validateFilamentField(string $fieldName, array $tableColumns, array $fillable, string $modelClass, string $resourceClass, string $filePath, int $lineNumber): void
-    {
-        // Check if field exists in database
-        if (!in_array($fieldName, $tableColumns)) {
-            $this->addIssue($resourceClass, 'filament_field_not_in_database', [
-                'field' => $fieldName,
-                'model' => $modelClass,
-                'table_columns' => $tableColumns,
-                'file' => $filePath,
-                'line' => $lineNumber,
-                'message' => "Field '{$fieldName}' in Filament form does not exist in database table."
-            ]);
-            return;
-        }
-
-        // Check if field is in fillable array (for mass assignment)
-        if (!in_array($fieldName, $fillable)) {
-            $this->addIssue($resourceClass, 'filament_field_not_fillable', [
-                'field' => $fieldName,
-                'model' => $modelClass,
-                'fillable' => $fillable,
-                'file' => $filePath,
-                                'line' => $lineNumber,
-                'message' => "Field '{$fieldName}' in Filament form is not in the model's fillable array."
-            ]);
-        }
-    }
-
-    protected function checkSecurityVulnerabilities(): void
-    {
-        $this->info('');
-        $this->info('Checking Security Vulnerabilities');
-        $this->info('=================================');
-
-        // Check for CSRF protection in forms
-        $this->checkCSRFProtection();
-
-        // Check for XSS vulnerabilities
-        $this->checkXSSVulnerabilities();
-
-        // Check for SQL injection vulnerabilities
-        $this->checkSQLInjectionVulnerabilities();
-
-        // Check for path traversal vulnerabilities
-        $this->checkPathTraversalVulnerabilities();
-    }
-
-    protected function checkCSRFProtection(): void
-    {
-        $this->info('Checking CSRF Protection...');
-
-        // Check Filament forms (they handle CSRF automatically)
-        if (class_exists(\Filament\FilamentServiceProvider::class)) {
-            $this->info('✓ Filament forms include automatic CSRF protection');
-        }
-
-        // Check Laravel forms in blade templates
-        $this->checkBladeCSRFProtection();
-    }
-
-    protected function checkXSSVulnerabilities(): void
-    {
-        $this->info('Checking XSS Vulnerabilities...');
-
-        // Check Filament forms (they handle escaping automatically)
-        if (class_exists(\Filament\FilamentServiceProvider::class)) {
-            $this->info('✓ Filament forms include automatic XSS protection');
-        }
-
-        // Check Laravel blade templates for unescaped output
-        $this->checkBladeXSSProtection();
-    }
-
-    protected function checkSQLInjectionVulnerabilities(): void
-    {
-        $this->info('Checking SQL Injection Vulnerabilities...');
-
-        // Check for raw database queries in controllers and models
-        $this->checkRawDatabaseQueries();
-
-        // Check for proper use of Eloquent vs raw queries
-        $this->checkEloquentUsage();
-    }
-
-    protected function checkPathTraversalVulnerabilities(): void
-    {
-        $this->info('Checking Path Traversal Vulnerabilities...');
-
-        // Check file operations for path traversal issues
-        $this->checkFileOperations();
-
-        // Check for unsafe file upload handling
-        $this->checkFileUploads();
-    }
-
-    protected function checkBladeCSRFProtection(): void
-    {
-        $viewPath = resource_path('views');
-        if (!File::exists($viewPath)) {
-            return;
-        }
-
-        $bladeFiles = File::allFiles($viewPath);
-        foreach ($bladeFiles as $file) {
-            if ($file->getExtension() === 'blade.php') {
-                $content = file_get_contents($file->getPathname());
-
-                // Check for forms without CSRF tokens
-                if (preg_match_all('/<form[^>]*>/i', $content, $matches)) {
-                    foreach ($matches[0] as $formTag) {
-                        if (!preg_match('/@csrf|\{\{\s*csrf_token\s*\}\}/', $content)) {
-                            $this->addIssue('Blade Template', 'csrf_missing', [
-                                'file' => $file->getPathname(),
-                                'form_tag' => $formTag,
-                                'message' => 'Form found without CSRF token protection'
-                            ]);
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    protected function checkBladeXSSProtection(): void
-    {
-        $viewPath = resource_path('views');
-        if (!File::exists($viewPath)) {
-            return;
-        }
-
-        $bladeFiles = File::allFiles($viewPath);
-        foreach ($bladeFiles as $file) {
-            if ($file->getExtension() === 'blade.php') {
-                $content = file_get_contents($file->getPathname());
-
-                // Check for unescaped output that could lead to XSS
-                if (preg_match_all('/\{\{\{\s*\$[^}]+\s*\}\}\}/', $content, $matches)) {
-                    foreach ($matches[0] as $match) {
-                        $this->addIssue('Blade Template', 'xss_unescaped_output', [
-                            'file' => $file->getPathname(),
-                            'unescaped_output' => $match,
-                            'message' => 'Triple braces {{{ }}} allow unescaped HTML output - potential XSS vulnerability'
+                    if ($dataType === 'varchar' && $maxLength < $recommendedMinSize) {
+                        $this->issueManager->addIssue('Encrypted Fields', 'insufficient_field_size', [
+                            'table' => $tableName,
+                            'column' => $columnName,
+                            'current_size' => $maxLength,
+                            'recommended_size' => $recommendedMinSize,
+                            'message' => "Encrypted field '{$columnName}' in table '{$tableName}' has insufficient size ({$maxLength} chars). Encrypted data requires at least {$recommendedMinSize} characters.",
+                            'fix_explanation' => 'Laravel encryption adds significant overhead. Encrypted data can be 2-3x larger than plaintext due to base64 encoding and encryption metadata.',
+                            'security_note' => 'Always encrypt sensitive data before storing. Use Laravel\'s encrypt() helper or model casts for automatic encryption/decryption. Encrypt at the model level using $casts or mutators, not in controllers or views, to ensure data is never exposed in transit.'
+                        ]);
+                    } elseif ($dataType === 'text' && in_array(strtolower($columnType), ['tinytext', 'text'])) {
+                        $this->issueManager->addIssue('Encrypted Fields', 'suboptimal_field_type', [
+                            'table' => $tableName,
+                            'column' => $columnName,
+                            'current_type' => $columnType,
+                            'recommended_type' => 'MEDIUMTEXT or LONGTEXT',
+                            'message' => "Encrypted field '{$columnName}' in table '{$tableName}' uses '{$columnType}' which may be too small for encrypted data.",
+                            'fix_explanation' => 'Use MEDIUMTEXT (16MB) or LONGTEXT (4GB) for encrypted fields to accommodate variable encrypted data sizes.',
+                            'security_note' => 'Always encrypt sensitive data before storing. Use Laravel\'s encrypt() helper or model casts for automatic encryption/decryption. Use MEDIUMTEXT (16MB) or LONGTEXT (4GB) for encrypted fields to accommodate variable encrypted data sizes.'
                         ]);
                     }
                 }
@@ -919,2123 +1164,712 @@ class ModelSchemaCheckCommand extends Command
         }
     }
 
-    protected function checkLaravelForms(): void
+    protected function checkModelEncryption(): void
     {
-        $this->info('');
-        $this->info('Checking Laravel Forms');
-        $this->info('=====================');
+        $this->info('  🔍 Checking models for proper encryption implementation...');
 
-        // Check Blade templates for forms
-        $this->checkBladeForms();
-
-        // Check Livewire components
-        $this->checkLivewireForms();
-    }
-
-    protected function checkBladeForms(): void
-    {
-        $viewPath = resource_path('views');
-        if (!File::exists($viewPath)) {
-            $this->warn('No views directory found. Skipping Blade form checks.');
-            return;
-        }
-
-        $bladeFiles = File::allFiles($viewPath);
-        foreach ($bladeFiles as $file) {
-            if ($file->getExtension() === 'blade.php') {
-                $this->analyzeBladeForm($file->getPathname());
-            }
-        }
-    }
-
-    protected function checkLivewireForms(): void
-    {
-        $livewirePath = app_path('Livewire');
-        if (!File::exists($livewirePath)) {
-            $this->warn('No Livewire directory found. Skipping Livewire form checks.');
-            return;
-        }
-
-        $livewireFiles = File::allFiles($livewirePath);
-        foreach ($livewireFiles as $file) {
-            if ($file->getExtension() === 'php') {
-                $this->analyzeLivewireForm($file->getPathname());
-            }
-        }
-    }
-
-    protected function analyzeBladeForm(string $filePath): void
-    {
-        $content = file_get_contents($filePath);
-
-        // Look for form inputs and try to match them with models
-        // This is a simplified check - in practice, this would need more sophisticated parsing
-        if (preg_match_all('/name=["\']([^"\']+)["\']/', $content, $matches)) {
-            $fieldNames = $matches[1];
-
-            // Try to determine the model from the controller or route
-            // This is simplified - real implementation would need better model detection
-            $this->info("Found form fields in {$filePath}: " . implode(', ', $fieldNames));
-        }
-    }
-
-    protected function analyzeLivewireForm(string $filePath): void
-    {
-        $content = file_get_contents($filePath);
-
-        // Check for public properties that might be form fields
-        if (preg_match_all('/public\s+\$([a-zA-Z0-9_]+)\s*;/', $content, $matches)) {
-            $properties = $matches[1];
-            $this->info("Found Livewire properties in {$filePath}: " . implode(', ', $properties));
-        }
-    }
-
-    protected function checkRawDatabaseQueries(): void
-    {
-        // Check controllers for raw database queries
-        $controllerPath = app_path('Http/Controllers');
-        if (File::exists($controllerPath)) {
-            $controllerFiles = File::allFiles($controllerPath);
-            foreach ($controllerFiles as $file) {
-                if ($file->getExtension() === 'php') {
-                    $content = file_get_contents($file->getPathname());
-
-                    // Check for raw DB::raw(), DB::select(), etc.
-                    $rawQueryPatterns = [
-                        '/DB::raw\(/',
-                        '/DB::select\(/',
-                        '/DB::insert\(/',
-                        '/DB::update\(/',
-                        '/DB::delete\(/',
-                    ];
-
-                    foreach ($rawQueryPatterns as $pattern) {
-                        if (preg_match_all($pattern, $content, $matches, PREG_OFFSET_CAPTURE)) {
-                            foreach ($matches[0] as $match) {
-                                $offset = $match[1];
-                                $lineNumber = $this->getLineNumberFromString($content, $offset);
-
-                                $this->addIssue('Controller', 'sql_injection_risk', [
-                                    'file' => $file->getPathname(),
-                                    'line' => $lineNumber,
-                                    'query_type' => str_replace(['DB::', '('], '', $match[0]),
-                                    'message' => "Raw database query found - potential SQL injection vulnerability. Use parameterized queries or Eloquent instead."
-                                ]);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    protected function checkEloquentUsage(): void
-    {
-        // Check models for proper Eloquent usage vs raw queries
         $modelPath = app_path('Models');
-        if (File::exists($modelPath)) {
-            $modelFiles = File::allFiles($modelPath);
-            foreach ($modelFiles as $file) {
-                if ($file->getExtension() === 'php') {
-                    $content = file_get_contents($file->getPathname());
-
-                    // Check for raw queries in model methods
-                    if (preg_match_all('/\bselect\b.*\bwhere\b.*[\'"]\s*\.\s*\$/i', $content, $matches, PREG_OFFSET_CAPTURE)) {
-                        foreach ($matches[0] as $match) {
-                            $offset = $match[1];
-                            $lineNumber = $this->getLineNumberFromString($content, $offset);
-
-                            $this->addIssue('Model', 'sql_injection_string_concat', [
-                                'file' => $file->getPathname(),
-                                'line' => $lineNumber,
-                                'code' => trim($match[0]),
-                                'message' => "String concatenation in SQL query - potential SQL injection. Use parameterized queries."
-                            ]);
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    protected function checkFileOperations(): void
-    {
-        // Check for unsafe file operations
-        $paths = [app_path('Http/Controllers'), app_path('Models')];
-
-        foreach ($paths as $path) {
-            if (File::exists($path)) {
-                $files = File::allFiles($path);
-                foreach ($files as $file) {
-                    if ($file->getExtension() === 'php') {
-                        $content = file_get_contents($file->getPathname());
-
-                        // Check for direct file path usage without validation
-                        $fileOpPatterns = [
-                            '/\bfopen\b.*\$_\w+/',
-                            '/\bfile_get_contents\b.*\$_\w+/',
-                            '/\bfile_put_contents\b.*\$_\w+/',
-                            '/\bunlink\b.*\$_\w+/',
-                            '/\binclude\b.*\$_\w+/',
-                            '/\brequire\b.*\$_\w+/',
-                        ];
-
-                        foreach ($fileOpPatterns as $pattern) {
-                            if (preg_match_all($pattern, $content, $matches, PREG_OFFSET_CAPTURE)) {
-                                foreach ($matches[0] as $match) {
-                                    $offset = $match[1];
-                                    $lineNumber = $this->getLineNumberFromString($content, $offset);
-
-                                    $this->addIssue('File Operation', 'path_traversal_risk', [
-                                        'file' => $file->getPathname(),
-                                        'line' => $lineNumber,
-                                        'operation' => trim($match[0]),
-                                        'message' => "File operation using user input - potential path traversal vulnerability. Validate and sanitize file paths."
-                                    ]);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    protected function checkFileUploads(): void
-    {
-        // Check controllers for file upload handling
-        $controllerPath = app_path('Http/Controllers');
-        if (File::exists($controllerPath)) {
-            $controllerFiles = File::allFiles($controllerPath);
-            foreach ($controllerFiles as $file) {
-                if ($file->getExtension() === 'php') {
-                    $content = file_get_contents($file->getPathname());
-
-                    // Check for file upload handling
-                    if (preg_match('/\$request->file\(|\$_FILES/', $content)) {
-                        // Check if file validation is present
-                        if (!preg_match('/validate\(|rules\(/', $content)) {
-                            $this->addIssue('File Upload', 'upload_validation_missing', [
-                                'file' => $file->getPathname(),
-                                'message' => "File upload detected without validation rules. Implement file type, size, and name validation to prevent security issues."
-                            ]);
-                        }
-
-                        // Check for original filename usage (potential path traversal)
-                        if (preg_match('/getClientOriginalName\(|originalName/', $content)) {
-                            $this->addIssue('File Upload', 'original_filename_usage', [
-                                'file' => $file->getPathname(),
-                                'message' => "Using original filename from upload - potential path traversal. Generate safe filenames instead."
-                            ]);
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    protected function getLineNumberFromString(string $content, int $offset): int
-    {
-        return substr_count(substr($content, 0, $offset), "\n") + 1;
-    }
-
-    protected function checkModelRelationships(): void
-    {
-        $this->info('');
-        $this->info('Checking Model Relationships');
-        $this->info('===========================');
-
-        $modelsPath = $this->config['models_dir'];
-
-        if (!File::exists($modelsPath)) {
-            $this->error("Models directory not found: {$modelsPath}");
+        if (!File::exists($modelPath)) {
             return;
         }
 
-        $modelFiles = File::allFiles($modelsPath);
+        $modelFiles = File::allFiles($modelPath);
 
         foreach ($modelFiles as $file) {
             if ($file->getExtension() === 'php') {
-                $this->checkModelRelationshipsForFile($file);
-            }
-        }
-    }
-
-    protected function checkModelRelationshipsForFile($file): void
-    {
-        $namespace = $this->getNamespaceFromFile($file->getPathname());
-        $className = $namespace . '\\' . $file->getFilenameWithoutExtension();
-
-        if (!class_exists($className)) {
-            return;
-        }
-
-        try {
-            $reflection = new ReflectionClass($className);
-            $content = file_get_contents($file->getPathname());
-
-            // Check for relationship methods
-            $this->checkRelationshipMethods($reflection, $content, $file->getPathname());
-
-            // Check foreign key constraints
-            $this->checkForeignKeyConstraints($className, $file->getPathname());
-
-            // Check relationship naming conventions
-            $this->checkRelationshipNaming($reflection, $content, $file->getPathname());
-
-        } catch (\Exception $e) {
-            $this->addIssue('Model', 'reflection_error', [
-                'file' => $file->getPathname(),
-                'model' => $className,
-                'error' => $e->getMessage(),
-                'message' => "Could not analyze model relationships due to reflection error"
-            ]);
-        }
-    }
-
-    protected function checkRelationshipMethods(ReflectionClass $reflection, string $content, string $filePath): void
-    {
-        $relationshipPatterns = [
-            '/public function (belongsTo|hasOne|hasMany|belongsToMany|morphTo|morphOne|morphMany|morphToMany)\(/',
-            '/public function (belongsTo|hasOne|hasMany|belongsToMany)\w*\(/',
-        ];
-
-        $foundRelationships = [];
-
-        foreach ($relationshipPatterns as $pattern) {
-            if (preg_match_all($pattern, $content, $matches)) {
-                foreach ($matches[1] as $relationshipType) {
-                    $foundRelationships[] = $relationshipType;
-                }
-            }
-        }
-
-        if (empty($foundRelationships)) {
-            return; // No relationships to check
-        }
-
-        // Check if relationships return proper relationship instances
-        $this->checkRelationshipReturnTypes($reflection, $content, $filePath);
-
-        // Check for missing inverse relationships
-        $this->checkInverseRelationships($reflection, $foundRelationships, $filePath);
-    }
-
-    protected function checkRelationshipReturnTypes(ReflectionClass $reflection, string $content, string $filePath): void
-    {
-        $modelName = $reflection->getShortName();
-
-        // Look for relationship methods that don't return relationship instances
-        if (preg_match_all('/public function (\w+)\([^}]*return\s+([^;]+);/s', $content, $matches)) {
-            for ($i = 0; $i < count($matches[0]); $i++) {
-                $methodName = $matches[1][$i];
-                $returnValue = trim($matches[2][$i]);
-
-                // Check if it's a relationship method but doesn't return a relationship
-                if (in_array($methodName, ['belongsTo', 'hasOne', 'hasMany', 'belongsToMany', 'morphTo', 'morphOne', 'morphMany', 'morphToMany'])) {
-                    if (!preg_match('/\$this->(belongsTo|hasOne|hasMany|belongsToMany|morphTo|morphOne|morphMany|morphToMany)\(/', $returnValue)) {
-                        $this->addIssue('Relationship', 'invalid_relationship_return', [
-                            'file' => $filePath,
-                            'model' => $modelName,
-                            'method' => $methodName,
-                            'return_value' => $returnValue,
-                            'message' => "Relationship method '{$methodName}' should return a relationship instance, not '{$returnValue}'"
-                        ]);
-                    }
-                }
-            }
-        }
-    }
-
-    protected function checkInverseRelationships(ReflectionClass $reflection, array $relationships, string $filePath): void
-    {
-        $modelName = $reflection->getShortName();
-
-        // This is a simplified check - in a real implementation, you'd need to analyze
-        // the related models to check for inverse relationships
-        $hasManyRelationships = array_filter($relationships, function($rel) {
-            return in_array($rel, ['hasMany', 'belongsToMany', 'morphMany', 'morphToMany']);
-        });
-
-        if (!empty($hasManyRelationships)) {
-            $this->addIssue('Relationship', 'missing_inverse_check', [
-                'file' => $filePath,
-                'model' => $modelName,
-                'relationships' => implode(', ', $hasManyRelationships),
-                'message' => "Consider checking if inverse relationships exist in related models for: " . implode(', ', $hasManyRelationships)
-            ]);
-        }
-    }
-
-    protected function checkForeignKeyConstraints(string $className, string $filePath): void
-    {
-        try {
-            $model = new $className();
-            $tableName = $model->getTable();
-
-            // Get foreign key constraints from database
-            $foreignKeys = $this->getForeignKeyConstraints($tableName);
-
-            foreach ($foreignKeys as $fk) {
-                // Check if the foreign key column exists in fillable/guarded
-                $fillable = $model->getFillable();
-                $guarded = $model->getGuarded();
-
-                if (!empty($guarded) && !in_array('*', $guarded)) {
-                    if (in_array($fk['column'], $guarded)) {
-                        $this->addIssue('Foreign Key', 'guarded_foreign_key', [
-                            'file' => $filePath,
-                            'model' => $className,
-                            'table' => $tableName,
-                            'column' => $fk['column'],
-                            'references' => $fk['references'],
-                            'message' => "Foreign key column '{$fk['column']}' is guarded. Consider adding it to fillable for proper relationship handling."
-                        ]);
-                    }
-                } elseif (!empty($fillable)) {
-                    if (!in_array($fk['column'], $fillable)) {
-                        $this->addIssue('Foreign Key', 'missing_foreign_key_fillable', [
-                            'file' => $filePath,
-                            'model' => $className,
-                            'table' => $tableName,
-                            'column' => $fk['column'],
-                            'references' => $fk['references'],
-                            'message' => "Foreign key column '{$fk['column']}' should be in fillable array for proper mass assignment."
-                        ]);
-                    }
-                }
-            }
-
-        } catch (\Exception $e) {
-            // Skip if model can't be instantiated or table doesn't exist
-        }
-    }
-
-    protected function getForeignKeyConstraints(string $tableName): array
-    {
-        try {
-            $databaseName = DB::getDatabaseName();
-            $constraints = [];
-
-            // This is database-specific - simplified for common databases
-            if (DB::getDriverName() === 'mysql') {
-                $results = DB::select("
-                    SELECT 
-                        COLUMN_NAME as column_name,
-                        REFERENCED_TABLE_NAME as referenced_table,
-                        REFERENCED_COLUMN_NAME as referenced_column
-                    FROM information_schema.KEY_COLUMN_USAGE 
-                    WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND REFERENCED_TABLE_NAME IS NOT NULL
-                ", [$databaseName, $tableName]);
-
-                foreach ($results as $result) {
-                    $constraints[] = [
-                        'column' => $result->column_name,
-                        'references' => $result->referenced_table . '.' . $result->referenced_column
-                    ];
-                }
-            }
-
-            return $constraints;
-        } catch (\Exception $e) {
-            return [];
-        }
-    }
-
-    protected function checkRelationshipNaming(ReflectionClass $reflection, string $content, string $filePath): void
-    {
-        $modelName = $reflection->getShortName();
-
-        // Check for relationship methods with poor naming
-        if (preg_match_all('/public function ([a-zA-Z_][a-zA-Z0-9_]*)\(/', $content, $matches)) {
-            foreach ($matches[1] as $methodName) {
-                // Skip standard relationship types
-                if (in_array($methodName, ['belongsTo', 'hasOne', 'hasMany', 'belongsToMany', 'morphTo', 'morphOne', 'morphMany', 'morphToMany'])) {
-                    continue;
-                }
-
-                // Check naming conventions
-                if (strlen($methodName) < 3) {
-                    $this->addIssue('Relationship', 'poor_relationship_naming', [
-                        'file' => $filePath,
-                        'model' => $modelName,
-                        'method' => $methodName,
-                        'message' => "Relationship method name '{$methodName}' is too short. Use descriptive names like 'user', 'posts', 'comments'."
-                    ]);
-                }
-
-                if (!preg_match('/^[a-z][a-zA-Z0-9]*$/', $methodName)) {
-                    $this->addIssue('Relationship', 'invalid_relationship_naming', [
-                        'file' => $filePath,
-                        'model' => $modelName,
-                        'method' => $methodName,
-                        'message' => "Relationship method name '{$methodName}' should use camelCase naming convention."
-                    ]);
-                }
-            }
-        }
-    }
-
-    protected function checkMigrationConsistency(): void
-    {
-        $this->info('');
-        $this->info('Checking Migration Consistency');
-        $this->info('==============================');
-
-        $migrationPath = database_path('migrations');
-
-        if (!File::exists($migrationPath)) {
-            $this->warn("Migrations directory not found: {$migrationPath}");
-            return;
-        }
-
-        $migrationFiles = File::allFiles($migrationPath);
-
-        foreach ($migrationFiles as $file) {
-            if ($file->getExtension() === 'php') {
-                $this->checkMigrationFile($file);
-            }
-        }
-
-        // Check for missing indexes
-        $this->checkMissingIndexes();
-
-        // Check migration naming conventions
-        $this->checkMigrationNaming($migrationFiles);
-    }
-
-    protected function checkMigrationFile($file): void
-    {
-        $content = file_get_contents($file->getPathname());
-        $fileName = $file->getFilename();
-
-        // Extract table name from migration
-        if (preg_match('/create_(\w+)_table/', $fileName, $matches)) {
-            $tableName = $matches[1];
-            $this->checkMigrationContent($content, $tableName, $file->getPathname());
-        }
-    }
-
-    protected function checkMigrationContent(string $content, string $tableName, string $filePath): void
-    {
-        // Check for common migration issues
-
-        // Check for nullable foreign keys without default
-        if (preg_match_all('/\$table->foreignId\(([^\)]+)\)->nullable\(\)/', $content, $matches)) {
-            foreach ($matches[1] as $columnDef) {
-                if (!preg_match('/default\(/', $columnDef)) {
-                    $this->addIssue('Migration', 'nullable_foreign_key_no_default', [
-                        'file' => $filePath,
-                        'table' => $tableName,
-                        'column' => trim($columnDef, "'\""),
-                        'message' => "Nullable foreign key should have a default value (usually null)"
-                    ]);
-                }
-            }
-        }
-
-        // Check for string columns without length
-        if (preg_match_all('/\$table->string\(([^,)]+)\)/', $content, $matches)) {
-            foreach ($matches[1] as $columnName) {
-                if (!preg_match('/\d+/', $columnName)) {
-                    $this->addIssue('Migration', 'string_without_length', [
-                        'file' => $filePath,
-                        'table' => $tableName,
-                        'column' => trim($columnName, "'\""),
-                        'message' => "String column should specify a length (e.g., string('name', 255))"
-                    ]);
-                }
-            }
-        }
-
-        // Check for boolean columns with default null
-        if (preg_match('/\$table->boolean\([^)]+\)->nullable\(\)/', $content)) {
-            $this->addIssue('Migration', 'boolean_nullable', [
-                'file' => $filePath,
-                'table' => $tableName,
-                'message' => "Boolean columns should not be nullable. Use ->default(false) instead."
-            ]);
-        }
-
-        // Check for missing timestamps
-        if (!preg_match('/\$table->timestamps\(\)/', $content)) {
-            $this->addIssue('Migration', 'missing_timestamps', [
-                'file' => $filePath,
-                'table' => $tableName,
-                'message' => "Consider adding timestamps() for created_at and updated_at columns"
-            ]);
-        }
-    }
-
-    protected function checkMissingIndexes(): void
-    {
-        try {
-            // Get all tables
-            $tables = DB::select('SHOW TABLES');
-            $databaseName = DB::getDatabaseName();
-
-            foreach ($tables as $table) {
-                $tableName = $table->{'Tables_in_' . $databaseName};
-
-                // Skip Laravel system tables
-                if (in_array($tableName, ['migrations', 'failed_jobs', 'cache', 'sessions'])) {
-                    continue;
-                }
-
-                // Check for foreign keys without indexes
-                if (DB::getDriverName() === 'mysql') {
-                    $foreignKeys = DB::select("
-                        SELECT COLUMN_NAME
-                        FROM information_schema.KEY_COLUMN_USAGE
-                        WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND REFERENCED_TABLE_NAME IS NOT NULL
-                    ", [$databaseName, $tableName]);
-
-                    foreach ($foreignKeys as $fk) {
-                        $columnName = $fk->COLUMN_NAME;
-
-                        // Check if there's an index on this column
-                        $hasIndex = DB::select("
-                            SELECT 1
-                            FROM information_schema.STATISTICS
-                            WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?
-                        ", [$databaseName, $tableName, $columnName]);
-
-                        if (empty($hasIndex)) {
-                            $this->addIssue('Database', 'missing_foreign_key_index', [
-                                'table' => $tableName,
-                                'column' => $columnName,
-                                'message' => "Foreign key column '{$columnName}' in table '{$tableName}' should have an index for performance"
-                            ]);
-                        }
-                    }
-                }
-            }
-        } catch (\Exception $e) {
-            $this->warn("Could not check database indexes: " . $e->getMessage());
-        }
-    }
-
-    protected function checkMigrationNaming($migrationFiles): void
-    {
-        foreach ($migrationFiles as $file) {
-            $fileName = $file->getFilename();
-
-            // Check naming convention: YYYY_MM_DD_HHMMSS_description.php
-            if (!preg_match('/^\d{4}_\d{2}_\d{2}_\d{6}_[a-z][a-z0-9_]*\.php$/', $fileName)) {
-                $this->addIssue('Migration', 'invalid_migration_name', [
-                    'file' => $file->getPathname(),
-                    'filename' => $fileName,
-                    'message' => "Migration filename should follow convention: YYYY_MM_DD_HHMMSS_description.php"
-                ]);
-            }
-
-            // Check for descriptive names
-            $description = preg_replace('/^\d{4}_\d{2}_\d{2}_\d{6}_/', '', $fileName);
-            $description = preg_replace('/\.php$/', '', $description);
-
-            if (strlen($description) < 5) {
-                $this->addIssue('Migration', 'poor_migration_description', [
-                    'file' => $file->getPathname(),
-                    'description' => $description,
-                    'message' => "Migration description '{$description}' is too short. Use descriptive names like 'create_users_table' or 'add_email_to_users'"
-                ]);
-            }
-        }
-    }
-
-    protected function checkValidationRules(): void
-    {
-        $this->info('');
-        $this->info('Checking Validation Rules');
-        $this->info('=========================');
-
-        // Check model validation rules
-        $this->checkModelValidationRules();
-
-        // Check form request validation
-        $this->checkFormRequestValidation();
-
-        // Check controller validation
-        $this->checkControllerValidation();
-    }
-
-    protected function checkModelValidationRules(): void
-    {
-        $modelsPath = $this->config['models_dir'];
-
-        if (!File::exists($modelsPath)) {
-            return;
-        }
-
-        $modelFiles = File::allFiles($modelsPath);
-
-        foreach ($modelFiles as $file) {
-            if ($file->getExtension() === 'php') {
-                $this->checkModelValidationForFile($file);
-            }
-        }
-    }
-
-    protected function checkModelValidationForFile($file): void
-    {
-        $namespace = $this->getNamespaceFromFile($file->getPathname());
-        $className = $namespace . '\\' . $file->getFilenameWithoutExtension();
-
-        if (!class_exists($className)) {
-            return;
-        }
-
-        try {
-            $model = new $className();
-            $tableName = $model->getTable();
-            $content = file_get_contents($file->getPathname());
-
-            // Check if model has validation rules
-            if (preg_match('/public static \$rules\s*=\s*\[([^\]]+)\]/s', $content, $matches)) {
-                $rulesContent = $matches[1];
-                $this->validateRulesAgainstSchema($rulesContent, $tableName, $file->getPathname(), $className);
-            }
-
-            // Check for validation methods
-            $this->checkValidationMethods($content, $file->getPathname(), $className);
-
-        } catch (\Exception $e) {
-            // Skip models that can't be instantiated
-        }
-    }
-
-    protected function validateRulesAgainstSchema(string $rulesContent, string $tableName, string $filePath, string $className): void
-    {
-        try {
-            // Get table columns
-            $columns = $this->getTableColumns($tableName);
-
-            // Parse rules (simplified parsing)
-            $rules = [];
-            if (preg_match_all("/'([^']+)'\s*=>\s*([^,]+),/", $rulesContent, $matches)) {
-                for ($i = 0; $i < count($matches[0]); $i++) {
-                    $field = $matches[1][$i];
-                    $ruleString = trim($matches[2][$i], "'\"");
-
-                    // Check if field exists in database
-                    if (!isset($columns[$field])) {
-                        $this->addIssue('Validation', 'rule_for_nonexistent_field', [
-                            'file' => $filePath,
-                            'model' => $className,
-                            'field' => $field,
-                            'table' => $tableName,
-                            'message' => "Validation rule defined for field '{$field}' that doesn't exist in table '{$tableName}'"
-                        ]);
-                        continue;
-                    }
-
-                    $rules[$field] = $ruleString;
-                }
-            }
-
-            // Check for required fields without validation
-            foreach ($columns as $columnName => $columnInfo) {
-                if ($columnInfo['nullable'] === false &&
-                    !in_array($columnName, ['id', 'created_at', 'updated_at']) &&
-                    !isset($rules[$columnName])) {
-
-                    $this->addIssue('Validation', 'missing_required_validation', [
-                        'file' => $filePath,
-                        'model' => $className,
-                        'field' => $columnName,
-                        'table' => $tableName,
-                        'message' => "Required field '{$columnName}' has no validation rule defined"
-                    ]);
-                }
-            }
-
-            // Check validation rule consistency with column types
-            foreach ($rules as $field => $ruleString) {
-                if (isset($columns[$field])) {
-                    $this->checkRuleConsistency($field, $ruleString, $columns[$field], $filePath, $className);
-                }
-            }
-
-        } catch (\Exception $e) {
-            // Skip if table doesn't exist or can't be queried
-        }
-    }
-
-    protected function getTableColumns(string $tableName): array
-    {
-        try {
-            $columns = [];
-
-            if (DB::getDriverName() === 'mysql') {
-                $results = DB::select("
-                    SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE, COLUMN_DEFAULT, CHARACTER_MAXIMUM_LENGTH
-                    FROM information_schema.COLUMNS
-                    WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?
-                    ORDER BY ORDINAL_POSITION
-                ", [DB::getDatabaseName(), $tableName]);
-
-                foreach ($results as $result) {
-                    $columns[$result->COLUMN_NAME] = [
-                        'type' => $result->DATA_TYPE,
-                        'nullable' => $result->IS_NULLABLE === 'YES',
-                        'default' => $result->COLUMN_DEFAULT,
-                        'length' => $result->CHARACTER_MAXIMUM_LENGTH
-                    ];
-                }
-            }
-
-            return $columns;
-        } catch (\Exception $e) {
-            return [];
-        }
-    }
-
-    protected function checkRuleConsistency(string $field, string $ruleString, array $columnInfo, string $filePath, string $className): void
-    {
-        $rules = explode('|', $ruleString);
-
-        // Check string length validation
-        if ($columnInfo['type'] === 'varchar' && $columnInfo['length']) {
-            $hasMaxRule = false;
-            foreach ($rules as $rule) {
-                if (preg_match('/max:\d+/', $rule)) {
-                    $hasMaxRule = true;
-                    if (preg_match('/max:(\d+)/', $rule, $matches)) {
-                        $maxLength = (int)$matches[1];
-                        if ($maxLength > $columnInfo['length']) {
-                            $this->addIssue('Validation', 'max_length_exceeds_column', [
-                                'file' => $filePath,
-                                'model' => $className,
-                                'field' => $field,
-                                'rule_max' => $maxLength,
-                                'column_max' => $columnInfo['length'],
-                                'message' => "Validation max length ({$maxLength}) exceeds column length ({$columnInfo['length']}) for field '{$field}'"
-                            ]);
-                        }
-                    }
-                }
-            }
-
-            if (!$hasMaxRule && in_array('string', $rules)) {
-                $this->addIssue('Validation', 'missing_max_length_validation', [
-                    'file' => $filePath,
-                    'model' => $className,
-                    'field' => $field,
-                    'column_length' => $columnInfo['length'],
-                    'message' => "String field '{$field}' should have max length validation (column allows {$columnInfo['length']} characters)"
-                ]);
-            }
-        }
-
-        // Check numeric validation for numeric columns
-        if (in_array($columnInfo['type'], ['int', 'bigint', 'decimal', 'float', 'double'])) {
-            if (!in_array('numeric', $rules) && !in_array('integer', $rules)) {
-                $this->addIssue('Validation', 'missing_numeric_validation', [
-                    'file' => $filePath,
-                    'model' => $className,
-                    'field' => $field,
-                    'column_type' => $columnInfo['type'],
-                    'message' => "Numeric field '{$field}' should have numeric or integer validation"
-                ]);
-            }
-        }
-
-        // Check boolean validation
-        if ($columnInfo['type'] === 'tinyint' && $columnInfo['length'] == 1) {
-            if (!in_array('boolean', $rules)) {
-                $this->addIssue('Validation', 'missing_boolean_validation', [
-                    'file' => $filePath,
-                    'model' => $className,
-                    'field' => $field,
-                    'message' => "Boolean field '{$field}' should have boolean validation"
-                ]);
-            }
-        }
-    }
-
-    protected function checkValidationMethods(string $content, string $filePath, string $className): void
-    {
-        // Check for custom validation methods
-        if (preg_match_all('/public function validate([A-Z]\w*)\(/', $content, $matches)) {
-            foreach ($matches[1] as $methodSuffix) {
-                $methodName = 'validate' . $methodSuffix;
-
-                // Check if method has proper return type or throws validation exceptions
-                if (!preg_match("/function {$methodName}\([^}]*throws\s+ValidationException/", $content)) {
-                    $this->addIssue('Validation', 'validation_method_no_exception', [
-                        'file' => $filePath,
-                        'model' => $className,
-                        'method' => $methodName,
-                        'message' => "Custom validation method '{$methodName}' should throw ValidationException on failure"
-                    ]);
-                }
-            }
-        }
-    }
-
-    protected function checkFormRequestValidation(): void
-    {
-        $requestPath = app_path('Http/Requests');
-
-        if (!File::exists($requestPath)) {
-            return;
-        }
-
-        $requestFiles = File::allFiles($requestPath);
-
-        foreach ($requestFiles as $file) {
-            if ($file->getExtension() === 'php') {
                 $content = file_get_contents($file->getPathname());
 
-                // Check if Form Request has rules method
-                if (!preg_match('/public function rules\(\)/', $content)) {
-                    $this->addIssue('Form Request', 'missing_rules_method', [
-                        'file' => $file->getPathname(),
-                        'message' => "Form Request class should have a rules() method"
-                    ]);
+                if ($content === false) {
+                    continue; // Skip files that cannot be read
                 }
 
-                // Check for authorization method
-                if (!preg_match('/public function authorize\(\)/', $content)) {
-                    $this->addIssue('Form Request', 'missing_authorize_method', [
-                        'file' => $file->getPathname(),
-                        'message' => "Form Request class should have an authorize() method"
-                    ]);
-                }
-            }
-        }
-    }
-
-    protected function checkControllerValidation(): void
-    {
-        $controllerPath = app_path('Http/Controllers');
-
-        if (!File::exists($controllerPath)) {
-            return;
-        }
-
-        $controllerFiles = File::allFiles($controllerPath);
-
-        foreach ($controllerFiles as $file) {
-            if ($file->getExtension() === 'php') {
-                $content = file_get_contents($file->getPathname());
-
-                // Check for inline validation that should be moved to Form Requests
-                if (preg_match_all('/\$request->validate\(/', $content, $matches, PREG_OFFSET_CAPTURE)) {
-                    foreach ($matches[0] as $match) {
-                        $offset = $match[1];
-                        $lineNumber = $this->getLineNumberFromString($content, $offset);
-
-                        $this->addIssue('Controller', 'inline_validation', [
-                            'file' => $file->getPathname(),
-                            'line' => $lineNumber,
-                            'message' => "Consider moving inline validation to a Form Request class for better organization and reusability"
-                        ]);
-                    }
-                }
-            }
-        }
-    }
-
-    protected function checkPerformanceIssues(): void
-    {
-        $this->info('');
-        $this->info('Checking Performance Issues');
-        $this->info('===========================');
-
-        // Check for N+1 query problems
-        $this->checkNPlusOneQueries();
-
-        // Check eager loading usage
-        $this->checkEagerLoading();
-
-        // Check for missing database indexes
-        $this->checkDatabaseIndexes();
-
-        // Check for inefficient queries
-        $this->checkInefficientQueries();
-    }
-
-    protected function checkNPlusOneQueries(): void
-    {
-        $controllerPath = app_path('Http/Controllers');
-
-        if (!File::exists($controllerPath)) {
-            return;
-        }
-
-        $controllerFiles = File::allFiles($controllerPath);
-
-        foreach ($controllerFiles as $file) {
-            if ($file->getExtension() === 'php') {
-                $content = file_get_contents($file->getPathname());
-
-                // Look for loops that access relationships
-                $this->checkLoopsWithRelationships($content, $file->getPathname());
-            }
-        }
-    }
-
-    protected function checkLoopsWithRelationships(string $content, string $filePath): void
-    {
-        // Pattern to detect foreach loops accessing relationships
-        $loopPatterns = [
-            '/foreach\s*\([^}]*as\s+\$[a-zA-Z_][a-zA-Z0-9_]*\)\s*\{[^}]*\$[a-zA-Z_][a-zA-Z0-9_]*->[a-zA-Z_][a-zA-Z0-9_]*\s*;/',
-            '/foreach\s*\([^}]*as\s+\$[a-zA-Z_][a-zA-Z0-9_]*\)\s*:\s*[^}]*\$[a-zA-Z_][a-zA-Z0-9_]*->[a-zA-Z_][a-zA-Z0-9_]*\s*;/',
-        ];
-
-        foreach ($loopPatterns as $pattern) {
-            if (preg_match_all($pattern, $content, $matches, PREG_OFFSET_CAPTURE)) {
-                foreach ($matches[0] as $match) {
-                    $offset = $match[1];
-                    $lineNumber = $this->getLineNumberFromString($content, $offset);
-                    $codeSnippet = trim(substr($content, $offset, 100));
-
-                    $this->addIssue('Performance', 'potential_n_plus_one', [
-                        'file' => $filePath,
-                        'line' => $lineNumber,
-                        'code' => $codeSnippet,
-                        'message' => "Potential N+1 query detected. Consider using eager loading with ->with() or ->load()"
-                    ]);
-                }
-            }
-        }
-
-        // Check for collection methods that might cause N+1
-        if (preg_match_all('/->each\([^}]*\$[^\)]*->[a-zA-Z_]/', $content, $matches, PREG_OFFSET_CAPTURE)) {
-            foreach ($matches[0] as $match) {
-                $offset = $match[1];
-                $lineNumber = $this->getLineNumberFromString($content, $offset);
-
-                $this->addIssue('Performance', 'n_plus_one_in_each', [
-                    'file' => $filePath,
-                    'line' => $lineNumber,
-                    'code' => trim(substr($content, $offset, 80)),
-                    'message' => "N+1 query likely in ->each() closure. Use ->load() before ->each() or eager load relationships"
-                ]);
-            }
-        }
-    }
-
-    protected function checkEagerLoading(): void
-    {
-        $controllerPath = app_path('Http/Controllers');
-
-        if (!File::exists($controllerPath)) {
-            return;
-        }
-
-        $controllerFiles = File::allFiles($controllerPath);
-
-        foreach ($controllerFiles as $file) {
-            if ($file->getExtension() === 'php') {
-                $content = file_get_contents($file->getPathname());
-
-                // Check for queries without eager loading
-                $this->checkQueriesWithoutEagerLoading($content, $file->getPathname());
-            }
-        }
-    }
-
-    protected function checkQueriesWithoutEagerLoading(string $content, string $filePath): void
-    {
-        // Look for model queries that might benefit from eager loading
-        $queryPatterns = [
-            '/[A-Z][a-zA-Z0-9_]*::where\(/',
-            '/[A-Z][a-zA-Z0-9_]*::find\(/',
-            '/[A-Z][a-zA-Z0-9_]*::all\(/',
-            '/[A-Z][a-zA-Z0-9_]*::get\(/',
-        ];
-
-        foreach ($queryPatterns as $pattern) {
-            if (preg_match_all($pattern, $content, $matches, PREG_OFFSET_CAPTURE)) {
-                foreach ($matches[0] as $match) {
-                    $offset = $match[1];
-                    $lineNumber = $this->getLineNumberFromString($content, $offset);
-                    $queryLine = trim(substr($content, $offset, 100));
-
-                    // Check if this query is followed by relationship access
-                    $remainingContent = substr($content, $offset + strlen($match[0]));
-                    if (preg_match('/^\s*[^}]*->[a-zA-Z_][a-zA-Z0-9_]*\s*;/', $remainingContent)) {
-                        $this->addIssue('Performance', 'missing_eager_loading', [
-                            'file' => $filePath,
-                            'line' => $lineNumber,
-                            'query' => $queryLine,
-                            'message' => "Query may benefit from eager loading. Consider using ->with('relationship') to prevent N+1 queries"
-                        ]);
-                    }
-                }
-            }
-        }
-    }
-
-    protected function checkDatabaseIndexes(): void
-    {
-        try {
-            $databaseName = DB::getDatabaseName();
-
-            if (DB::getDriverName() === 'mysql') {
-                // Get tables with large row counts that might need indexes
-                $largeTables = DB::select("
-                    SELECT TABLE_NAME, TABLE_ROWS
-                    FROM information_schema.TABLES
-                    WHERE TABLE_SCHEMA = ? AND TABLE_ROWS > 1000
-                    ORDER BY TABLE_ROWS DESC
-                ", [$databaseName]);
-
-                foreach ($largeTables as $table) {
-                    $tableName = $table->TABLE_NAME;
-
-                    // Check for tables with WHERE clauses in code but no indexes
-                    $this->checkTableForIndexRecommendations($tableName);
-                }
-            }
-        } catch (\Exception $e) {
-            $this->warn("Could not check database indexes: " . $e->getMessage());
-        }
-    }
-
-    protected function checkTableForIndexRecommendations(string $tableName): void
-    {
-        // This is a simplified check - in practice, you'd analyze query patterns
-        // For now, just check if large tables have any indexes beyond primary key
-
-        try {
-            if (DB::getDriverName() === 'mysql') {
-                $indexes = DB::select("
-                    SELECT INDEX_NAME, COLUMN_NAME, SEQ_IN_INDEX
-                    FROM information_schema.STATISTICS
-                    WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?
-                    ORDER BY INDEX_NAME, SEQ_IN_INDEX
-                ", [DB::getDatabaseName(), $tableName]);
-
-                $indexCount = count(array_unique(array_column($indexes, 'INDEX_NAME')));
-
-                // If table has only primary key index, it might need more
-                if ($indexCount <= 1) {
-                    $this->addIssue('Database', 'potential_missing_indexes', [
-                        'table' => $tableName,
-                        'message' => "Large table '{$tableName}' has minimal indexes. Consider adding indexes on frequently queried columns"
-                    ]);
-                }
-            }
-        } catch (\Exception $e) {
-            // Skip if can't query indexes
-        }
-    }
-
-    protected function checkInefficientQueries(): void
-    {
-        $controllerPath = app_path('Http/Controllers');
-        $modelPath = $this->config['models_dir'];
-
-        $paths = [$controllerPath, $modelPath];
-
-        foreach ($paths as $path) {
-            if (!File::exists($path)) {
-                continue;
-            }
-
-            $files = File::allFiles($path);
-
-            foreach ($files as $file) {
-                if ($file->getExtension() === 'php') {
-                    $content = file_get_contents($file->getPathname());
-
-                    // Check for SELECT * queries
-                    $this->checkSelectAllQueries($content, $file->getPathname());
-
-                    // Check for queries in loops
-                    $this->checkQueriesInLoops($content, $file->getPathname());
-                }
-            }
-        }
-    }
-
-    protected function checkSelectAllQueries(string $content, string $filePath): void
-    {
-        // Look for SELECT * patterns
-        $selectAllPatterns = [
-            '/select\(/\s*\*\s*\)/',
-            '/DB::select\([^)]*\*\s*/',
-            '/->get\(\s*\*\s*\)/',
-        ];
-
-        foreach ($selectAllPatterns as $pattern) {
-            if (preg_match_all($pattern, $content, $matches, PREG_OFFSET_CAPTURE)) {
-                foreach ($matches[0] as $match) {
-                    $offset = $match[1];
-                    $lineNumber = $this->getLineNumberFromString($content, $offset);
-
-                    $this->addIssue('Performance', 'select_all_query', [
-                        'file' => $filePath,
-                        'line' => $lineNumber,
-                        'code' => trim(substr($content, $offset, 60)),
-                        'message' => "SELECT * query detected. Consider selecting only needed columns for better performance"
-                    ]);
-                }
-            }
-        }
-    }
-
-    protected function checkQueriesInLoops(string $content, string $filePath): void
-    {
-        // Look for database queries inside loops
-        $loopQueryPatterns = [
-            '/for\s*\([^}]*\{[^}]*DB::/',
-            '/foreach\s*\([^}]*\{[^}]*DB::/',
-            '/while\s*\([^}]*\{[^}]*DB::/',
-            '/for\s*\([^}]*:\s*[^}]*DB::/',
-            '/foreach\s*\([^}]*:\s*[^}]*DB::/',
-        ];
-
-        foreach ($loopQueryPatterns as $pattern) {
-            if (preg_match_all($pattern, $content, $matches, PREG_OFFSET_CAPTURE)) {
-                foreach ($matches[0] as $match) {
-                    $offset = $match[1];
-                    $lineNumber = $this->getLineNumberFromString($content, $offset);
-
-                    $this->addIssue('Performance', 'query_in_loop', [
-                        'file' => $filePath,
-                        'line' => $lineNumber,
-                        'code' => trim(substr($content, $offset, 80)),
-                        'message' => "Database query detected inside a loop. This can cause performance issues - consider restructuring the code"
-                    ]);
-                }
-            }
-        }
-    }
-
-    protected function checkCodeQuality(): void
-    {
-        $this->info('');
-        $this->info('Checking Code Quality');
-        $this->info('=====================');
-
-        // Check namespace usage
-        $this->checkNamespaces();
-
-        // Check naming conventions
-        $this->checkNamingConventions();
-
-        // Check for deprecated features
-        $this->checkDeprecatedFeatures();
-
-        // Check for code smells
-        $this->checkCodeSmells();
-    }
-
-    protected function checkNamespaces(): void
-    {
-        $paths = [
-            $this->config['models_dir'],
-            app_path('Http/Controllers'),
-            app_path('Http/Requests'),
-        ];
-
-        foreach ($paths as $path) {
-            if (!File::exists($path)) {
-                continue;
-            }
-
-            $files = File::allFiles($path);
-
-            foreach ($files as $file) {
-                if ($file->getExtension() === 'php') {
-                    $content = file_get_contents($file->getPathname());
-
-                    // Check for missing namespace
-                    if (!preg_match('/^<\?php\s+namespace\s+[A-Za-z\\\\]+;/m', $content)) {
-                        $this->addIssue('Code Quality', 'missing_namespace', [
-                            'file' => $file->getPathname(),
-                            'message' => "PHP file is missing a namespace declaration"
-                        ]);
-                    }
-
-                    // Check for proper namespace structure
-                    if (preg_match('/namespace\s+([^;]+);/', $content, $matches)) {
-                        $namespace = $matches[1];
-                        $expectedNamespace = $this->getExpectedNamespace($file->getPathname());
-
-                        if ($namespace !== $expectedNamespace) {
-                            $this->addIssue('Code Quality', 'incorrect_namespace', [
-                                'file' => $file->getPathname(),
-                                'current' => $namespace,
-                                'expected' => $expectedNamespace,
-                                'message' => "Namespace '{$namespace}' doesn't match expected '{$expectedNamespace}' based on file path"
-                            ]);
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    protected function getExpectedNamespace(string $filePath): string
-    {
-        $appPath = app_path();
-        $relativePath = str_replace($appPath . '/', '', $filePath);
-        $relativePath = preg_replace('/\.php$/', '', $relativePath);
-
-        return 'App\\' . str_replace('/', '\\', $relativePath);
-    }
-
-    protected function checkNamingConventions(): void
-    {
-        $paths = [
-            $this->config['models_dir'],
-            app_path('Http/Controllers'),
-            app_path('Http/Requests'),
-        ];
-
-        foreach ($paths as $path) {
-            if (!File::exists($path)) {
-                continue;
-            }
-
-            $files = File::allFiles($path);
-
-            foreach ($files as $file) {
-                if ($file->getExtension() === 'php') {
-                    $content = file_get_contents($file->getPathname());
-                    $className = $file->getFilenameWithoutExtension();
-
-                    // Check class naming (PascalCase)
-                    if (!preg_match('/^class\s+[A-Z][a-zA-Z0-9]*(\s+extends|\s+implements|\s*\{)/', $content)) {
-                        $this->addIssue('Code Quality', 'invalid_class_name', [
-                            'file' => $file->getPathname(),
-                            'class' => $className,
-                            'message' => "Class name '{$className}' should use PascalCase naming convention"
-                        ]);
-                    }
-
-                    // Check method naming (camelCase)
-                    if (preg_match_all('/public\s+function\s+([A-Z_][a-zA-Z0-9_]*)\(/', $content, $matches)) {
-                        foreach ($matches[1] as $methodName) {
-                            if (!preg_match('/^[a-z][a-zA-Z0-9]*$/', $methodName)) {
-                                $this->addIssue('Code Quality', 'invalid_method_name', [
-                                    'file' => $file->getPathname(),
-                                    'method' => $methodName,
-                                    'message' => "Method name '{$methodName}' should use camelCase naming convention"
+                $className = pathinfo($file->getFilename(), PATHINFO_FILENAME);
+
+                // Check for encrypted casts
+                if (preg_match('/protected\s+\$casts\s*=\s*\[([^\]]*)\]/s', $content, $matches)) {
+                    $castsContent = $matches[1];
+
+                    // Look for encrypted casts
+                    if (preg_match_all('/[\'"](\w+)[\'"]\s*=>\s*[\'"]encrypted[\'"]/', $castsContent, $castMatches)) {
+                        foreach ($castMatches[1] as $fieldName) {
+                            // Check if the field exists in the database
+                            $tableName = $this->getTableNameFromModel($content, $className);
+                            if ($tableName && !$this->columnExists($tableName, $fieldName)) {
+                                $this->issueManager->addIssue('Model Encryption', 'missing_encrypted_column', [
+                                    'model' => $className,
+                                    'field' => $fieldName,
+                                    'table' => $tableName,
+                                    'message' => "Model '{$className}' defines encrypted cast for '{$fieldName}' but column doesn't exist in table '{$tableName}'.",
+                                    'fix_explanation' => 'Create a migration to add the encrypted column with sufficient size (VARCHAR(255) minimum, TEXT recommended).'
                                 ]);
                             }
                         }
                     }
+                }
 
-                    // Check variable naming
-                    $this->checkVariableNaming($content, $file->getPathname());
+                // Check for manual encryption in mutators/accessors
+                if (preg_match_all('/function\s+set(\w+)Attribute\s*\(/', $content, $mutatorMatches)) {
+                    foreach ($mutatorMatches[1] as $fieldName) {
+                        $fieldNameLower = lcfirst($fieldName);
+                        if (preg_match('/encrypt\(/', $content)) {
+                            // Check if decryption is also implemented
+                            if (!preg_match('/function\s+get' . $fieldName . 'Attribute\s*\(/', $content)) {
+                                $this->issueManager->addIssue('Model Encryption', 'missing_decrypt_accessor', [
+                                    'model' => $className,
+                                    'field' => $fieldNameLower,
+                                    'message' => "Model '{$className}' encrypts '{$fieldNameLower}' but doesn't provide a getter to decrypt it.",
+                                    'fix_explanation' => 'Add a get' . $fieldName . 'Attribute accessor that calls decrypt() to automatically decrypt the value when accessed.'
+                                ]);
+                            }
+                        }
+                    }
                 }
             }
         }
     }
 
-    protected function checkVariableNaming(string $content, string $filePath): void
+    protected function checkControllerEncryption(): void
     {
-        // Check for non-camelCase variable names in methods
-        if (preg_match_all('/\$([A-Z_][a-zA-Z0-9_]*)\s*=/', $content, $matches)) {
-            foreach ($matches[1] as $variableName) {
-                // Skip constants and special cases
-                if (strtoupper($variableName) === $variableName || in_array($variableName, ['_token', '_method'])) {
-                    continue;
+        $this->info('  🔍 Checking controllers for encryption security issues...');
+
+        $controllerPath = app_path('Http/Controllers');
+        if (!File::exists($controllerPath)) {
+            return;
+        }
+
+        $controllerFiles = File::allFiles($controllerPath);
+
+        foreach ($controllerFiles as $file) {
+            if ($file->getExtension() === 'php') {
+                $content = file_get_contents($file->getPathname());
+
+                if ($content === false) {
+                    continue; // Skip files that cannot be read
                 }
 
-                if (!preg_match('/^[a-z][a-zA-Z0-9]*$/', $variableName)) {
-                    $this->addIssue('Code Quality', 'invalid_variable_name', [
+                $className = pathinfo($file->getFilename(), PATHINFO_FILENAME);
+
+                // Check for direct encryption in controllers (security risk)
+                if (preg_match('/encrypt\s*\(/', $content)) {
+                    $this->issueManager->addIssue('Controller Security', 'encryption_in_controller', [
+                        'controller' => $className,
                         'file' => $file->getPathname(),
-                        'variable' => $variableName,
-                        'message' => "Variable name '{$variableName}' should use camelCase naming convention"
+                        'message' => "Controller '{$className}' contains direct encryption calls, which is a security risk.",
+                        'fix_explanation' => 'Move encryption logic to model mutators/accessors or use encrypted casts. Controllers should never handle raw encrypted data.',
+                        'security_note' => 'Always encrypt sensitive data before storing. Use Laravel\'s encrypt() helper or model casts for automatic encryption/decryption. Encrypting in controllers exposes sensitive data in transit between model and view. Always encrypt at the model level.'
                     ]);
                 }
-            }
-        }
-    }
 
-    protected function checkDeprecatedFeatures(): void
-    {
-        $paths = [
-            $this->config['models_dir'],
-            app_path('Http/Controllers'),
-            app_path('Http/Requests'),
-            app_path('Http/Middleware'),
-        ];
+                // Check for decrypt calls in controllers (also risky)
+                if (preg_match('/decrypt\s*\(/', $content)) {
+                    $this->issueManager->addIssue('Controller Security', 'decryption_in_controller', [
+                        'controller' => $className,
+                        'file' => $file->getPathname(),
+                        'message' => "Controller '{$className}' contains direct decryption calls.",
+                        'fix_explanation' => 'Use model accessors or encrypted casts for automatic decryption. Avoid manual decrypt operations in controllers.',
+                        'security_note' => 'Always encrypt sensitive data before storing. Use Laravel\'s encrypt() helper or model casts for automatic encryption/decryption. Data should be decrypted as close to usage as possible, preferably in models or accessors, not controllers.'
+                    ]);
+                }
 
-        foreach ($paths as $path) {
-            if (!File::exists($path)) {
-                continue;
-            }
+                // Check for sensitive data being passed to views
+                $sensitivePatterns = [
+                    '/compact\s*\([^)]*(password|secret|token|key|ssn|credit_card)[^)]*\)/i',
+                    '/with\s*\([^)]*(password|secret|token|key|ssn|credit_card)[^)]*\)/i',
+                    '/->(\w*(password|secret|token|key|ssn|credit_card)\w*)/i'
+                ];
 
-            $files = File::allFiles($path);
-
-            foreach ($files as $file) {
-                if ($file->getExtension() === 'php') {
-                    $content = file_get_contents($file->getPathname());
-
-                    // Check for deprecated Laravel features
-                    $deprecatedPatterns = [
-                        'Input::' => 'Input facade is deprecated, use Request instead',
-                        'Route::controller' => 'Route::controller is deprecated in Laravel 8+',
-                        'str_' => 'str_ helper functions are deprecated, use Str:: instead',
-                        'array_' => 'array_ helper functions are deprecated, use Arr:: instead',
-                    ];
-
-                    foreach ($deprecatedPatterns as $pattern => $message) {
-                        if (preg_match("/{$pattern}/", $content)) {
-                            $this->addIssue('Code Quality', 'deprecated_feature', [
-                                'file' => $file->getPathname(),
-                                'feature' => $pattern,
-                                'message' => $message
-                            ]);
-                        }
-                    }
-
-                    // Check for old PHP features that should be avoided
-                    if (preg_match('/\bvar\s+\$/m', $content)) {
-                        $this->addIssue('Code Quality', 'old_php_syntax', [
+                foreach ($sensitivePatterns as $pattern) {
+                    if (preg_match($pattern, $content)) {
+                        $this->issueManager->addIssue('Controller Security', 'sensitive_data_to_view', [
+                            'controller' => $className,
                             'file' => $file->getPathname(),
-                            'message' => "Using 'var' keyword instead of visibility modifiers (public, private, protected)"
+                            'message' => "Controller '{$className}' appears to be passing sensitive data to views.",
+                            'fix_explanation' => 'Ensure sensitive data is encrypted before storage and decrypted only when needed. Never pass raw sensitive data to views.',
+                            'security_note' => 'Always encrypt sensitive data before storing. Use Laravel\'s encrypt() helper or model casts for automatic encryption/decryption. Views should never receive sensitive data. Use encrypted casts in models to handle encryption/decryption automatically.'
                         ]);
+                        break; // Only report once per controller
                     }
                 }
             }
         }
     }
 
-    protected function checkCodeSmells(): void
+    protected function checkViewEncryptionExposure(): void
     {
-        $paths = [
-            $this->config['models_dir'],
-            app_path('Http/Controllers'),
-        ];
+        $this->info('  🔍 Checking views for potential encryption exposure...');
 
-        foreach ($paths as $path) {
-            if (!File::exists($path)) {
-                continue;
-            }
-
-            $files = File::allFiles($path);
-
-            foreach ($files as $file) {
-                if ($file->getExtension() === 'php') {
-                    $content = file_get_contents($file->getPathname());
-
-                    // Check for long methods
-                    $this->checkMethodLength($content, $file->getPathname());
-
-                    // Check for long classes
-                    $this->checkClassLength($content, $file->getPathname());
-
-                    // Check for duplicate code patterns
-                    $this->checkDuplicateCode($content, $file->getPathname());
-
-                    // Check for unused imports
-                    $this->checkUnusedImports($content, $file->getPathname());
-                }
-            }
+        $viewPath = resource_path('views');
+        if (!File::exists($viewPath)) {
+            return;
         }
-    }
 
-    protected function checkMethodLength(string $content, string $filePath): void
-    {
-        if (preg_match_all('/public\s+function\s+\w+\([^}]*\}(?=\s*public|\s*protected|\s*private|\s*})/s', $content, $matches)) {
-            foreach ($matches[0] as $method) {
-                $lineCount = substr_count($method, "\n") + 1;
+        $viewFiles = File::allFiles($viewPath);
 
-                if ($lineCount > 50) {
-                    $this->addIssue('Code Quality', 'long_method', [
-                        'file' => $filePath,
-                        'lines' => $lineCount,
-                        'message' => "Method is {$lineCount} lines long. Consider breaking it into smaller methods (recommended: < 30 lines)"
+        foreach ($viewFiles as $file) {
+            if (in_array($file->getExtension(), ['blade.php', 'php'])) {
+                $content = file_get_contents($file->getPathname());
+
+                if ($content === false) {
+                    continue; // Skip files that cannot be read
+                }
+
+                $relativePath = str_replace(resource_path('views') . '/', '', $file->getPathname());
+
+                // Check for decrypt calls in views (major security issue)
+                if (preg_match('/decrypt\s*\(/', $content)) {
+                    $this->issueManager->addIssue('View Security', 'decryption_in_view', [
+                        'view' => $relativePath,
+                        'file' => $file->getPathname(),
+                        'message' => "View '{$relativePath}' contains decryption calls, exposing sensitive data.",
+                        'fix_explanation' => 'Never decrypt sensitive data in views. Use model accessors or encrypted casts to decrypt data before it reaches the view.',
+                        'security_note' => 'Always encrypt sensitive data before storing. Use Laravel\'s encrypt() helper or model casts for automatic encryption/decryption. Views are client-side code. Decrypting in views exposes encryption keys and sensitive data to users.'
                     ]);
                 }
+
+                // Check for sensitive field names in views
+                $sensitivePatterns = [
+                    '/\$(\w*(password|secret|token|key|ssn|credit_card)\w*)/i',
+                    '/{{.*(\w*(password|secret|token|key|ssn|credit_card)\w*).*}}/i'
+                ];
+
+                foreach ($sensitivePatterns as $pattern) {
+                    if (preg_match($pattern, $content)) {
+                        $this->issueManager->addIssue('View Security', 'sensitive_data_in_view', [
+                            'view' => $relativePath,
+                            'file' => $file->getPathname(),
+                            'message' => "View '{$relativePath}' appears to contain sensitive data fields.",
+                            'fix_explanation' => 'Ensure sensitive data is properly encrypted and only decrypted when absolutely necessary. Consider using masked or redacted values in views.',
+                            'security_note' => 'Always encrypt sensitive data before storing. Use Laravel\'s encrypt() helper or model casts for automatic encryption/decryption. Sensitive data in views can be exposed to users through browser dev tools, network inspection, or page source.'
+                        ]);
+                        break; // Only report once per view
+                    }
+                }
             }
         }
     }
 
-    protected function checkClassLength(string $content, string $filePath): void
+    protected function fixEncryptedFieldIssues(): void
     {
-        $lineCount = substr_count($content, "\n") + 1;
+        $this->info('🔧 Fixing encrypted field issues...');
 
-        if ($lineCount > 300) {
-            $this->addIssue('Code Quality', 'long_class', [
-                'file' => $filePath,
-                'lines' => $lineCount,
-                'message' => "Class is {$lineCount} lines long. Consider splitting into smaller classes (recommended: < 200 lines)"
+        $issues = $this->issueManager->getIssuesByType('Encrypted Fields');
+
+        foreach ($issues as $issue) {
+            if ($issue['type'] === 'insufficient_field_size') {
+                $this->fixFieldSize($issue['data']);
+            } elseif ($issue['type'] === 'suboptimal_field_type') {
+                $this->fixFieldType($issue['data']);
+            }
+        }
+
+        $modelIssues = $this->issueManager->getIssuesByType('Model Encryption');
+        foreach ($modelIssues as $issue) {
+            if ($issue['type'] === 'missing_encrypted_column') {
+                $this->createEncryptedColumnMigration($issue['data']);
+            }
+        }
+    }
+
+    protected function fixFieldSize(array $data): void
+    {
+        if ($this->option('dry-run')) {
+            $this->info("  📝 Would change {$data['table']}.{$data['column']} from VARCHAR({$data['current_size']}) to VARCHAR({$data['recommended_size']})");
+            return;
+        }
+
+        try {
+            $tableName = $data['table'];
+            $columnName = $data['column'];
+            $newSize = $data['recommended_size'];
+
+            DB::statement("ALTER TABLE `{$tableName}` MODIFY COLUMN `{$columnName}` VARCHAR({$newSize})");
+
+            $this->info("  ✅ Changed {$tableName}.{$columnName} to VARCHAR({$newSize})");
+        } catch (\Exception $e) {
+            $this->error("  ❌ Failed to modify {$data['table']}.{$data['column']}: " . $e->getMessage());
+        }
+    }
+
+    protected function fixFieldType(array $data): void
+    {
+        if ($this->option('dry-run')) {
+            $this->info("  📝 Would change {$data['table']}.{$data['column']} from {$data['current_type']} to MEDIUMTEXT");
+            return;
+        }
+
+        try {
+            $tableName = $data['table'];
+            $columnName = $data['column'];
+
+            DB::statement("ALTER TABLE `{$tableName}` MODIFY COLUMN `{$columnName}` MEDIUMTEXT");
+
+            $this->info("  ✅ Changed {$tableName}.{$columnName} to MEDIUMTEXT");
+        } catch (\Exception $e) {
+            $this->error("  ❌ Failed to modify {$data['table']}.{$data['column']}: " . $e->getMessage());
+        }
+    }
+
+    protected function createEncryptedColumnMigration(array $data): void
+    {
+        if ($this->option('dry-run')) {
+            $this->info("  📝 Would create migration to add encrypted column {$data['table']}.{$data['field']}");
+            return;
+        }
+
+        try {
+            $tableName = $data['table'];
+            $columnName = $data['field'];
+            $timestamp = now()->format('Y_m_d_His');
+            $migrationName = "add_encrypted_{$columnName}_to_{$tableName}_table";
+
+            $migrationContent = "<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::table('{$tableName}', function (Blueprint \$table) {
+            \$table->text('{$columnName}')->nullable()->after('id');
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::table('{$tableName}', function (Blueprint \$table) {
+            \$table->dropColumn('{$columnName}');
+        });
+    }
+};";
+
+            $migrationPath = database_path("migrations/{$timestamp}_{$migrationName}.php");
+            file_put_contents($migrationPath, $migrationContent);
+
+            $this->info("  ✅ Created migration: {$timestamp}_{$migrationName}.php");
+        } catch (\Exception $e) {
+            $this->error("  ❌ Failed to create migration for {$data['table']}.{$data['field']}: " . $e->getMessage());
+        }
+    }
+
+    protected function getTableNameFromModel(string $content, string $className): ?string
+    {
+        // Try to find table name in the model
+        if (preg_match('/protected\s+\$table\s*=\s*[\'"]([^\'"]+)[\'"]/', $content, $matches)) {
+            return $matches[1];
+        }
+
+        // Default to pluralized class name
+        return Str::snake(Str::plural($className));
+    }
+
+    protected function columnExists(string $tableName, string $columnName): bool
+    {
+        try {
+            $columns = DB::getSchemaBuilder()->getColumnListing($tableName);
+            return in_array($columnName, $columns);
+        } catch (\Exception $e) {
+            return false;
+        }
+    }
+
+    protected function handleBackup(): int
+    {
+        $this->info('💾 Creating database backup...');
+
+        try {
+            $backupPath = $this->dataExporter->exportDatabaseDataToCompressedFile([
+                'include_structure' => true,
+                'include_data' => true,
             ]);
+
+            $this->info("✅ Database backup created successfully!");
+            $this->info("📁 Backup location: {$backupPath}");
+
+            // Get file size
+            $size = File::size($backupPath);
+            $formattedSize = $this->formatBytes($size);
+            $this->info("📊 Backup size: {$formattedSize}");
+
+            return Command::SUCCESS;
+        } catch (\Exception $e) {
+            $this->error("❌ Failed to create database backup: " . $e->getMessage());
+            return Command::FAILURE;
         }
     }
 
-    protected function checkDuplicateCode(string $content, string $filePath): void
+    protected function handleFixMigrations(): int
     {
-        // Simple duplicate line detection
-        $lines = explode("\n", $content);
-        $lineCounts = array_count_values($lines);
+        $this->info('🔧 Generating alter migrations to fix detected issues...');
+        $this->warn('⚠️  WARNING: Alter migrations can be risky and may cause data loss!');
+        $this->warn('⚠️  Always backup your database before running generated migrations.');
 
-        $duplicateLines = array_filter($lineCounts, function($count) {
-            return $count > 3; // More than 3 identical lines
+        // Check if backup is requested
+        if ($this->option('backup-db')) {
+            $this->info('💾 Creating database backup before proceeding...');
+            $backupResult = $this->handleBackup();
+            if ($backupResult !== Command::SUCCESS) {
+                $this->error('❌ Backup failed. Aborting migration generation.');
+                return Command::FAILURE;
+            }
+            $this->line('');
+        }
+
+        // First run checks to identify issues
+        $this->checkerManager->setCommand($this);
+        $issues = $this->checkerManager->runAllChecks();
+
+        // Filter for migration-related issues that can be fixed
+        $migrationIssues = array_filter($issues, function ($issue) {
+            return isset($issue['type']) && str_starts_with($issue['type'], 'migration_');
         });
 
-        if (!empty($duplicateLines)) {
-            foreach ($duplicateLines as $line => $count) {
-                $line = trim($line);
-                if (strlen($line) > 20) { // Only report meaningful duplicate lines
-                    $this->addIssue('Code Quality', 'duplicate_code', [
-                        'file' => $filePath,
-                        'line' => $line,
-                        'count' => $count,
-                        'message' => "Line appears {$count} times: '{$line}'. Consider extracting to a method or constant"
-                    ]);
-                }
+        if (empty($migrationIssues)) {
+            $this->info('✅ No migration issues found that can be automatically fixed.');
+            return Command::SUCCESS;
+        }
+
+        $this->info("🔍 Found " . count($migrationIssues) . " migration issues that can be fixed.");
+
+        // Generate alter migrations with safety checks
+        $alterMigrations = $this->migrationGenerator->generateAlterMigrations($migrationIssues);
+
+        if (empty($alterMigrations)) {
+            $this->warn('⚠️  No alter migrations could be generated.');
+            return Command::SUCCESS;
+        }
+
+        $this->info("📋 Generated " . count($alterMigrations) . " alter migrations:");
+
+        // Display safety information and get user confirmation
+        $this->displayMigrationSafetyInfo($alterMigrations);
+
+        if (!$this->option('dry-run')) {
+            // Ask about rollback option
+            $createRollback = $this->confirm('Create rollback migrations for safety?', true);
+            $proceed = $this->confirm('Do you want to proceed with generating these alter migrations?', false);
+
+            if (!$proceed) {
+                $this->info('❌ Operation cancelled by user.');
+                return Command::SUCCESS;
             }
         }
-    }
 
-    protected function checkUnusedImports(string $content, string $filePath): void
-    {
-        // Extract use statements
-        if (preg_match_all('/^use\s+([^;]+);$/m', $content, $matches)) {
-            $imports = $matches[1];
-
-            foreach ($imports as $import) {
-                // Get the class name from the import
-                $className = basename(str_replace('\\', '/', $import));
-
-                // Check if the class is used in the file
-                if (!preg_match('/\b' . preg_quote($className, '/') . '\b/', $content)) {
-                    $this->addIssue('Code Quality', 'unused_import', [
-                        'file' => $filePath,
-                        'import' => $import,
-                        'message' => "Unused import: {$import}"
-                    ]);
-                }
-            }
-        }
-    }
-
-    protected function syncMigrationsFromDatabase(): void
-    {
-        $this->info('');
-        $this->info('🔄 Migration Synchronization');
-        $this->info('===========================');
-
-        if (!$this->confirm('This will generate fresh migrations from your current database schema. Continue?')) {
-            $this->warn('Operation cancelled.');
-            return;
-        }
-
-        // Step 1: Export data if requested
-        if ($this->confirm('Export current data before proceeding? (Recommended)')) {
-            $this->exportDatabaseData();
-        }
-
-        // Step 2: Analyze current database schema
-        $this->info('Analyzing current database schema...');
-        $tables = $this->getAllTables();
-
-        // Step 3: Clean up old migrations
-        $this->cleanupMigrationFiles();
-
-        // Step 4: Generate fresh migrations
-        $this->generateMigrationsFromSchema($tables);
-
-        $this->info('');
-        $this->info('✅ Migration synchronization complete!');
-        $this->info('Next steps:');
-        $this->info('1. Review the generated migrations in database/migrations/');
-        $this->info('2. Run: php artisan migrate:fresh');
-        $this->info('3. If you exported data, run: php artisan model:schema-check --import-data');
-    }
-
-    protected function exportDatabaseData(): void
-    {
-        $this->info('');
-        $this->info('📤 Exporting Database Data');
-        $this->info('=========================');
-
-        $exportPath = database_path('exports');
-        if (!File::exists($exportPath)) {
-            File::makeDirectory($exportPath, 0755, true);
-        }
-
-        $timestamp = date('Y-m-d_H-i-s');
-        $exportFile = "{$exportPath}/data_export_{$timestamp}.sql.gz";
-
-        try {
-            $tables = $this->getAllTables();
-            $this->exportDatabaseDataToCompressedFile($exportFile, $tables);
-
-            $this->info("✅ Data exported to: {$exportFile}");
-            $this->info("💡 To import later: php artisan model:schema-check --import-data");
-
-        } catch (\Exception $e) {
-            $this->error("❌ Data export failed: " . $e->getMessage());
-        }
-    }
-
-    protected function importDatabaseData(): void
-    {
-        $this->info('');
-        $this->info('📥 Importing Database Data');
-        $this->info('==========================');
-
-        $exportPath = database_path('exports');
-
-        if (!File::exists($exportPath)) {
-            $this->error("❌ No exports directory found. Run --export-data first.");
-            return;
-        }
-
-        $exportFiles = File::files($exportPath);
-
-        if (empty($exportFiles)) {
-            $this->error("❌ No export files found in {$exportPath}");
-            return;
-        }
-
-        // Get the most recent export file (prioritize .sql.gz, fallback to .sql)
-        $exportFiles = collect(File::files($exportPath))
-            ->sortByDesc(function($file) {
-                return $file->getMTime();
-            });
-
-        $latestExport = $exportFiles->first(function($file) {
-            return str_ends_with($file->getFilename(), '.sql.gz') || str_ends_with($file->getFilename(), '.sql');
-        });
-
-        if (!$latestExport) {
-            $this->error("❌ No export files found in {$exportPath}");
-            return;
-        }
-
-        if (!$this->confirm("Import data from: {$latestExport->getFilename()}?")) {
-            return;
-        }
-
-        try {
-            $this->importDatabaseDataFromFile($latestExport->getPathname());
-
-            $this->info("✅ Data imported successfully from: {$latestExport->getFilename()}");
-
-        } catch (\Exception $e) {
-            $this->error("❌ Data import failed: " . $e->getMessage());
-        }
-    }
-
-    protected function cleanupMigrationFiles(): void
-    {
-        $this->info('');
-        $this->info('🧹 Cleaning Up Migration Files');
-        $this->info('=============================');
-
-        $migrationPath = database_path('migrations');
-
-        if (!File::exists($migrationPath)) {
-            $this->warn("No migrations directory found.");
-            return;
-        }
-
-        $migrationFiles = File::files($migrationPath);
-
-        if (empty($migrationFiles)) {
-            $this->info("No migration files to clean up.");
-            return;
-        }
-
-        // Create backup directory
-        $backupPath = database_path('migrations_backup_' . date('Y-m-d_H-i-s'));
-        File::makeDirectory($backupPath, 0755, true);
-
-        $this->info("Backing up {$migrationFiles->count()} migration files...");
-
-        // Move files to backup
-        foreach ($migrationFiles as $file) {
-            $newPath = $backupPath . '/' . $file->getFilename();
-            File::move($file->getPathname(), $newPath);
-        }
-
-        $this->info("✅ Migration files backed up to: {$backupPath}");
-        $this->info("🗑️  Migration directory cleared.");
-    }
-
-    protected function getAllTables(): array
-    {
-        try {
-            $databaseName = DB::getDatabaseName();
-
-            if (DB::getDriverName() === 'mysql') {
-                $tables = DB::select("
-                    SELECT TABLE_NAME as name
-                    FROM information_schema.TABLES
-                    WHERE TABLE_SCHEMA = ?
-                    AND TABLE_NAME NOT IN ('migrations', 'failed_jobs', 'cache', 'sessions', 'jobs')
-                    ORDER BY TABLE_NAME
-                ", [$databaseName]);
-
-                return array_column($tables, 'name');
-            }
-
-            return [];
-        } catch (\Exception $e) {
-            $this->error("Could not retrieve table list: " . $e->getMessage());
-            return [];
-        }
-    }
-
-    protected function generateMigrationsFromSchema(array $tables): void
-    {
-        $this->info('');
-        $this->info('🏗️  Generating Fresh Migrations');
-        $this->info('==============================');
-
-        $migrationPath = database_path('migrations');
-
-        if (!File::exists($migrationPath)) {
-            File::makeDirectory($migrationPath, 0755, true);
-        }
-
-        foreach ($tables as $tableName) {
-            $this->generateMigrationForTable($tableName);
-        }
-
-        $this->info("✅ Generated migrations for " . count($tables) . " tables.");
-    }
-
-    protected function generateMigrationForTable(string $tableName): void
-    {
-        try {
-            $databaseName = DB::getDatabaseName();
-            $columns = [];
-
-            if (DB::getDriverName() === 'mysql') {
-                $columnData = DB::select("
-                    SELECT
-                        COLUMN_NAME,
-                        DATA_TYPE,
-                        IS_NULLABLE,
-                        COLUMN_DEFAULT,
-                        CHARACTER_MAXIMUM_LENGTH,
-                        NUMERIC_PRECISION,
-                        NUMERIC_SCALE,
-                        COLUMN_KEY,
-                        EXTRA
-                    FROM information_schema.COLUMNS
-                    WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?
-                    ORDER BY ORDINAL_POSITION
-                ", [$databaseName, $tableName]);
-
-                foreach ($columnData as $col) {
-                    $columns[$col->COLUMN_NAME] = [
-                        'type' => $col->DATA_TYPE,
-                        'nullable' => $col->IS_NULLABLE === 'YES',
-                        'default' => $col->COLUMN_DEFAULT,
-                        'length' => $col->CHARACTER_MAXIMUM_LENGTH,
-                        'precision' => $col->NUMERIC_PRECISION,
-                        'scale' => $col->NUMERIC_SCALE,
-                        'key' => $col->COLUMN_KEY,
-                        'extra' => $col->EXTRA
-                    ];
-                }
-            }
-
-            // Get indexes
-            $indexes = $this->getTableIndexes($tableName);
-
-            // Get foreign keys
-            $foreignKeys = $this->getForeignKeyConstraints($tableName);
-
-            // Generate migration content
-            $migrationContent = $this->generateMigrationContent($tableName, $columns, $indexes, $foreignKeys);
-
-            // Create migration file
-            $timestamp = date('Y_m_d_His');
-            $filename = "{$timestamp}_create_{$tableName}_table.php";
-            $filePath = database_path("migrations/{$filename}");
-
-            File::put($filePath, $migrationContent);
-
-            $this->info("  📄 Created: {$filename}");
-
-        } catch (\Exception $e) {
-            $this->error("Failed to generate migration for {$tableName}: " . $e->getMessage());
-        }
-    }
-
-    protected function getTableIndexes(string $tableName): array
-    {
-        try {
-            if (DB::getDriverName() === 'mysql') {
-                $indexes = DB::select("
-                    SELECT INDEX_NAME, COLUMN_NAME, SEQ_IN_INDEX, NON_UNIQUE
-                    FROM information_schema.STATISTICS
-                    WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?
-                    ORDER BY INDEX_NAME, SEQ_IN_INDEX
-                ", [DB::getDatabaseName(), $tableName]);
-
-                $indexGroups = [];
-                foreach ($indexes as $index) {
-                    $indexGroups[$index->INDEX_NAME][] = $index;
-                }
-
-                return $indexGroups;
-            }
-
-            return [];
-        } catch (\Exception $e) {
-            return [];
-        }
-    }
-
-    protected function generateMigrationContent(string $tableName, array $columns, array $indexes, array $foreignKeys): string
-    {
-        $className = Str::studly($tableName) . 'Table';
-
-        $content = "<?php\n\n";
-        $content .= "use Illuminate\Database\Migrations\Migration;\n";
-        $content .= "use Illuminate\Database\Schema\Blueprint;\n";
-        $content .= "use Illuminate\Support\Facades\Schema;\n\n";
-        $content .= "return new class extends Migration\n";
-        $content .= "{\n";
-        $content .= "    public function up(): void\n";
-        $content .= "    {\n";
-        $content .= "        Schema::create('{$tableName}', function (Blueprint \$table) {\n";
-
-        // Generate column definitions
-        foreach ($columns as $columnName => $columnInfo) {
-            $content .= $this->generateColumnDefinition($columnName, $columnInfo);
-        }
-
-        // Generate indexes
-        foreach ($indexes as $indexName => $indexColumns) {
-            if ($indexName === 'PRIMARY') continue; // Primary key is handled by id column
-
-            $columnNames = array_column($indexColumns, 'COLUMN_NAME');
-            $isUnique = $indexColumns[0]->NON_UNIQUE == 0;
-
-            if (count($columnNames) === 1) {
-                $column = $columnNames[0];
-                if ($isUnique) {
-                    $content .= "            \$table->unique('{$column}');\n";
-                } else {
-                    $content .= "            \$table->index('{$column}');\n";
+        foreach ($alterMigrations as $migration) {
+            $this->line("📄 <comment>{$migration['name']}.php</comment> - Fixes: {$migration['issue_type']}");
+
+            if (!$this->option('dry-run')) {
+                $this->migrationGenerator->saveMigrations();
+                $this->info("✅ Migration saved to database/migrations/{$migration['name']}.php");
+
+                // Generate rollback migration if requested
+                if (isset($createRollback) && $createRollback) {
+                    $rollbackName = 'rollback_' . $migration['name'];
+                    $rollbackContent = $this->generateRollbackMigration($migration);
+                    $this->saveRollbackMigration($rollbackName, $rollbackContent);
+                    $this->info("↩️  Rollback migration saved to database/migrations/{$rollbackName}.php");
                 }
             } else {
-                $columnsStr = "['" . implode("', '", $columnNames) . "']";
-                if ($isUnique) {
-                    $content .= "            \$table->unique({$columnsStr});\n";
-                } else {
-                    $content .= "            \$table->index({$columnsStr});\n";
-                }
+                $this->line("   <comment>Preview:</comment>");
+                $this->line("   " . str_replace("\n", "\n   ", substr($migration['content'], 0, 200)) . "...");
             }
         }
 
-        // Generate foreign keys
-        foreach ($foreignKeys as $fk) {
-            $content .= "            \$table->foreign('{$fk['column']}')->references('{$fk['references']}');\n";
-        }
-
-        $content .= "        });\n";
-        $content .= "    }\n\n";
-        $content .= "    public function down(): void\n";
-        $content .= "    {\n";
-        $content .= "        Schema::dropIfExists('{$tableName}');\n";
-        $content .= "    }\n";
-        $content .= "};\n";
-
-        return $content;
-    }
-
-    protected function generateColumnDefinition(string $columnName, array $columnInfo): string
-    {
-        $definition = "            \$table->";
-
-        // Handle special columns
-        if ($columnName === 'id' && $columnInfo['key'] === 'PRI') {
-            return "            \$table->id();\n";
-        }
-
-        if ($columnName === 'created_at') {
-            return "            \$table->timestamps();\n";
-        }
-
-        if ($columnName === 'updated_at') {
-            return ""; // Handled by timestamps()
-        }
-
-        // Map MySQL types to Laravel migration types
-        $type = $this->mapColumnType($columnInfo['type'], $columnInfo);
-
-        $definition .= $type;
-
-        // Add length/precision for applicable types
-        if (isset($columnInfo['length']) && $columnInfo['length'] && in_array($columnInfo['type'], ['varchar', 'char'])) {
-            $definition .= "({$columnInfo['length']})";
-        }
-
-        if (isset($columnInfo['precision']) && $columnInfo['precision'] && in_array($columnInfo['type'], ['decimal', 'float', 'double'])) {
-            $scale = $columnInfo['scale'] ?? 0;
-            $definition .= "({$columnInfo['precision']}, {$scale})";
-        }
-
-        // Add nullable
-        if ($columnInfo['nullable']) {
-            $definition .= "->nullable()";
-        }
-
-        // Add default
-        if ($columnInfo['default'] !== null) {
-            $default = $columnInfo['default'];
-            if (is_string($default)) {
-                $definition .= "->default('{$default}')";
-            } elseif (is_numeric($default)) {
-                $definition .= "->default({$default})";
-            }
-        }
-
-        // Add auto increment for primary keys
-        if ($columnInfo['extra'] === 'auto_increment') {
-            $definition .= "->autoIncrement()";
-        }
-
-        $definition .= ";\n";
-
-        return $definition;
-    }
-
-    protected function mapColumnType(string $mysqlType, array $columnInfo): string
-    {
-        $typeMap = [
-            'varchar' => 'string',
-            'char' => 'char',
-            'text' => 'text',
-            'mediumtext' => 'mediumText',
-            'longtext' => 'longText',
-            'int' => 'integer',
-            'bigint' => 'bigInteger',
-            'smallint' => 'smallInteger',
-            'tinyint' => 'tinyInteger',
-            'decimal' => 'decimal',
-            'float' => 'float',
-            'double' => 'double',
-            'boolean' => 'boolean',
-            'date' => 'date',
-            'datetime' => 'dateTime',
-            'timestamp' => 'timestamp',
-            'time' => 'time',
-            'json' => 'json',
-            'binary' => 'binary',
-            'varbinary' => 'binary',
-        ];
-
-        // Special handling for boolean (tinyint(1))
-        if ($mysqlType === 'tinyint' && $columnInfo['length'] == 1) {
-            return 'boolean';
-        }
-
-        return $typeMap[$mysqlType] ?? 'string';
-    }
-
-    protected function generateDataExportSQL(array $tables): string
-    {
-        $sql = "-- Data Export Generated on " . date('Y-m-d H:i:s') . "\n";
-        $sql .= "SET FOREIGN_KEY_CHECKS = 0;\n\n";
-
-        foreach ($tables as $tableName) {
-            $sql .= "-- Exporting data from {$tableName}\n";
-
-            try {
-                $data = DB::table($tableName)->get();
-
-                if ($data->isEmpty()) {
-                    $sql .= "-- Table {$tableName} is empty\n\n";
-                    continue;
-                }
-
-                foreach ($data as $row) {
-                    $columns = [];
-                    $values = [];
-
-                    foreach ($row as $column => $value) {
-                        $columns[] = "`{$column}`";
-
-                        if ($value === null) {
-                            $values[] = "NULL";
-                        } elseif (is_numeric($value)) {
-                            $values[] = $value;
-                        } else {
-                            $values[] = "'" . addslashes($value) . "'";
-                        }
-                    }
-
-                    $columnsStr = implode(', ', $columns);
-                    $valuesStr = implode(', ', $values);
-
-                    $sql .= "INSERT INTO `{$tableName}` ({$columnsStr}) VALUES ({$valuesStr});\n";
-                }
-
-                $sql .= "\n";
-
-            } catch (\Exception $e) {
-                $sql .= "-- Error exporting {$tableName}: " . $e->getMessage() . "\n\n";
-            }
-        }
-
-        return $sql;
-    }
-
-    protected function exportDatabaseDataToCompressedFile(string $filePath, array $tables): void
-    {
-        $gzFile = gzopen($filePath, 'w9'); // w9 = maximum compression
-
-        if (!$gzFile) {
-            throw new \Exception("Could not create compressed file: {$filePath}");
-        }
-
-        try {
-            // Write header
-            $header = "-- Data Export Generated on " . date('Y-m-d H:i:s') . "\n";
-            $header .= "-- Compressed with gzip\n";
-            $header .= "SET FOREIGN_KEY_CHECKS = 0;\n\n";
-            gzwrite($gzFile, $header);
-
-            $this->info('Exporting tables...');
-
-            foreach ($tables as $tableName) {
-                gzwrite($gzFile, "-- Exporting data from {$tableName}\n");
-
-                try {
-                    $data = DB::table($tableName)->get();
-
-                    if ($data->isEmpty()) {
-                        gzwrite($gzFile, "-- Table {$tableName} is empty\n\n");
-                        continue;
-                    }
-
-                    $this->info("  📄 Exporting {$data->count()} rows from {$tableName}");
-
-                    foreach ($data as $row) {
-                        $columns = [];
-                        $values = [];
-
-                        foreach ($row as $column => $value) {
-                            $columns[] = "`{$column}`";
-
-                            if ($value === null) {
-                                $values[] = "NULL";
-                            } elseif (is_numeric($value)) {
-                                $values[] = $value;
-                            } else {
-                                $values[] = "'" . addslashes($value) . "'";
-                            }
-                        }
-
-                        $columnsStr = implode(', ', $columns);
-                        $valuesStr = implode(', ', $values);
-
-                        gzwrite($gzFile, "INSERT INTO `{$tableName}` ({$columnsStr}) VALUES ({$valuesStr});\n");
-                    }
-
-                    gzwrite($gzFile, "\n");
-
-                } catch (\Exception $e) {
-                    $errorMsg = "-- Error exporting {$tableName}: " . $e->getMessage() . "\n\n";
-                    gzwrite($gzFile, $errorMsg);
-                    $this->warn("Error exporting {$tableName}: " . $e->getMessage());
-                }
-            }
-
-            gzwrite($gzFile, "SET FOREIGN_KEY_CHECKS = 1;\n");
-
-        } finally {
-            gzclose($gzFile);
-        }
-
-        // Get file size for reporting
-        $fileSize = filesize($filePath);
-        $this->info("📊 Compressed export size: " . $this->formatBytes($fileSize));
-    }
-
-    protected function importDatabaseDataFromFile(string $filePath): void
-    {
-        $isCompressed = str_ends_with($filePath, '.gz');
-
-        if ($isCompressed) {
-            $file = gzopen($filePath, 'r');
-            $this->info('📖 Reading compressed export file...');
+        if ($this->option('dry-run')) {
+            $this->warn('🔍 This was a dry-run. Use --fix-migrations without --dry-run to actually create the migration files.');
+            $this->info('💡 Tip: Always backup your database before running alter migrations!');
         } else {
-            $file = fopen($filePath, 'r');
-            $this->info('📖 Reading export file...');
+            $this->info('✅ Alter migrations generated successfully!');
+            if (isset($createRollback) && $createRollback) {
+                $this->info('↩️  Rollback migrations created for safety.');
+            }
+            $this->warn('⚠️  Remember to review and backup before running these migrations!');
+            $this->info('💡 To rollback if needed: php artisan migrate:rollback');
         }
 
-        if (!$file) {
-            throw new \Exception("Could not open file: {$filePath}");
+        return Command::SUCCESS;
+    }
+
+    protected function handleRollbackMigrations(): int
+    {
+        $this->info('↩️  Rolling back the last batch of migrations...');
+        $this->warn('⚠️  WARNING: This will undo the last migration batch!');
+        $this->warn('⚠️  Make sure you have a backup before proceeding.');
+
+        // Confirm rollback
+        if (!$this->confirm('Are you sure you want to rollback the last migration batch?', false)) {
+            $this->info('❌ Rollback cancelled by user.');
+            return Command::SUCCESS;
         }
 
         try {
-            $buffer = '';
-            $statementCount = 0;
-
-            $this->info('Executing import statements...');
-
-            while (!feof($file)) {
-                if ($isCompressed) {
-                    $line = gzgets($file);
-                } else {
-                    $line = fgets($file);
-                }
-
-                if ($line === false) break;
-
-                $line = trim($line);
-
-                // Skip comments and empty lines
-                if (empty($line) || str_starts_with($line, '--')) {
-                    continue;
-                }
-
-                $buffer .= $line;
-
-                // Check if we have a complete statement (ends with semicolon)
-                if (str_ends_with($line, ';')) {
-                    $statement = trim($buffer);
-
-                    if (!empty($statement)) {
-                        try {
-                            DB::statement($statement);
-                            $statementCount++;
-
-                            // Progress indicator every 100 statements
-                            if ($statementCount % 100 === 0) {
-                                $this->info("  📊 Processed {$statementCount} statements...");
-                            }
-                        } catch (\Exception $e) {
-                            $this->warn("Failed to execute statement: " . substr($statement, 0, 100) . "... - " . $e->getMessage());
-                        }
-                    }
-
-                    $buffer = '';
-                }
+            // Create backup before rollback
+            $this->info('💾 Creating backup before rollback...');
+            $backupResult = $this->handleBackup();
+            if ($backupResult !== Command::SUCCESS) {
+                $this->error('❌ Backup failed. Rollback aborted for safety.');
+                return Command::FAILURE;
             }
 
-            $this->info("✅ Successfully executed {$statementCount} statements");
+            // Execute rollback
+            $this->info('🔄 Executing migration rollback...');
+            $this->call('migrate:rollback');
 
-        } finally {
-            if ($isCompressed) {
-                gzclose($file);
-            } else {
-                fclose($file);
+            $this->info('✅ Migration rollback completed successfully!');
+            $this->info('💡 If you need to re-run the migrations: php artisan migrate');
+
+            return Command::SUCCESS;
+        } catch (\Exception $e) {
+            $this->error("❌ Rollback failed: " . $e->getMessage());
+            $this->warn('💡 You may need to manually fix the database state.');
+            return Command::FAILURE;
+        }
+    }
+
+    protected function displayMigrationSafetyInfo(array $alterMigrations): void
+    {
+        $this->warn('🚨 MIGRATION SAFETY INFORMATION:');
+        $this->line('   • These migrations will ALTER existing database tables');
+        $this->line('   • Some operations may cause data loss (DROP COLUMN, etc.)');
+        $this->line('   • Always backup your database before proceeding');
+        $this->line('   • Test migrations on a development database first');
+        $this->line('');
+
+        // Analyze risk levels
+        $highRiskCount = 0;
+        $mediumRiskCount = 0;
+        $lowRiskCount = 0;
+
+        foreach ($alterMigrations as $migration) {
+            $riskLevel = $migration['risk_level'] ?? 'medium';
+            switch ($riskLevel) {
+                case 'high':
+                    $highRiskCount++;
+                    break;
+                case 'medium':
+                    $mediumRiskCount++;
+                    break;
+                case 'low':
+                    $lowRiskCount++;
+                    break;
             }
         }
+
+        if ($highRiskCount > 0) {
+            $this->error("🔴 HIGH RISK: {$highRiskCount} migrations may cause data loss");
+        }
+        if ($mediumRiskCount > 0) {
+            $this->warn("🟡 MEDIUM RISK: {$mediumRiskCount} migrations need careful review");
+        }
+        if ($lowRiskCount > 0) {
+            $this->info("🟢 LOW RISK: {$lowRiskCount} migrations are generally safe");
+        }
+
+        $this->line('');
     }
 
     protected function formatBytes(int $bytes): string
     {
         $units = ['B', 'KB', 'MB', 'GB', 'TB'];
-        $i = 0;
+        $bytes = max($bytes, 0);
+        $pow = floor(($bytes ? log($bytes) : 0) / log(1024));
+        $pow = min($pow, count($units) - 1);
+        $bytes /= pow(1024, $pow);
+        return round($bytes, 2) . ' ' . $units[$pow];
+    }
 
-        while ($bytes >= 1024 && $i < count($units) - 1) {
-            $bytes /= 1024;
-            $i++;
+    protected function generateRollbackMigration(array $migration): string
+    {
+        // Generate a basic rollback migration that reverses the alter operations
+        // This is a simplified version - in practice, rollback logic would be more complex
+        $tableName = $migration['table'] ?? 'unknown_table';
+        $timestamp = date('Y_m_d_His');
+
+        $rollbackContent = "<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    /**
+     * Reverse the migrations.
+     * This rollback was auto-generated for safety.
+     * Please review and modify as needed before running.
+     */
+    public function down(): void
+    {
+        // TODO: Implement rollback logic for: {$migration['issue_type']}
+        // This is a placeholder rollback migration.
+        // You may need to manually implement the reverse operations.
+
+        \$this->command->warn('⚠️  Please implement the rollback logic manually for: {$migration['issue_type']}');
+    }
+};
+";
+
+        return $rollbackContent;
+    }
+
+    protected function saveRollbackMigration(string $name, string $content): void
+    {
+        $migrationsPath = database_path('migrations');
+        $filename = $name . '.php';
+        $filepath = $migrationsPath . '/' . $filename;
+
+        File::put($filepath, $content);
+    }
+
+    protected function handleAmendMigrations(): int
+    {
+        $this->info('Amending existing migration files with proper specifications...');
+        $this->warn('⚠️  Migration amendment feature is not yet implemented.');
+        $this->info('This feature will allow amending existing migration files to add missing column lengths, indexes, etc.');
+        $this->info('For now, use --fix-migrations to generate new alter migrations.');
+
+        return Command::SUCCESS;
+    }
+
+    protected function handleRollbackFixes(): int
+    {
+        $this->info('Rolling back previously applied automatic fixes...');
+
+        $appliedFixes = $this->loadAppliedFixes();
+
+        if (empty($appliedFixes)) {
+            $this->warn('⚠️  No applied fixes found to rollback.');
+            $this->info('No fixes have been tracked for rollback.');
+            return Command::SUCCESS;
         }
 
-        return round($bytes, 2) . ' ' . $units[$i];
+        $this->info("Found " . count($appliedFixes) . " applied fixes to potentially rollback.");
+
+        // For now, we'll show what would be rolled back
+        // In a full implementation, we'd need to implement rollback logic for each improvement type
+        $this->warn('⚠️  Automatic rollback is not yet fully implemented.');
+        $this->info('This is a preview of what would be rolled back:');
+
+        foreach ($appliedFixes as $index => $fix) {
+            $this->info('');
+            $this->info("--- Fix " . ($index + 1) . " ---");
+            $this->info("📋 {$fix['title']}");
+            $this->line("   Applied: {$fix['applied_at']}");
+            if (isset($fix['file'])) {
+                $this->line("   📁 {$fix['file']}");
+            }
+        }
+
+        $this->info('');
+        $this->warn('To implement full rollback functionality:');
+        $this->info('1. Each CodeImprovement class needs a rollback() method');
+        $this->info('2. Backup original file contents before applying fixes');
+        $this->info('3. Restore from backups during rollback');
+
+        if ($this->confirm('Clear the applied fixes tracking (recommended after manual rollback)?', false)) {
+            $this->clearAppliedFixes();
+            $this->info('✅ Applied fixes tracking cleared.');
+        }
+
+        return Command::SUCCESS;
+    }
+
+    protected function saveAppliedFixes(array $fixes): void
+    {
+        if (empty($fixes)) {
+            return;
+        }
+
+        $storagePath = storage_path('app');
+        if (!File::exists($storagePath)) {
+            File::makeDirectory($storagePath, 0755, true);
+        }
+
+        $filepath = storage_path('app/applied-fixes.json');
+
+        $existingFixes = $this->loadAppliedFixes();
+        $allFixes = array_merge($existingFixes, $fixes);
+
+        $jsonContent = json_encode($allFixes, JSON_PRETTY_PRINT);
+        if ($jsonContent === false) {
+            $this->error('Failed to encode applied fixes to JSON');
+            return;
+        }
+
+        File::put($filepath, $jsonContent);
+    }
+
+    protected function loadAppliedFixes(): array
+    {
+        $filepath = storage_path('app/applied-fixes.json');
+
+        if (!File::exists($filepath)) {
+            return [];
+        }
+
+        $content = File::get($filepath);
+        $fixes = json_decode($content, true);
+
+        return is_array($fixes) ? $fixes : [];
+    }
+
+    protected function clearAppliedFixes(): void
+    {
+        $filepath = storage_path('app/applied-fixes.json');
+
+        if (File::exists($filepath)) {
+            File::delete($filepath);
+        }
+    }
+
+    /**
+     * Check if we're running in a production environment
+     * Multiple layers of protection to prevent reverse engineering
+     */
+    protected function isProductionEnvironment(): bool
+    {
+        // Check for DDEV environment FIRST (always treat as development)
+        if (isset($_SERVER['DDEV_PROJECT']) || isset($_SERVER['DDEV_HOSTNAME']) || 
+            getenv('DDEV_PROJECT') || getenv('IS_DDEV_PROJECT') ||
+            (isset($_SERVER['IS_DDEV_PROJECT']) && $_SERVER['IS_DDEV_PROJECT'])) {
+            return false; // DDEV is always development
+        }
+
+        $env = app()->environment();
+
+        // Primary check: standard Laravel environments
+        if (in_array(strtolower($env), ['production', 'prod', 'live'])) {
+            return true;
+        }
+
+        // Secondary check: environment variables that might indicate production
+        if (env('APP_ENV') === 'production' || env('APP_ENV') === 'prod' || env('APP_ENV') === 'live') {
+            return true;
+        }
+
+        // Tertiary check: server environment variables
+        if (isset($_SERVER['APP_ENV']) && in_array(strtolower($_SERVER['APP_ENV']), ['production', 'prod', 'live'])) {
+            return true;
+        }
+
+        // Quaternary check: check for production-like hostnames
+        if (isset($_SERVER['HTTP_HOST'])) {
+            $host = strtolower($_SERVER['HTTP_HOST']);
+            // Common production patterns
+            if (strpos($host, '.com') !== false ||
+                strpos($host, '.org') !== false ||
+                strpos($host, '.net') !== false ||
+                !preg_match('/\b(localhost|127\.0\.0\.1|\.local|\.dev|\.test|\.ddev\.site)\b/', $host)) {
+                // Additional check: if not clearly development, be conservative
+                if (!preg_match('/\b(dev|staging|test|demo|\.ddev)\b/', $host)) {
+                    // This is a heuristic - in production deployments, be extra cautious
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 }

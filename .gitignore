@@ -14,10 +14,29 @@ Thumbs.db
 .vscode/
 .idea/
 
+# DDEV - only ignore generated/temporary files
+.ddev/.dbimageBuild/
+.ddev/.ddev-docker-compose-*.yaml
+.ddev/.webimageBuild/
+
+# Test environments
+/test-app/
+/test-package/
+.ddev/db_snapshots/
+.ddev/homeadditions/
+.ddev/web-entrypoint.d/
+.ddev/xhprof/
+
+# Test Laravel application
+test-package/
+
 # Test outputs
 test_results/
 outputs/
 logs/
+
+# CI/CD
+# .github/workflows/ci.yml  # Removed to allow CI on main branches
 
 # Temporary files
 *.tmp
