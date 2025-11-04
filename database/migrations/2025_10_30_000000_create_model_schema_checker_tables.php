@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('check_results', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('user_id')->constrained()->onDelete('cascade');
+            $table->unsignedBigInteger('user_id'); // Remove foreign key for flexibility
             $table->string('job_id')->nullable()->index();
             $table->string('status')->default('pending'); // pending, running, completed, failed
             $table->json('check_types')->nullable(); // Types of checks run
@@ -35,7 +35,7 @@ return new class extends Migration
         Schema::create('applied_fixes', function (Blueprint $table) {
             $table->id();
             $table->foreignId('check_result_id')->constrained()->onDelete('cascade');
-            $table->foreignId('user_id')->constrained()->onDelete('cascade');
+            $table->unsignedBigInteger('user_id'); // Remove foreign key for flexibility
             $table->string('fix_title');
             $table->text('fix_description');
             $table->string('file_path')->nullable();

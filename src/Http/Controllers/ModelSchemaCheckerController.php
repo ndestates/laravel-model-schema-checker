@@ -374,7 +374,7 @@ class ModelSchemaCheckerController
     protected function getCurrentUserId(): int
     {
         if (Auth::check()) {
-            return $this->getCurrentUserId();
+            return Auth::id();
         }
 
         // In development environments, use a guest user ID of 1

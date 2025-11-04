@@ -225,6 +225,17 @@ php artisan model-schema:check --env=production
 ],
 ```
 
+#### Model Directory Configuration
+```php
+// Auto-detection (recommended - checks both locations):
+'models_dir' => app_path('Models'),  // Will auto-detect app/Models or app/
+
+// Manual configuration for custom locations:
+'models_dir' => app_path(),                    // Models in app/ directory
+'models_dir' => base_path('src/Models'),       // Custom path
+'models_dir' => '/absolute/path/to/models',    // Absolute path
+```
+
 ## 🔧 **Environment Variables**
 
 ```env

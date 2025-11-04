@@ -7,6 +7,13 @@ return [
     |--------------------------------------------------------------------------
     |
     | The directory where your Laravel models are located.
+    | The checker will automatically detect your model location:
+    | - app/Models/ (Laravel 8+ default)
+    | - app/ (traditional Laravel location)
+    |
+    | You can override this by setting a custom path:
+    | 'models_dir' => app_path(),  // For models in app/
+    | 'models_dir' => base_path('custom/models'),  // For custom location
     |
     */
     'models_dir' => app_path('Models'),

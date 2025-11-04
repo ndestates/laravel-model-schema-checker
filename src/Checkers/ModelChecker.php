@@ -304,11 +304,56 @@ class ModelChecker extends BaseChecker
     protected function getDefaultModelPath(): string
     {
         try {
-            return app_path('Models');
+            // Check multiple possible model locations
+            $possiblePaths = [
+                app_path('Models'),  // Laravel 8+ default
+                app_path(),          // Traditional Laravel location
+            ];
+
+            foreach ($possiblePaths as $path) {
+                if ($this->fileExists($path) && $this->hasModelFiles($path)) {
+                    return $path;
+                }
+            }
+
+            // Fallback to app/Models if no models found but directory exists
+            $defaultPath = app_path('Models');
+            if ($this->fileExists($defaultPath)) {
+                return $defaultPath;
+            }
+
+            // Last resort: return app/Models
+            return $defaultPath;
         } catch (\Throwable $e) {
             // Laravel environment not fully available, return empty string
             // This allows the checker to skip model checking gracefully
             return '';
+        }
+    }
+
+    /**
+     * Check if a directory contains PHP model files
+     */
+    protected function hasModelFiles(string $path): bool
+    {
+        try {
+            if (!$this->fileExists($path)) {
+                return false;
+            }
+
+            $files = $this->getAllFiles($path);
+            foreach ($files as $file) {
+                if ($file->getExtension() === 'php') {
+                    // Quick check if file contains class that extends Model
+                    $content = file_get_contents($file->getPathname());
+                    if ($content && preg_match('/extends\s+.*Model/i', $content)) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        } catch (\Throwable $e) {
+            return false;
         }
     }
 }
