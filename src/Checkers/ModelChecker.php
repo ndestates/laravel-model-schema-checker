@@ -133,7 +133,28 @@ class ModelChecker extends BaseChecker
             // Create code improvement suggestion
             $this->createFillableImprovement($filePath, $className, $missingFillable, $fillable);
         }
-    }
+
+        // Check for orphaned fillable properties (fillable properties that no longer exist in database)
+        $orphanedFillable = [];
+        foreach ($fillable as $fillableProperty) {
+            if (!in_array($fillableProperty, $tableColumns)) {
+                $orphanedFillable[] = $fillableProperty;
+            }
+        }
+
+        if (!empty($orphanedFillable)) {
+            $this->addIssue('Model', 'orphaned_fillable', [
+                'file' => $filePath,
+                'model' => $className,
+                'table' => $tableName,
+                'orphaned_columns' => $orphanedFillable,
+                'message' => "Model has fillable properties for columns that no longer exist: " . implode(', ', $orphanedFillable),
+                'fix_available' => true
+            ]);
+
+            // Create code improvement suggestion to remove orphaned fillable properties
+            $this->createOrphanedFillableImprovement($filePath, $className, $orphanedFillable, $fillable);
+        }
 
     protected function checkModelTable(\Illuminate\Database\Eloquent\Model $model, string $className, string $filePath): void
     {
@@ -180,6 +201,41 @@ class ModelChecker extends BaseChecker
             'model',
             'Add missing fillable properties',
             "Add missing fillable properties for columns: " . implode(', ', $missingColumns),
+            $originalCode,
+            $improvedCode,
+            null,
+            'medium'
+        );
+
+        // Store improvement in IssueManager
+        $this->getIssueManager()->attachImprovementToLastIssue($improvement);
+    }
+
+    protected function createOrphanedFillableImprovement(string $filePath, string $className, array $orphanedColumns, array $currentFillable): void
+    {
+        // Remove orphaned columns from current fillable
+        $newFillable = array_diff($currentFillable, $orphanedColumns);
+        $fillableString = $this->generateFillableString($newFillable);
+
+        $content = file_get_contents($filePath);
+        if ($content === false) {
+            return;
+        }
+
+        // Try to find existing fillable property
+        if (preg_match('/protected\s+\$fillable\s*=\s*\[.*?\];/s', $content, $matches)) {
+            $originalCode = $matches[0];
+            $improvedCode = "    protected \$fillable = {$fillableString};";
+        } else {
+            // This shouldn't happen since we only call this when fillable exists, but fallback
+            return;
+        }
+
+        $improvement = CodeImprovement::fromSearchReplace(
+            $filePath,
+            'model',
+            'Remove orphaned fillable properties',
+            "Remove fillable properties for columns that no longer exist: " . implode(', ', $orphanedColumns),
             $originalCode,
             $improvedCode,
             null,
