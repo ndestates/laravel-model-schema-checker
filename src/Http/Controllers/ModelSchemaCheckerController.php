@@ -34,20 +34,35 @@ class ModelSchemaCheckerController
     }
 
     /**
+     * Ensure required tables exist, redirect to setup if not
+     */
+    private function ensureTablesExist()
+    {
+        if (!$this->checkRequiredTablesExist()) {
+            abort(302, '', ['Location' => route('model-schema-checker.index')]);
+        }
+    }
+
+    /**
      * Display the main dashboard
      */
     public function index(): View
     {
+        // Check if required tables exist
+        if (!$this->checkRequiredTablesExist()) {
+            return view('model-schema-checker::setup-required', [
+                'missing_tables' => $this->getMissingTables()
+            ]);
+        }
+
         // Get user ID (1 for guest in development, actual user ID if authenticated)
         $userId = $this->getCurrentUserId();
-        
+
         $recentResults = CheckResult::where('user_id', $userId)->latest()->take(5)->get();
         $stats = $this->getDashboardStats($userId);
 
         return view('model-schema-checker::dashboard', compact('recentResults', 'stats'));
-    }
-
-    /**
+    }    /**
      * Run forgiving migrations
      */
     public function runForgivingMigrations(Request $request): JsonResponse
@@ -137,6 +152,14 @@ class ModelSchemaCheckerController
      */
     public function runChecks(Request $request): JsonResponse
     {
+        // Ensure required tables exist
+        if (!$this->checkRequiredTablesExist()) {
+            return response()->json([
+                'error' => 'Database tables not found. Please run migrations first.',
+                'missing_tables' => $this->getMissingTables()
+            ], 500);
+        }
+
         $request->validate([
             'check_types' => 'array',
             'check_types.*' => 'string',
@@ -369,17 +392,44 @@ class ModelSchemaCheckerController
      * Generate markdown report content
      */
     /**
-     * Get current user ID (handles guest users in development)
+     * Check if all required tables exist
      */
-    protected function getCurrentUserId(): int
+    protected function checkRequiredTablesExist(): bool
     {
-        if (Auth::check()) {
-            return Auth::id();
+        $requiredTables = ['check_results', 'applied_fixes'];
+        foreach ($requiredTables as $table) {
+            if (!$this->tableExists($table)) {
+                return false;
+            }
         }
+        return true;
+    }
 
-        // In development environments, use a guest user ID of 1
-        // In production, this won't be reached due to auth middleware
-        return 1;
+    /**
+     * Get list of missing tables
+     */
+    protected function getMissingTables(): array
+    {
+        $requiredTables = ['check_results', 'applied_fixes'];
+        $missing = [];
+        foreach ($requiredTables as $table) {
+            if (!$this->tableExists($table)) {
+                $missing[] = $table;
+            }
+        }
+        return $missing;
+    }
+
+    /**
+     * Check if a table exists in the database
+     */
+    protected function tableExists(string $tableName): bool
+    {
+        try {
+            return \Illuminate\Support\Facades\Schema::hasTable($tableName);
+        } catch (\Throwable $e) {
+            return false;
+        }
     }
 
     protected function generateMarkdownReport(CheckResult $result): string
