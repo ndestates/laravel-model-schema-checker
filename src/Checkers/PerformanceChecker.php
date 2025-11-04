@@ -57,6 +57,10 @@ class PerformanceChecker extends BaseChecker
             if ($file->getExtension() === 'php') {
                 $content = file_get_contents($file->getPathname());
 
+                if ($content === false) {
+                    continue; // Skip files that cannot be read
+                }
+
                 // Look for loops that access relationships
                 $this->checkLoopsWithRelationships($content, $file->getPathname());
             }
@@ -117,6 +121,10 @@ class PerformanceChecker extends BaseChecker
         foreach ($controllerFiles as $file) {
             if ($file->getExtension() === 'php') {
                 $content = file_get_contents($file->getPathname());
+
+                if ($content === false) {
+                    continue; // Skip files that cannot be read
+                }
 
                 // Check for queries without eager loading
                 $this->checkQueriesWithoutEagerLoading($content, $file->getPathname());
@@ -228,6 +236,10 @@ class PerformanceChecker extends BaseChecker
             foreach ($files as $file) {
                 if ($file->getExtension() === 'php') {
                     $content = file_get_contents($file->getPathname());
+
+                    if ($content === false) {
+                        continue; // Skip files that cannot be read
+                    }
 
                     // Check for SELECT * queries
                     $this->checkSelectAllQueries($content, $file->getPathname());

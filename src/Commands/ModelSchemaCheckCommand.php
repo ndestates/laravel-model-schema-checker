@@ -1075,7 +1075,13 @@ class ModelSchemaCheckCommand extends Command
             'checkers' => $this->checkerManager->getAvailableCheckers(),
         ];
 
-        $this->line(json_encode($result, JSON_PRETTY_PRINT));
+        $jsonResult = json_encode($result, JSON_PRETTY_PRINT);
+        if ($jsonResult === false) {
+            $this->error('Failed to encode result to JSON');
+            return;
+        }
+
+        $this->line($jsonResult);
     }
 
     protected function checkEncryptedFieldSizes(): void
@@ -1172,6 +1178,11 @@ class ModelSchemaCheckCommand extends Command
         foreach ($modelFiles as $file) {
             if ($file->getExtension() === 'php') {
                 $content = file_get_contents($file->getPathname());
+
+                if ($content === false) {
+                    continue; // Skip files that cannot be read
+                }
+
                 $className = pathinfo($file->getFilename(), PATHINFO_FILENAME);
 
                 // Check for encrypted casts
@@ -1231,6 +1242,11 @@ class ModelSchemaCheckCommand extends Command
         foreach ($controllerFiles as $file) {
             if ($file->getExtension() === 'php') {
                 $content = file_get_contents($file->getPathname());
+
+                if ($content === false) {
+                    continue; // Skip files that cannot be read
+                }
+
                 $className = pathinfo($file->getFilename(), PATHINFO_FILENAME);
 
                 // Check for direct encryption in controllers (security risk)
@@ -1292,6 +1308,11 @@ class ModelSchemaCheckCommand extends Command
         foreach ($viewFiles as $file) {
             if (in_array($file->getExtension(), ['blade.php', 'php'])) {
                 $content = file_get_contents($file->getPathname());
+
+                if ($content === false) {
+                    continue; // Skip files that cannot be read
+                }
+
                 $relativePath = str_replace(resource_path('views') . '/', '', $file->getPathname());
 
                 // Check for decrypt calls in views (major security issue)
@@ -1771,7 +1792,13 @@ return new class extends Migration
         $existingFixes = $this->loadAppliedFixes();
         $allFixes = array_merge($existingFixes, $fixes);
 
-        File::put($filepath, json_encode($allFixes, JSON_PRETTY_PRINT));
+        $jsonContent = json_encode($allFixes, JSON_PRETTY_PRINT);
+        if ($jsonContent === false) {
+            $this->error('Failed to encode applied fixes to JSON');
+            return;
+        }
+
+        File::put($filepath, $jsonContent);
     }
 
     protected function loadAppliedFixes(): array

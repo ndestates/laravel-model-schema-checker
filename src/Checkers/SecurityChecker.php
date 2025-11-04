@@ -188,6 +188,10 @@ class SecurityChecker extends BaseChecker
             if (str_ends_with($file, '.blade.php')) {
                 $content = file_get_contents($file);
 
+                if ($content === false) {
+                    continue; // Skip files that cannot be read
+                }
+
                 // Check for forms without CSRF tokens
                 if (preg_match_all('/<form[^>]*>/i', $content, $matches)) {
                     foreach ($matches[0] as $formTag) {
@@ -215,6 +219,10 @@ class SecurityChecker extends BaseChecker
             if (str_ends_with($file, '.blade.php')) {
                 $content = file_get_contents($file);
 
+                if ($content === false) {
+                    continue; // Skip files that cannot be read
+                }
+
                 // Check for unescaped output that could lead to XSS
                 if (preg_match_all('/\{\{\{\s*\$[^}]+\s*\}\}\}/', $content, $matches)) {
                     foreach ($matches[0] as $match) {
@@ -237,6 +245,10 @@ class SecurityChecker extends BaseChecker
             foreach ($controllerFiles as $file) {
                 if (pathinfo($file, PATHINFO_EXTENSION) === 'php') {
                     $content = file_get_contents($file);
+
+                    if ($content === false) {
+                        continue; // Skip files that cannot be read
+                    }
 
                     // Check for raw DB::raw(), DB::select(), etc.
                     $rawQueryPatterns = [
@@ -276,6 +288,10 @@ class SecurityChecker extends BaseChecker
                 if (pathinfo($file, PATHINFO_EXTENSION) === 'php') {
                     $content = file_get_contents($file);
 
+                    if ($content === false) {
+                        continue; // Skip files that cannot be read
+                    }
+
                     // Check for raw queries in model methods
                     if (preg_match_all('/\bselect\b.*\bwhere\b.*[\'"]\s*\.\s*\$/i', $content, $matches, PREG_OFFSET_CAPTURE)) {
                         foreach ($matches[0] as $match) {
@@ -306,6 +322,10 @@ class SecurityChecker extends BaseChecker
                 foreach ($files as $file) {
                     if (pathinfo($file, PATHINFO_EXTENSION) === 'php') {
                         $content = file_get_contents($file);
+
+                        if ($content === false) {
+                            continue; // Skip files that cannot be read
+                        }
 
                         // Check for direct file path usage without validation
                         $fileOpPatterns = [
@@ -346,6 +366,10 @@ class SecurityChecker extends BaseChecker
             foreach ($controllerFiles as $file) {
                 if (pathinfo($file, PATHINFO_EXTENSION) === 'php') {
                     $content = file_get_contents($file);
+
+                    if ($content === false) {
+                        continue; // Skip files that cannot be read
+                    }
 
                     // Check for file upload handling
                     if (preg_match('/\$request->file\(|\$_FILES/', $content)) {

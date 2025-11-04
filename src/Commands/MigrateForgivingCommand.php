@@ -269,7 +269,13 @@ class MigrateForgivingCommand extends Command
             ]
         ];
 
-        File::put($reportPath, json_encode($reportData, JSON_PRETTY_PRINT));
+        $jsonContent = json_encode($reportData, JSON_PRETTY_PRINT);
+        if ($jsonContent === false) {
+            $this->error('Failed to encode report data to JSON');
+            return;
+        }
+
+        File::put($reportPath, $jsonContent);
         $this->info('💾 Report saved to: ' . $reportPath);
     }
 
@@ -506,7 +512,6 @@ class MigrateForgivingCommand extends Command
                 $column = $matches[2];
                 $length = $matches[3];
                 $fixed = "\$table->{$method}('{$column}', {$length})";
-
                 return str_replace($malformed, $fixed, $content);
             }
         }

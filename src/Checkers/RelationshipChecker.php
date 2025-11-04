@@ -57,6 +57,10 @@ class RelationshipChecker extends BaseChecker
             $reflection = new \ReflectionClass($className);
             $content = file_get_contents($file->getPathname());
 
+            if ($content === false) {
+                return; // Skip files that cannot be read
+            }
+
             // Check for relationship methods
             $this->checkRelationshipMethods($reflection, $content, $file->getPathname());
 

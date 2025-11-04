@@ -73,6 +73,10 @@ class ValidationChecker extends BaseChecker
             $tableName = $model->getTable();
             $content = file_get_contents($file->getPathname());
 
+            if ($content === false) {
+                return; // Skip files that cannot be read
+            }
+
             // Check if model has validation rules
             if (preg_match('/public static \$rules\s*=\s*\[([^\]]+)\]/s', $content, $matches)) {
                 $rulesContent = $matches[1];
@@ -177,6 +181,10 @@ class ValidationChecker extends BaseChecker
             if ($file->getExtension() === 'php') {
                 $content = file_get_contents($file->getPathname());
 
+                if ($content === false) {
+                    continue; // Skip files that cannot be read
+                }
+
                 // Check if Form Request has rules method
                 if (!preg_match('/public function rules\(\)/', $content)) {
                     $this->addIssue('validation', 'missing_rules_method', [
@@ -209,6 +217,10 @@ class ValidationChecker extends BaseChecker
         foreach ($controllerFiles as $file) {
             if ($file->getExtension() === 'php') {
                 $content = file_get_contents($file->getPathname());
+
+                if ($content === false) {
+                    continue; // Skip files that cannot be read
+                }
 
                 // Check for inline validation that should be moved to Form Requests
                 if (preg_match_all('/\$request->validate\(/', $content, $matches, PREG_OFFSET_CAPTURE)) {
