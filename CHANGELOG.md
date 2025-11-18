@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.2] - 2025-11-18
+
+### 🐛 **Bug Fixes**
+
+#### **Enhanced Migration Filename Validation**
+- **Added support for sequence_timestamp format** (e.g., `000068_162313`)
+- **Updated regex patterns** to handle `(\d{6,8}|\d{6}_\d{6})` timestamp formats
+- **Comprehensive format support**: 6-digit, 8-digit, and sequence_timestamp formats
+- **Added test coverage** for sequence_timestamp validation
+- **Improved error messages** for better debugging
+
+**Files Changed:**
+- `src/Checkers/MigrationChecker.php` - Enhanced naming validation regex
+- `src/Services/MigrationCleanup.php` - Updated migration name extraction
+- `src/Services/MigrationGenerator.php` - Updated migration parsing logic
+- `tests/MigrationCheckerTest.php` - Added test for sequence_timestamp format
+- `composer.json` - Removed version field for Packagist compatibility
+
+**Issue:** Migration files with sequence_timestamp format like `2025_10_30_000068_162313_fix_table.php` were incorrectly flagged as invalid.
+
 ## [3.0.1] - 2025-11-18
 
 ### 🐛 **Bug Fixes**
