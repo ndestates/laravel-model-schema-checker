@@ -44,6 +44,10 @@ class ModelSchemaCheckCommand extends Command
                             {--check-controllers-exclude=* : Exclude specific controller files from checks (can be used multiple times)}
                             {--check-migrations-quality : Check migration file quality and best practices}
                             {--check-migrations-quality-exclude=* : Exclude specific migration files from quality checks (can be used multiple times)}
+                            {--analyze-migrations : Analyze migration criticality and data mapping requirements}
+                            {--create-backup : Create database backup before migration operations}
+                            {--map-data : Create data mapping strategy for safe migration execution}
+                            {--execute-mapping : Execute data mapping and database recreation}
                             {--check-laravel-forms : Check Blade templates and Livewire forms}
                             {--check-encrypted-fields : Check encrypted fields in database, models, controllers, and views}
                             {--sync-migrations : Generate fresh migrations from database schema}
@@ -158,6 +162,22 @@ class ModelSchemaCheckCommand extends Command
 
         if ($this->option('check-migrations-quality')) {
             return $this->handleCheckMigrationsQuality();
+        }
+
+        if ($this->option('analyze-migrations')) {
+            return $this->handleAnalyzeMigrations();
+        }
+
+        if ($this->option('create-backup')) {
+            return $this->handleCreateBackup();
+        }
+
+        if ($this->option('map-data')) {
+            return $this->handleMapData();
+        }
+
+        if ($this->option('execute-mapping')) {
+            return $this->handleExecuteMapping();
         }
 
         if ($this->option('check-laravel-forms')) {
@@ -341,6 +361,11 @@ class ModelSchemaCheckCommand extends Command
             return Command::FAILURE;
         }
 
+        // Enable criticality analysis if requested
+        if ($this->option('analyze-migrations')) {
+            $checker->setConfig(['enable_criticality_analysis' => true]);
+        }
+
         $issues = $checker->check();
         $this->issueManager->addIssues($issues);
 
@@ -475,6 +500,170 @@ class ModelSchemaCheckCommand extends Command
         $this->displayResults();
 
         return $this->issueManager->hasIssues() ? Command::FAILURE : Command::SUCCESS;
+    }
+
+    protected function handleAnalyzeMigrations(): int
+    {
+        $this->info('🔍 Analyzing migration criticality and data mapping requirements...');
+
+        $migrationPath = database_path('migrations');
+
+        if (!file_exists($migrationPath)) {
+            $this->error("Migrations directory not found: {$migrationPath}");
+            return Command::FAILURE;
+        }
+
+        $analyzer = new \NDEstates\LaravelModelSchemaChecker\Services\MigrationCriticalityAnalyzer();
+        $analysis = $analyzer->analyzeMigrations($migrationPath);
+
+        if (isset($analysis['error'])) {
+            $this->error("Analysis failed: {$analysis['error']}");
+            return Command::FAILURE;
+        }
+
+        $this->displayMigrationAnalysis($analysis);
+
+        return Command::SUCCESS;
+    }
+
+    protected function handleCreateBackup(): int
+    {
+        $this->info('💾 Creating comprehensive database backup...');
+
+        try {
+            $mapper = new \NDEstates\LaravelModelSchemaChecker\Services\MigrationDataMapper();
+            $backup = $mapper->createBackupWithMetadata();
+
+            $this->info("✅ Backup created successfully!");
+            $this->line("📁 Backup ID: {$backup['backup_id']}");
+            $this->line("📂 Path: {$backup['path']}");
+            $this->line("🗄️  Tables backed up: {$backup['tables_backed_up']}");
+
+            return Command::SUCCESS;
+        } catch (\Exception $e) {
+            $this->error("Backup failed: {$e->getMessage()}");
+            return Command::FAILURE;
+        }
+    }
+
+    protected function handleMapData(): int
+    {
+        $this->info('🔄 Creating data mapping strategy...');
+
+        $migrationPath = database_path('migrations');
+
+        // First analyze migrations
+        $analyzer = new \NDEstates\LaravelModelSchemaChecker\Services\MigrationCriticalityAnalyzer();
+        $analysis = $analyzer->analyzeMigrations($migrationPath);
+
+        if (isset($analysis['error'])) {
+            $this->error("Analysis failed: {$analysis['error']}");
+            return Command::FAILURE;
+        }
+
+        // Create backup if not exists
+        $mapper = new \NDEstates\LaravelModelSchemaChecker\Services\MigrationDataMapper();
+        $backup = $mapper->createBackupWithMetadata();
+
+        // Create mapping strategy
+        $strategy = $mapper->createDataMappingStrategy($analysis, $backup['backup_id']);
+
+        $this->displayDataMappingStrategy($strategy);
+
+        return Command::SUCCESS;
+    }
+
+    protected function handleExecuteMapping(): int
+    {
+        $this->warn('⚠️  EXECUTING DATA MAPPING - This will recreate the database!');
+        $this->warn('Make sure you have a complete backup before proceeding.');
+
+        if (!$this->confirm('Are you sure you want to proceed with data mapping execution?', false)) {
+            $this->info('Operation cancelled.');
+            return Command::SUCCESS;
+        }
+
+        $this->info('🔄 Executing data mapping and database recreation...');
+
+        try {
+            // This would need the strategy from a previous mapping operation
+            // For now, we'll implement a basic version
+            $this->error('Execute mapping functionality is not yet fully implemented.');
+            $this->info('Please use --analyze-migrations and --map-data first to create a strategy.');
+
+            return Command::SUCCESS;
+        } catch (\Exception $e) {
+            $this->error("Data mapping execution failed: {$e->getMessage()}");
+            return Command::FAILURE;
+        }
+    }
+
+    protected function displayMigrationAnalysis(array $analysis): void
+    {
+        $this->newLine();
+        $this->info("📊 Migration Analysis Results");
+        $this->info("============================");
+
+        $this->line("📁 Total migrations: {$analysis['migration_count']}");
+        $this->line("⚠️  Issues found: {$analysis['issues_found']}");
+        $this->line("🔄 Data mapping required: " . ($analysis['data_mapping_required'] ? 'YES' : 'NO'));
+        $this->line("🚨 Rerun risk level: {$analysis['rerun_risk_level']}");
+
+        // Display criticality breakdown
+        $this->newLine();
+        $this->info("Criticality Breakdown:");
+        $levels = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'LEAST'];
+        foreach ($levels as $level) {
+            $count = count($analysis['criticality'][$level] ?? []);
+            if ($count > 0) {
+                $icon = match($level) {
+                    'CRITICAL' => '🚨',
+                    'HIGH' => '⚠️',
+                    'MEDIUM' => 'ℹ️',
+                    'LOW' => '✅',
+                    'LEAST' => '✅',
+                };
+                $this->line("  {$icon} {$level}: {$count} issues");
+            }
+        }
+
+        // Display recommendations
+        if (!empty($analysis['recommendations'])) {
+            $this->newLine();
+            $this->info("💡 Recommendations:");
+            foreach ($analysis['recommendations'] as $rec) {
+                $this->line("  • [{$rec['priority']}] {$rec['action']}");
+                $this->line("    {$rec['reason']}");
+            }
+        }
+    }
+
+    protected function displayDataMappingStrategy(array $strategy): void
+    {
+        $this->newLine();
+        $this->info("🔄 Data Mapping Strategy");
+        $this->info("=======================");
+
+        $this->line("📁 Backup ID: {$strategy['backup_id']}");
+        $this->line("🔄 Mappings required: " . ($strategy['mappings_required'] ? 'YES' : 'NO'));
+
+        // Display risk assessment
+        $risks = $strategy['risk_assessment'];
+        $this->newLine();
+        $this->info("Risk Assessment:");
+        $this->line("🎯 Overall risk: {$risks['overall_risk']}");
+        $this->line("💥 Data loss potential: " . ($risks['data_loss_potential'] ? 'YES' : 'NO'));
+        $this->line("🔗 Constraint violations: " . ($risks['constraint_violations'] ? 'YES' : 'NO'));
+        $this->line("⚡ Performance impact: " . ($risks['performance_impact'] ? 'YES' : 'NO'));
+        $this->line("⏱️  Estimated migration time: {$risks['estimated_migration_time']}");
+
+        if (!empty($strategy['data_transformations'])) {
+            $this->newLine();
+            $this->info("Data Transformations Required:");
+            foreach ($strategy['data_transformations'] as $transform) {
+                $this->line("  • {$transform['type']}: {$transform['action']} ({$transform['reason']})");
+            }
+        }
     }
 
     protected function handleCheckLaravelForms(): int

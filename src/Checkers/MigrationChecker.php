@@ -4,6 +4,7 @@ namespace NDEstates\LaravelModelSchemaChecker\Checkers;
 
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
+use NDEstates\LaravelModelSchemaChecker\Services\MigrationCriticalityAnalyzer;
 
 class MigrationChecker extends BaseChecker
 {
@@ -110,6 +111,11 @@ class MigrationChecker extends BaseChecker
 
         // Check migration naming conventions
         $this->checkMigrationNaming($migrationFiles);
+
+        // Perform criticality analysis if requested
+        if ($this->config['enable_criticality_analysis'] ?? false) {
+            $this->performCriticalityAnalysis($migrationPath);
+        }
 
         // Display results summary
         $this->displayResultsSummary();
@@ -371,5 +377,102 @@ class MigrationChecker extends BaseChecker
         }
 
         $this->newLine();
+    }
+
+    /**
+     * Perform criticality analysis of migrations
+     */
+    protected function performCriticalityAnalysis(string $migrationPath): void
+    {
+        $this->info('');
+        $this->info('🔍 Migration Criticality Analysis');
+        $this->info('==============================');
+
+        $analyzer = new MigrationCriticalityAnalyzer();
+        $analysis = $analyzer->analyzeMigrations($migrationPath);
+
+        if (isset($analysis['error'])) {
+            $this->error("Criticality analysis failed: {$analysis['error']}");
+            return;
+        }
+
+        // Display criticality levels from CRITICAL to LEAST
+        $this->displayCriticalityResults($analysis);
+
+        // Display risk assessment
+        $this->displayRiskAssessment($analysis);
+
+        // Display recommendations
+        $this->displayRecommendations($analysis);
+    }
+
+    /**
+     * Display criticality analysis results
+     */
+    protected function displayCriticalityResults(array $analysis): void
+    {
+        $levels = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'LEAST'];
+
+        foreach ($levels as $level) {
+            $issues = $analysis['criticality'][$level] ?? [];
+
+            if (!empty($issues)) {
+                $this->newLine();
+                $this->error("🚨 {$level} ({count($issues)} issues):");
+
+                foreach ($issues as $issue) {
+                    $this->line("  • {$issue['description']}");
+                }
+            }
+        }
+    }
+
+    /**
+     * Display risk assessment
+     */
+    protected function displayRiskAssessment(array $analysis): void
+    {
+        $this->newLine();
+        $this->warn("⚠️  Database Rerun Risk Level: {$analysis['rerun_risk_level']}");
+
+        if ($analysis['rerun_risk_level'] === 'EXTREME') {
+            $this->error("🚫 DO NOT rerun migrations - critical issues detected!");
+        } elseif ($analysis['rerun_risk_level'] === 'HIGH') {
+            $this->error("⚠️  HIGH RISK - backup required before any migration changes!");
+        } elseif ($analysis['rerun_risk_level'] === 'MEDIUM') {
+            $this->warn("⚠️  MEDIUM RISK - review issues before proceeding");
+        }
+    }
+
+    /**
+     * Display recommendations
+     */
+    protected function displayRecommendations(array $analysis): void
+    {
+        if (empty($analysis['recommendations'])) {
+            return;
+        }
+
+        $this->newLine();
+        $this->info("💡 Recommendations:");
+
+        foreach ($analysis['recommendations'] as $rec) {
+            $priorityIcon = match($rec['priority']) {
+                'IMMEDIATE' => '🚨',
+                'HIGH' => '⚠️',
+                'MEDIUM' => 'ℹ️',
+                'LOW' => '✅',
+                default => '•'
+            };
+
+            $this->line("  {$priorityIcon} [{$rec['priority']}] {$rec['action']}");
+            $this->line("    Reason: {$rec['reason']}");
+        }
+
+        if ($analysis['data_mapping_required']) {
+            $this->newLine();
+            $this->warn("🔄 Data mapping required for safe migration execution");
+            $this->info("  Consider using: --analyze-migrations --create-backup --map-data");
+        }
     }
 }
