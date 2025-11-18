@@ -350,6 +350,29 @@ class MigrationCheckerTest extends TestCase
     }
 
     /**
+     * Test migration naming convention accepts 8-digit timestamps (with microseconds)
+     * Assertions: assertCount
+     * Validates that migrations with microseconds in filename are accepted
+     */
+    public function test_accepts_migration_names_with_microseconds()
+    {
+        // Create migration with 8-digit timestamp (including microseconds)
+        file_put_contents(
+            $this->migrationDir . '/2025_10_13_07512800_create_account_statements_table.php',
+            '<?php class CreateAccountStatementsTable extends Migration {}'
+        );
+
+        $issues = $this->checker->check();
+
+        // Should NOT detect invalid migration name for 8-digit timestamps
+        $namingIssues = array_filter($issues, function ($issue) {
+            return $issue['type'] === 'invalid_migration_name';
+        });
+
+        $this->assertCount(0, $namingIssues);
+    }
+
+    /**
      * Test validation of migration descriptions
      * Assertions: assertCount, assertEquals
      * Validates descriptive migration names

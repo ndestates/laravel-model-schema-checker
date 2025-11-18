@@ -1,5 +1,20 @@
 # Laravel Model Schema Checker v3.0.0 - Major Update
 
+## 🚀 **Version 3.0.1 - Bug Fix Release**
+
+### **🐛 Bug Fixes**
+
+#### **Migration Filename Validation**
+- **Fixed regex pattern** to accept 8-digit timestamps with microseconds
+- **Updated validation logic** in `MigrationChecker`, `MigrationCleanup`, and `MigrationGenerator`
+- **Enhanced error message** to indicate microseconds are optional
+- **Added test coverage** for 8-digit timestamp validation
+- **Backward compatible** - still accepts standard 6-digit timestamps
+
+**Issue:** Migration files with timestamps like `2025_10_13_07512800_create_table.php` were incorrectly flagged as invalid.
+
+---
+
 ## 🚀 **Version 3.0.0 - Web Dashboard & Production Safety**
 
 ### **Major New Features**

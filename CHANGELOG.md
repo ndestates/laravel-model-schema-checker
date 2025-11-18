@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.1] - 2025-11-18
+
+### 🐛 **Bug Fixes**
+
+#### **Migration Filename Validation**
+- **Fixed regex pattern** to accept 8-digit timestamps with microseconds
+- **Updated validation logic** in `MigrationChecker`, `MigrationCleanup`, and `MigrationGenerator`
+- **Enhanced error message** to indicate microseconds are optional
+- **Added test coverage** for 8-digit timestamp validation
+- **Backward compatible** - still accepts standard 6-digit timestamps
+
+**Files Changed:**
+- `src/Checkers/MigrationChecker.php` - Updated naming validation regex
+- `src/Services/MigrationCleanup.php` - Updated migration name extraction
+- `src/Services/MigrationGenerator.php` - Updated migration parsing logic
+- `tests/MigrationCheckerTest.php` - Added test for microsecond timestamps
+
+**Issue:** Migration files with timestamps like `2025_10_13_07512800_create_table.php` were incorrectly flagged as invalid.
+
 ## [3.0.0] - 2025-10-30
 
 ### 🚀 **Major Features - Web Dashboard & Production Safety**

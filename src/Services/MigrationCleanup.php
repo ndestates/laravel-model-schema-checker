@@ -166,8 +166,8 @@ class MigrationCleanup
     protected function migrationHasBeenRun(string $filename): bool
     {
         // Extract migration name from filename
-        // Format: YYYY_MM_DD_HHMMSS_migration_name.php
-        if (preg_match('/^\d{4}_\d{2}_\d{2}_\d{6}_(.+)\.php$/', $filename, $matches)) {
+        // Format: YYYY_MM_DD_HHMMSS[_microseconds]_migration_name.php
+        if (preg_match('/^\d{4}_\d{2}_\d{2}_\d{6,8}_(.+)\.php$/', $filename, $matches)) {
             $migrationName = $matches[1];
 
             $count = DB::table('migrations')
