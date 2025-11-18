@@ -1,29 +1,34 @@
 <?php
 
-describe('Controller Method Logic Validation', function () {
+namespace NDEstates\LaravelModelSchemaChecker\Tests\Feature;
 
-    describe('getCurrentUserId Method Logic', function () {
+use PHPUnit\Framework\TestCase;
 
-        it('simulates getCurrentUserId method implementation', function () {
-            // This tests the actual logic from the controller method
-            function mockGetCurrentUserId($isAuthenticated, $authId, $environment) {
-                if ($isAuthenticated && $authId) {
-                    return $authId;
-                }
+class ControllerTest extends TestCase
+{
+    // getCurrentUserId Method Logic
 
-                // In development environments, use a guest user ID of 1
-                // In production, this won't be reached due to auth middleware
-                return 1;
+    public function testSimulatesGetCurrentUserIdMethodImplementation()
+    {
+        // This tests the actual logic from the controller method
+        $mockGetCurrentUserId = function ($isAuthenticated, $authId, $environment) {
+            if ($isAuthenticated && $authId) {
+                return $authId;
             }
 
-            // Test scenarios
-            expect(mockGetCurrentUserId(true, 123, 'production'))->toBe(123);
-            expect(mockGetCurrentUserId(true, 456, 'development'))->toBe(456);
-            expect(mockGetCurrentUserId(false, null, 'production'))->toBe(1, 'Should return guest ID even in production for fallback');
-            expect(mockGetCurrentUserId(false, null, 'development'))->toBe(1);
-            expect(mockGetCurrentUserId(false, null, 'local'))->toBe(1);
-            expect(mockGetCurrentUserId(false, null, 'testing'))->toBe(1);
-        });
+            // In development environments, use a guest user ID of 1
+            // In production, this won't be reached due to auth middleware
+            return 1;
+        };
+
+        // Test scenarios
+        $this->assertEquals(123, $mockGetCurrentUserId(true, 123, 'production'));
+        $this->assertEquals(456, $mockGetCurrentUserId(true, 456, 'development'));
+        $this->assertEquals(1, $mockGetCurrentUserId(false, null, 'production'), 'Should return guest ID even in production for fallback');
+        $this->assertEquals(1, $mockGetCurrentUserId(false, null, 'development'));
+        $this->assertEquals(1, $mockGetCurrentUserId(false, null, 'local'));
+        $this->assertEquals(1, $mockGetCurrentUserId(false, null, 'testing'));
+    }
 
         it('validates edge cases in getCurrentUserId logic', function () {
             $mockFunction = function($isAuthenticated, $authId, $environment) {

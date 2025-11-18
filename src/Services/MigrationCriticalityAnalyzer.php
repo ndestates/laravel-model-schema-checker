@@ -140,18 +140,65 @@ class MigrationCriticalityAnalyzer
 
     protected function hasSyntaxErrors(string $content): bool
     {
-        // Basic syntax check - look for common syntax issues
-        $patterns = [
-            '/\bfunction\s+\w+\s*\([^)]*$/', // Unclosed function parameters
-            '/\bclass\s+\w+\s*{[^}]*$/', // Unclosed class
-            '/\bif\s*\([^)]*$/', // Unclosed if statement
-            '/\bforeach\s*\([^)]*$/', // Unclosed foreach
-        ];
+        // Try to parse the PHP code to detect syntax errors
+        try {
+            // Remove the opening <?php tag if present for token parsing
+            $code = preg_replace('/^<\?php\s*/', '', $content);
 
-        foreach ($patterns as $pattern) {
-            if (preg_match($pattern, $content)) {
+            // Use token_get_all to check for basic syntax issues
+            $tokens = token_get_all('<?php ' . $code);
+
+            // Basic checks for common syntax issues
+            $braceCount = 0;
+            $parenCount = 0;
+            $bracketCount = 0;
+
+            foreach ($tokens as $token) {
+                if (is_array($token)) {
+                    $tokenType = $token[0];
+                    // Skip comments and whitespace
+                    if (in_array($tokenType, [T_COMMENT, T_DOC_COMMENT, T_WHITESPACE])) {
+                        continue;
+                    }
+                } else {
+                    switch ($token) {
+                        case '{':
+                            $braceCount++;
+                            break;
+                        case '}':
+                            $braceCount--;
+                            if ($braceCount < 0) return true; // Unmatched closing brace
+                            break;
+                        case '(':
+                            $parenCount++;
+                            break;
+                        case ')':
+                            $parenCount--;
+                            if ($parenCount < 0) return true; // Unmatched closing parenthesis
+                            break;
+                        case '[':
+                            $bracketCount++;
+                            break;
+                        case ']':
+                            $bracketCount--;
+                            if ($bracketCount < 0) return true; // Unmatched closing bracket
+                            break;
+                    }
+                }
+            }
+
+            // Check for mismatched braces, parentheses, or brackets
+            if ($braceCount !== 0 || $parenCount !== 0 || $bracketCount !== 0) {
                 return true;
             }
+
+            // Check for missing semicolons on statements (basic check)
+            if (preg_match('/->\w+\s*\([^)]*\)\s*[^{};]\s*$/m', $content)) {
+                return true; // Method call not followed by semicolon, brace, or other statement terminator
+            }
+
+        } catch (\Throwable $e) {
+            return true; // If token parsing fails, assume syntax error
         }
 
         return false;
@@ -198,9 +245,14 @@ class MigrationCriticalityAnalyzer
         // Check for foreign keys without proper constraint naming or cascade rules
         $issues = [];
 
-        // Foreign key without constraint name
+        // Foreign key using foreign() method without constraint name
         if (preg_match('/->foreign\s*\(\s*[^)]+\s*\)\s*->references\s*\(\s*[^)]+\s*\)\s*->on\s*\(\s*[^)]+\s*\)\s*;/', $content)) {
             $issues[] = 'unnamed_foreign_key';
+        }
+
+        // Foreign key using foreignId()->constrained() without cascade rules
+        if (preg_match('/->foreignId\s*\(\s*[^)]+\s*\)\s*->constrained\s*\(\s*\)\s*(?!.*->onDelete|->onUpdate|->cascadeOnDelete|->cascadeOnUpdate)/s', $content)) {
+            $issues[] = 'missing_cascade_rules';
         }
 
         // Foreign key without cascade/delete rules that might cause constraint violations
@@ -214,8 +266,12 @@ class MigrationCriticalityAnalyzer
     protected function hasMissingIndexes(string $content): bool
     {
         // Look for foreign key constraints that might not have corresponding indexes
-        return preg_match('/->foreign\s*\(\s*[^)]+\s*\)\s*->references\s*\(\s*[^)]+\s*\)\s*->on\s*\(\s*[^)]+\s*\)/', $content) &&
-               !preg_match('/->index\s*\(\s*[^)]*\b(id|.+_id)\b[^)]*\)/', $content);
+        $hasForeignKey = preg_match('/->foreign\s*\(\s*[^)]+\s*\)\s*->references\s*\(\s*[^)]+\s*\)\s*->on\s*\(\s*[^)]+\s*\)/', $content) ||
+                         preg_match('/->foreignId\s*\(\s*[^)]+\s*\)\s*->constrained\s*\(/', $content);
+
+        $hasIndex = preg_match('/->index\s*\(\s*[^)]*\b(id|.+_id)\b[^)]*\)/', $content);
+
+        return $hasForeignKey && !$hasIndex;
     }
 
     protected function hasNamingConventionIssues(string $fileName): bool
@@ -268,7 +324,7 @@ class MigrationCriticalityAnalyzer
             $content = file_get_contents($filePath);
 
             // Track table creation/modification operations
-            if (preg_match_all('/(create|table|alter)\s*\(\s*[\'"]([^\'"]+)[\'"]\s*\)/i', $content, $matches)) {
+            if (preg_match_all('/Schema::(create|table|alter)\s*\(\s*[\'"]([^\'"]+)[\'"]\s*,/i', $content, $matches)) {
                 foreach ($matches[2] as $table) {
                     if (!isset($tableOperations[$table])) {
                         $tableOperations[$table] = [];
