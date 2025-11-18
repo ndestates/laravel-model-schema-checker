@@ -373,6 +373,29 @@ class MigrationCheckerTest extends TestCase
     }
 
     /**
+     * Test migration naming convention accepts sequence_timestamp format
+     * Assertions: assertCount
+     * Validates that migrations with sequence_timestamp format are accepted
+     */
+    public function test_accepts_migration_names_with_sequence_timestamp()
+    {
+        // Create migration with sequence_timestamp format
+        file_put_contents(
+            $this->migrationDir . '/2025_10_30_000068_162313_fix_sales_applicant_roles_constraint_violations.php',
+            '<?php class FixSalesApplicantRolesConstraintViolations extends Migration {}'
+        );
+
+        $issues = $this->checker->check();
+
+        // Should NOT detect invalid migration name for sequence_timestamp format
+        $namingIssues = array_filter($issues, function ($issue) {
+            return $issue['type'] === 'invalid_migration_name';
+        });
+
+        $this->assertCount(0, $namingIssues);
+    }
+
+    /**
      * Test validation of migration descriptions
      * Assertions: assertCount, assertEquals
      * Validates descriptive migration names

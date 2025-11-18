@@ -274,8 +274,8 @@ return new class extends Migration
     protected function parseMigrationFile(string $filename, string $content): void
     {
         // Extract migration name from filename
-        // Format: YYYY_MM_DD_HHMMSS[_microseconds]_create_table_name_table.php
-        $pattern = '/\d{4}_\d{2}_\d{2}_\d{6,8}_(create_\w+_table)\.php/';
+        // Format: YYYY_MM_DD_HHMMSS[_microseconds|_sequence]_create_table_name_table.php
+        $pattern = '/\d{4}_\d{2}_\d{2}_(\d{6,8}|\d{6}_\d{6})_(create_\w+_table)\.php/';
         if (preg_match($pattern, $filename, $matches)) {
             $migrationName = $matches[1];
             $this->existingMigrations[$migrationName] = true;

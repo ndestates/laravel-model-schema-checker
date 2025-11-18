@@ -247,17 +247,17 @@ class MigrationChecker extends BaseChecker
             $fileName = is_string($file) ? basename($file) : $file->getFilename();
             $filePath = is_string($file) ? $file : $file->getPathname();
 
-            // Check naming convention: YYYY_MM_DD_HHMMSS_description.php (or with microseconds)
-            if (!preg_match('/^\d{4}_\d{2}_\d{2}_\d{6,8}_[a-z][a-z0-9_]*\.php$/', $fileName)) {
+            // Check naming convention: YYYY_MM_DD_HHMMSS_description.php (or with microseconds or sequence_timestamp)
+            if (!preg_match('/^\d{4}_\d{2}_\d{2}_(\d{6,8}|\d{6}_\d{6})_[a-z][a-z0-9_]*\.php$/', $fileName)) {
                 $this->addIssue('migration', 'invalid_migration_name', [
                     'file' => $filePath,
                     'filename' => $fileName,
-                    'message' => "Migration filename should follow convention: YYYY_MM_DD_HHMMSS[_microseconds]_description.php"
+                    'message' => "Migration filename should follow convention: YYYY_MM_DD_HHMMSS[_microseconds|_sequence]_description.php"
                 ]);
             }
 
             // Check for descriptive names
-            $description = preg_replace('/^\d{4}_\d{2}_\d{2}_\d{6,8}_/', '', $fileName);
+            $description = preg_replace('/^\d{4}_\d{2}_\d{2}_(\d{6,8}|\d{6}_\d{6})_/', '', $fileName);
             if ($description === null) {
                 continue;
             }
