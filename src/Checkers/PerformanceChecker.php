@@ -61,6 +61,7 @@ class PerformanceChecker extends BaseChecker
                     continue; // Skip files that cannot be read
                 }
 
+                /** @var string $content */
                 // Look for loops that access relationships
                 $this->checkLoopsWithRelationships($content, $file->getPathname());
             }
@@ -126,6 +127,7 @@ class PerformanceChecker extends BaseChecker
                     continue; // Skip files that cannot be read
                 }
 
+                /** @var string $content */
                 // Check for queries without eager loading
                 $this->checkQueriesWithoutEagerLoading($content, $file->getPathname());
             }
@@ -241,6 +243,7 @@ class PerformanceChecker extends BaseChecker
                         continue; // Skip files that cannot be read
                     }
 
+                    /** @var string $content */
                     // Check for SELECT * queries
                     $this->checkSelectAllQueries($content, $file->getPathname());
 

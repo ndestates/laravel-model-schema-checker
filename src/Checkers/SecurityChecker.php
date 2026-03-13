@@ -111,20 +111,25 @@ class SecurityChecker extends BaseChecker
     public function check(): array
     {
         $this->info('');
-        $this->info('Checking Security Vulnerabilities');
-        $this->info('=================================');
+        $this->info('🔒 Modern Cybersecurity Essentials Check');
+        $this->info('========================================');
 
-        // Check for CSRF protection in forms
+        // Core Security Checks
         $this->checkCSRFProtection();
-
-        // Check for XSS vulnerabilities
         $this->checkXSSVulnerabilities();
-
-        // Check for SQL injection vulnerabilities
         $this->checkSQLInjectionVulnerabilities();
-
-        // Check for path traversal vulnerabilities
         $this->checkPathTraversalVulnerabilities();
+
+        // Modern Cybersecurity Essentials
+        $this->checkMassAssignmentProtection();
+        $this->checkAuthenticationBypass();
+        $this->checkDataExposure();
+        $this->checkSecureHeaders();
+        $this->checkSecureConfiguration();
+        $this->checkDependencySecurity();
+        $this->checkSecureCodingPractices();
+        $this->checkInputValidation();
+        $this->checkErrorHandlingSecurity();
 
         return $this->issues;
     }
@@ -397,5 +402,367 @@ class SecurityChecker extends BaseChecker
     protected function getLineNumberFromString(string $content, int $offset): int
     {
         return substr_count(substr($content, 0, $offset), "\n") + 1;
+    }
+
+    // ===== MODERN CYBERSECURITY ESSENTIALS =====
+
+    protected function checkMassAssignmentProtection(): void
+    {
+        $this->info('🔒 Checking Mass Assignment Protection...');
+
+        if (!file_exists($this->modelPath)) {
+            return;
+        }
+
+        $modelFiles = $this->getAllFiles($this->modelPath);
+        foreach ($modelFiles as $file) {
+            if (str_ends_with($file, '.php')) {
+                $content = file_get_contents($file);
+
+                if ($content === false) {
+                    continue;
+                }
+
+                // Check for unguarded models (critical security risk)
+                if (preg_match('/public\s+static\s+function\s+unguard\s*\(\s*\)/', $content)) {
+                    $this->addIssue('security', 'mass_assignment_unguarded', [
+                        'file' => $file,
+                        'severity' => 'critical',
+                        'message' => "Model uses unguarded() - allows mass assignment of ALL attributes. This is a critical security vulnerability."
+                    ]);
+                }
+
+                // Check for missing fillable/guarded properties
+                if (!preg_match('/protected\s+\$fillable\s*=|protected\s+\$guarded\s*=/', $content)) {
+                    $this->addIssue('security', 'mass_assignment_unprotected', [
+                        'file' => $file,
+                        'severity' => 'high',
+                        'message' => "Model has no fillable or guarded properties defined. This allows mass assignment vulnerabilities."
+                    ]);
+                }
+            }
+        }
+    }
+
+    protected function checkAuthenticationBypass(): void
+    {
+        $this->info('🔐 Checking Authentication Bypass Vulnerabilities...');
+
+        if (!file_exists($this->controllerPath)) {
+            return;
+        }
+
+        $controllerFiles = $this->getAllFiles($this->controllerPath);
+        foreach ($controllerFiles as $file) {
+            if (str_ends_with($file, '.php')) {
+                $content = file_get_contents($file);
+
+                if ($content === false) {
+                    continue;
+                }
+
+                // Check for missing authentication middleware
+                if (!preg_match('/middleware\s*\(\s*[\'"]auth[\'"]|auth\s*middleware/', $content)) {
+                    // Look for sensitive operations without auth checks
+                    if (preg_match('/public\s+function\s+(store|update|destroy|delete)/', $content)) {
+                        $this->addIssue('security', 'missing_auth_middleware', [
+                            'file' => $file,
+                            'severity' => 'high',
+                            'message' => "Controller method performs sensitive operations without authentication middleware."
+                        ]);
+                    }
+                }
+
+                // Check for authorization bypass (missing policy checks)
+                if (preg_match('/public\s+function\s+(update|destroy|delete)/', $content)) {
+                    if (!preg_match('/authorize\(|can\(|policy\(/', $content)) {
+                        $this->addIssue('security', 'missing_authorization', [
+                            'file' => $file,
+                            'severity' => 'medium',
+                            'message' => "Controller method modifies data without authorization checks."
+                        ]);
+                    }
+                }
+            }
+        }
+    }
+
+    protected function checkDataExposure(): void
+    {
+        $this->info('🛡️  Checking Data Exposure Vulnerabilities...');
+
+        if (!file_exists($this->controllerPath)) {
+            return;
+        }
+
+        $controllerFiles = $this->getAllFiles($this->controllerPath);
+        foreach ($controllerFiles as $file) {
+            if (str_ends_with($file, '.php')) {
+                $content = file_get_contents($file);
+
+                if ($content === false) {
+                    continue;
+                }
+
+                // Check for potential data leaks in error responses
+                if (preg_match('/dd\(|dump\(|var_dump\(/', $content)) {
+                    $this->addIssue('security', 'debug_data_exposure', [
+                        'file' => $file,
+                        'severity' => 'high',
+                        'message' => "Debug functions (dd, dump, var_dump) found in production code - can expose sensitive data."
+                    ]);
+                }
+
+                // Check for sensitive data in logs
+                if (preg_match('/Log::|logger\(\)/', $content)) {
+                    if (preg_match('/password|token|key|secret/i', $content)) {
+                        $this->addIssue('security', 'sensitive_data_logging', [
+                            'file' => $file,
+                            'severity' => 'medium',
+                            'message' => "Potential logging of sensitive data (passwords, tokens, keys)."
+                        ]);
+                    }
+                }
+            }
+        }
+    }
+
+    protected function checkSecureHeaders(): void
+    {
+        $this->info('🛡️  Checking Secure Headers Configuration...');
+
+        // Check for security middleware
+        $middlewarePath = app_path('Http/Middleware');
+        if (file_exists($middlewarePath)) {
+            $middlewareFiles = $this->getAllFiles($middlewarePath);
+
+            $hasSecurityHeaders = false;
+            foreach ($middlewareFiles as $file) {
+                if (str_ends_with($file, '.php')) {
+                    $content = file_get_contents($file);
+
+                    if ($content === false) {
+                        continue;
+                    }
+
+                    if (preg_match('/Content-Security-Policy|X-Frame-Options|X-Content-Type-Options|HSTS/i', $content)) {
+                        $hasSecurityHeaders = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!$hasSecurityHeaders) {
+                $this->addIssue('security', 'missing_security_headers', [
+                    'severity' => 'medium',
+                    'message' => "No security headers middleware detected. Consider implementing CSP, X-Frame-Options, HSTS, and other security headers."
+                ]);
+            }
+        }
+    }
+
+    protected function checkSecureConfiguration(): void
+    {
+        $this->info('⚙️  Checking Secure Configuration...');
+
+        // Check for debug mode in production
+        if (config('app.debug') === true && app()->environment('production')) {
+            $this->addIssue('security', 'debug_enabled_production', [
+                'severity' => 'critical',
+                'message' => "Debug mode is enabled in production environment - exposes sensitive application information."
+            ]);
+        }
+
+        // Check for APP_KEY security
+        $appKey = config('app.key');
+        if (empty($appKey) || strlen($appKey) < 32) {
+            $this->addIssue('security', 'weak_app_key', [
+                'severity' => 'critical',
+                'message' => "APP_KEY is missing or too short. Must be 32+ characters for secure encryption."
+            ]);
+        }
+
+        // Check database credentials exposure
+        $envPath = base_path('.env');
+        if (file_exists($envPath)) {
+            $envContent = file_get_contents($envPath);
+            if ($envContent !== false) {
+                if (preg_match('/DB_PASSWORD\s*=\s*(.+)/', $envContent, $matches)) {
+                    if (strlen($matches[1]) < 8) {
+                        $this->addIssue('security', 'weak_db_password', [
+                            'severity' => 'high',
+                            'message' => "Database password is very short. Use strong, complex passwords."
+                        ]);
+                    }
+                }
+            }
+        }
+    }
+
+    protected function checkDependencySecurity(): void
+    {
+        $this->info('📦 Checking Dependency Security...');
+
+        $composerPath = base_path('composer.json');
+        if (file_exists($composerPath)) {
+            $composerContent = file_get_contents($composerPath);
+            if ($composerContent !== false) {
+                $composerData = json_decode($composerContent, true);
+
+                if ($composerData) {
+                    // Check for known vulnerable packages (basic check)
+                    $vulnerablePackages = [
+                        'laravel/framework' => '10.0', // Example minimum versions
+                        'symfony/http-kernel' => '6.0',
+                    ];
+
+                    foreach ($vulnerablePackages as $package => $minVersion) {
+                        if (isset($composerData['require'][$package])) {
+                            $currentVersion = $composerData['require'][$package];
+                            if (version_compare($currentVersion, $minVersion, '<')) {
+                                $this->addIssue('security', 'outdated_dependency', [
+                                    'severity' => 'medium',
+                                    'package' => $package,
+                                    'current' => $currentVersion,
+                                    'recommended' => $minVersion,
+                                    'message' => "Package {$package} version {$currentVersion} may have security vulnerabilities. Update to {$minVersion}+."
+                                ]);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    protected function checkSecureCodingPractices(): void
+    {
+        $this->info('💻 Checking Secure Coding Practices...');
+
+        $allFiles = array_merge(
+            file_exists($this->controllerPath) ? $this->getAllFiles($this->controllerPath) : [],
+            file_exists($this->modelPath) ? $this->getAllFiles($this->modelPath) : []
+        );
+
+        foreach ($allFiles as $file) {
+            if (str_ends_with($file, '.php')) {
+                $content = file_get_contents($file);
+
+                if ($content === false) {
+                    continue;
+                }
+
+                // Check for eval() usage (critical security risk)
+                if (preg_match('/\beval\s*\(/', $content)) {
+                    $this->addIssue('security', 'dangerous_eval_usage', [
+                        'file' => $file,
+                        'severity' => 'critical',
+                        'message' => "Use of eval() function detected - allows code injection attacks."
+                    ]);
+                }
+
+                // Check for shell execution without proper validation
+                if (preg_match('/exec\(|shell_exec\(|system\(|passthru\(/', $content)) {
+                    $this->addIssue('security', 'unsafe_shell_execution', [
+                        'file' => $file,
+                        'severity' => 'high',
+                        'message' => "Shell execution functions used without proper input validation."
+                    ]);
+                }
+
+                // Check for weak random number generation
+                if (preg_match('/rand\(|mt_rand\(/', $content)) {
+                    if (!preg_match('/openssl_random_pseudo_bytes|random_bytes/', $content)) {
+                        $this->addIssue('security', 'weak_random_generation', [
+                            'file' => $file,
+                            'severity' => 'medium',
+                            'message' => "Using weak random number generation. Consider using random_bytes() or openssl_random_pseudo_bytes()."
+                        ]);
+                    }
+                }
+            }
+        }
+    }
+
+    protected function checkInputValidation(): void
+    {
+        $this->info('✅ Checking Input Validation...');
+
+        if (!file_exists($this->controllerPath)) {
+            return;
+        }
+
+        $controllerFiles = $this->getAllFiles($this->controllerPath);
+        foreach ($controllerFiles as $file) {
+            if (str_ends_with($file, '.php')) {
+                $content = file_get_contents($file);
+
+                if ($content === false) {
+                    continue;
+                }
+
+                // Check for user input usage without validation
+                if (preg_match('/\$request->input\(|\$request->get\(|\$_GET|\$_POST/', $content)) {
+                    if (!preg_match('/validate\(|rules\(|bail\(/', $content)) {
+                        $this->addIssue('security', 'unvalidated_input', [
+                            'file' => $file,
+                            'severity' => 'high',
+                            'message' => "User input used without validation. Implement proper validation rules."
+                        ]);
+                    }
+                }
+
+                // Check for SQL-like user input (potential injection)
+                if (preg_match('/\$request->.*\%|\$request->.*like/i', $content)) {
+                    $this->addIssue('security', 'potential_sql_injection', [
+                        'file' => $file,
+                        'severity' => 'medium',
+                        'message' => "User input used in SQL-like operations. Ensure proper escaping and validation."
+                    ]);
+                }
+            }
+        }
+    }
+
+    protected function checkErrorHandlingSecurity(): void
+    {
+        $this->info('🚨 Checking Error Handling Security...');
+
+        $allFiles = array_merge(
+            file_exists($this->controllerPath) ? $this->getAllFiles($this->controllerPath) : [],
+            file_exists($this->modelPath) ? $this->getAllFiles($this->modelPath) : []
+        );
+
+        foreach ($allFiles as $file) {
+            if (str_ends_with($file, '.php')) {
+                $content = file_get_contents($file);
+
+                if ($content === false) {
+                    continue;
+                }
+
+                // Check for try-catch blocks that might leak sensitive information
+                if (preg_match('/catch\s*\(\s*Exception\s+\$e\s*\)\s*\{/', $content)) {
+                    if (preg_match('/echo\s+\$e|return\s+\$e|\$e->getMessage\(\)/', $content)) {
+                        $this->addIssue('security', 'information_disclosure', [
+                            'file' => $file,
+                            'severity' => 'medium',
+                            'message' => "Exception details exposed to user. Use generic error messages in production."
+                        ]);
+                    }
+                }
+
+                // Check for proper error logging
+                if (preg_match('/catch\s*\(/', $content)) {
+                    if (!preg_match('/Log::|logger\(\)/', $content)) {
+                        $this->addIssue('security', 'missing_error_logging', [
+                            'file' => $file,
+                            'severity' => 'low',
+                            'message' => "Exceptions caught but not logged. Implement proper error logging for debugging."
+                        ]);
+                    }
+                }
+            }
+        }
     }
 }

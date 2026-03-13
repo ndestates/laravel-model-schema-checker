@@ -12,6 +12,7 @@ use NDEstates\LaravelModelSchemaChecker\Checkers\ValidationChecker;
 use NDEstates\LaravelModelSchemaChecker\Checkers\PerformanceChecker;
 use NDEstates\LaravelModelSchemaChecker\Checkers\CodeQualityChecker;
 use NDEstates\LaravelModelSchemaChecker\Checkers\LaravelFormsChecker;
+use NDEstates\LaravelModelSchemaChecker\Checkers\ApiResourceChecker;
 use NDEstates\LaravelModelSchemaChecker\Contracts\CheckerInterface;
 
 class CheckerManager
@@ -19,6 +20,7 @@ class CheckerManager
     protected array $checkers = [];
     protected Command $command;
     protected array $config;
+    protected array $cache = [];
 
     public function __construct(array $config = [], ?string $environment = null)
     {
@@ -97,6 +99,7 @@ class CheckerManager
             PerformanceChecker::class,
             CodeQualityChecker::class,
             LaravelFormsChecker::class,
+            ApiResourceChecker::class,
         ];
 
         foreach ($checkers as $checkerClass) {
@@ -114,6 +117,44 @@ class CheckerManager
     {
         $this->checkers[] = $checker;
         return $this;
+    }
+
+    protected function getCacheKey(string $checkerName, string $filePath): string
+    {
+        $fileMtime = filemtime($filePath);
+        return $checkerName . ':' . $filePath . ':' . $fileMtime;
+    }
+
+    protected function getCachedResult(string $cacheKey): ?array
+    {
+        return $this->cache[$cacheKey] ?? null;
+    }
+
+    protected function setCachedResult(string $cacheKey, array $result): void
+    {
+        $this->cache[$cacheKey] = $result;
+    }
+
+    public function runWithCaching(): array
+    {
+        $allIssues = [];
+
+        foreach ($this->checkers as $checker) {
+            $checkerName = $checker->getName();
+            $cacheKey = $this->getCacheKey($checkerName, 'global');
+
+            $cached = $this->getCachedResult($cacheKey);
+            if ($cached !== null) {
+                $allIssues = array_merge($allIssues, $cached);
+                continue;
+            }
+
+            $issues = $checker->run();
+            $this->setCachedResult($cacheKey, $issues);
+            $allIssues = array_merge($allIssues, $issues);
+        }
+
+        return $allIssues;
     }
 
     public function getCheckers(): array

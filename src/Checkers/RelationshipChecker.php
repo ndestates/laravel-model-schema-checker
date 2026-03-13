@@ -44,7 +44,7 @@ class RelationshipChecker extends BaseChecker
         return $this->issues;
     }
 
-    protected function checkModelRelationshipsForFile($file): void
+    protected function checkModelRelationshipsForFile(\Symfony\Component\Finder\SplFileInfo $file): void
     {
         $namespace = $this->getNamespaceFromFile($file->getPathname());
         $className = $namespace . '\\' . pathinfo($file->getFilename(), PATHINFO_FILENAME);
@@ -157,6 +157,7 @@ class RelationshipChecker extends BaseChecker
     {
         try {
             // Check if the class is abstract before trying to instantiate it
+            /** @var class-string $className */
             $reflection = new \ReflectionClass($className);
             if ($reflection->isAbstract()) {
                 // Skip abstract classes as they cannot be instantiated
@@ -164,6 +165,11 @@ class RelationshipChecker extends BaseChecker
             }
 
             $model = new $className();
+
+            if (!$model instanceof \Illuminate\Database\Eloquent\Model) {
+                return;
+            }
+
             $tableName = $model->getTable();
 
             // Get foreign key constraints from database
@@ -314,9 +320,11 @@ class RelationshipChecker extends BaseChecker
      */
     protected function getFileContent(string $path): string
     {
-        return class_exists('\Illuminate\Support\Facades\File') && method_exists('\Illuminate\Support\Facades\File', 'get')
+        $content = class_exists('\Illuminate\Support\Facades\File') && method_exists('\Illuminate\Support\Facades\File', 'get')
             ? \Illuminate\Support\Facades\File::get($path)
             : file_get_contents($path);
+
+        return $content ?: '';
     }
 
     /**

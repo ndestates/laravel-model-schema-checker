@@ -266,6 +266,7 @@ class MigrationChecker extends BaseChecker
                 continue;
             }
 
+            /** @var string $description */
             if (strlen($description) < 5) {
                 $this->addIssue('migration', 'poor_migration_description', [
                     'file' => $filePath,
