@@ -55,12 +55,26 @@ jobs:
     - name: Cache Composer dependencies
       uses: actions/cache@v3
       with:
-        path: ~/.composer/cache
-        key: composer-${{ hashFiles('composer.json') }}-${{ matrix.php }}
-        restore-keys: composer-
+        path: |
+          ~/.composer/cache
+          vendor
+        key: composer-${{ hashFiles('composer.json', 'composer.lock') }}-${{ matrix.php }}-${{ matrix.laravel }}
+        restore-keys: |
+          composer-${{ hashFiles('composer.json') }}-${{ matrix.php }}-
+          composer-
 
     - name: Install dependencies
-      run: composer install --no-progress --prefer-dist --optimize-autoloader
+      run: |
+        composer clear-cache
+        composer install --no-progress --prefer-dist --optimize-autoloader --no-interaction
+
+    - name: Verify installed versions
+      run: |
+        echo "PHP Version: $(php --version | head -1)"
+        echo "Composer Version: $(composer --version)"
+        echo "PHPUnit Version: $(vendor/bin/phpunit --version 2>/dev/null || echo 'PHPUnit not found')"
+        echo "Pest Version: $(vendor/bin/pest --version 2>/dev/null || echo 'Pest not found')"
+        echo "PHPStan Version: $(vendor/bin/phpstan --version 2>/dev/null || echo 'PHPStan not found')"
 
     - name: Run tests (full test suite with Pest)
       run: vendor/bin/pest
@@ -114,8 +128,13 @@ jobs:
     - name: Cache Composer dependencies
       uses: actions/cache@v3
       with:
-        path: ~/.composer/cache
-        key: composer-${{ hashFiles('composer.json') }}-publish
+        path: |
+          ~/.composer/cache
+          vendor
+        key: composer-${{ hashFiles('composer.json', 'composer.lock') }}-publish-8.2
+        restore-keys: |
+          composer-${{ hashFiles('composer.json') }}-publish-
+          composer-
 
     - name: Install dependencies
       run: composer install --no-progress --prefer-dist --optimize-autoloader
