@@ -51,6 +51,8 @@ jobs:
       run: |
         echo "DB_CONNECTION=sqlite" >> $GITHUB_ENV
         echo "DB_DATABASE=/tmp/test-db/test.sqlite" >> $GITHUB_ENV
+        echo "APP_ENV=testing" >> $GITHUB_ENV
+        echo "APP_KEY=base64:$(openssl rand -base64 32)" >> $GITHUB_ENV
 
     - name: Cache Composer dependencies
       uses: actions/cache@v3
@@ -73,11 +75,11 @@ jobs:
         echo "PHP Version: $(php --version | head -1)"
         echo "Composer Version: $(composer --version)"
         echo "PHPUnit Version: $(vendor/bin/phpunit --version 2>/dev/null || echo 'PHPUnit not found')"
-        echo "Pest Version: $(vendor/bin/pest --version 2>/dev/null || echo 'Pest not found')"
+        echo "Pest Version: $(vendor/bin/pest --version 2>/dev/null || echo 'Pest not available')"
         echo "PHPStan Version: $(vendor/bin/phpstan --version 2>/dev/null || echo 'PHPStan not found')"
 
-    - name: Run tests (full test suite with Pest)
-      run: vendor/bin/pest
+    - name: Run tests (PHPUnit)
+      run: vendor/bin/phpunit --testdox
 
     - name: Run PHPStan static analysis
       run: vendor/bin/phpstan analyse --error-format=github || echo "PHPStan found issues but continuing..."
