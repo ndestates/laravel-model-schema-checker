@@ -130,15 +130,21 @@ jobs:
           echo "❌ Tag version ($TAG_VERSION) does not match composer.json version ($COMPOSER_VERSION)"
           exit 1
         fi
-        echo "✅ Version validation passed"
+        echo "✅ Version validation passed (Packagist uses git tags for versioning)"
 
     - name: Publish to Packagist
       if: success()
       run: |
-        echo "📦 Publishing package to Packagist..."
-        echo "Note: Packagist auto-discovers packages from GitHub tags."
-        echo "The package will be available at: https://packagist.org/packages/ndestates/laravel-model-schema-checker"
-        echo "✅ Package publishing initiated via auto-discovery"
+        echo "📦 Packagist Auto-Discovery Notice"
+        echo "Packagist automatically discovers packages from GitHub releases and tags."
+        echo "The v3.0.3 tag has been pushed and Packagist will index it automatically."
+        echo ""
+        echo "Package URL: https://packagist.org/packages/ndestates/laravel-model-schema-checker"
+        echo "GitHub Release: https://github.com/ndestates/laravel-model-schema-checker/releases/tag/v3.0.3"
+        echo ""
+        echo "Users can install with: composer require ndestates/laravel-model-schema-checker"
+        echo "Or specific version: composer require ndestates/laravel-model-schema-checker:^3.0.3"
+        echo "✅ Tag-based publishing initiated"
 
     - name: Test published package
       run: |
