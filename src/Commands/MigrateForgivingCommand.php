@@ -36,7 +36,7 @@ class MigrateForgivingCommand extends Command
     /**
      * Execute the console command.
      */
-    public function handle()
+    public function handle(): int
     {
         // PRODUCTION SAFETY: This tool is designed for development only
         if ($this->isProductionEnvironment()) {
@@ -96,7 +96,8 @@ class MigrateForgivingCommand extends Command
         }
 
         $migrator = $this->getMigrator();
-        $migrator->setConnection($this->option('database'));
+        $database = $this->option('database');
+        $migrator->setConnection(is_string($database) ? $database : null);
 
         if (!$migrator->repositoryExists()) {
             $this->error('Migration table does not exist. Please run migrate:install first.');
@@ -285,7 +286,7 @@ class MigrateForgivingCommand extends Command
      */
     protected function isProductionEnvironment(): bool
     {
-        $env = app()->environment();
+        $env = (string) app()->environment();
 
         // Primary check: standard Laravel environments
         if (in_array(strtolower($env), ['production', 'prod', 'live'])) {
@@ -482,7 +483,8 @@ class MigrateForgivingCommand extends Command
         $pattern = '/\$table->string\(\s*[\'"]([^\'"]+)[\'"]\s*\)/';
         $replacement = '$table->string(\'$1\', 255)';
 
-        return preg_replace($pattern, $replacement, $content);
+        $result = preg_replace($pattern, $replacement, $content);
+        return $result !== null ? $result : $content;
     }
 
     /**
@@ -494,7 +496,8 @@ class MigrateForgivingCommand extends Command
         $pattern = '/(\$table->foreignId\([^)]+\)->nullable\(\))/';
         $replacement = '$1->default(null)';
 
-        return preg_replace($pattern, $replacement, $content);
+        $result = preg_replace($pattern, $replacement, $content);
+        return $result !== null ? $result : $content;
     }
 
     /**

@@ -147,6 +147,7 @@ class FilamentChecker extends BaseChecker
 
     protected function checkFilamentMethods(string $resourceClass, \Illuminate\Database\Eloquent\Model $model, array $methodNames): void
     {
+        /** @var class-string $resourceClass */
         $reflection = new \ReflectionClass($resourceClass);
 
         foreach ($methodNames as $methodName) {

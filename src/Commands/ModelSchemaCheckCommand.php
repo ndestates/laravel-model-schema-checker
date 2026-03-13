@@ -14,7 +14,7 @@ use NDEstates\LaravelModelSchemaChecker\Services\MigrationCleanup;
 
 class ModelSchemaCheckCommand extends Command
 {
-        protected $description = 'Comprehensive Laravel application validation: models, relationships, security, performance, code quality, and form analysis with amendment suggestions';
+    protected $description = 'Comprehensive Laravel application validation: models, relationships, security, performance, code quality, and form analysis with amendment suggestions';
 
     protected $signature = 'model:schema-check
                             {--dry-run : Show what would be changed without making changes}
@@ -57,12 +57,14 @@ class ModelSchemaCheckCommand extends Command
                             {--save-output : Save results to a dated Markdown file for review}
                             {--step-by-step : Apply fixes interactively one by one instead of all at once}
                             {--rollback-fixes : Rollback previously applied automatic fixes}';
+
     protected CheckerManager $checkerManager;
     protected IssueManager $issueManager;
     protected MigrationGenerator $migrationGenerator;
     protected DataExporter $dataExporter;
     protected DataImporter $dataImporter;
     protected MigrationCleanup $migrationCleanup;
+    protected ?\Carbon\Carbon $startTime = null;
 
     public function __construct(CheckerManager $checkerManager, IssueManager $issueManager, MigrationGenerator $migrationGenerator, DataExporter $dataExporter, DataImporter $dataImporter, MigrationCleanup $migrationCleanup)
     {
@@ -75,9 +77,83 @@ class ModelSchemaCheckCommand extends Command
         $this->migrationCleanup = $migrationCleanup;
     }
 
-    public function handle()
+    public function handle(): int
     {
-        // PRODUCTION SAFETY: This tool is designed for development only
+        $this->startTime = now();
+
+        // ===== COMPREHENSIVE SECURITY VALIDATION =====
+
+        // 1. Environment Security Check
+        if (!$this->validateEnvironmentSecurity()) {
+            return 1;
+        }
+
+        // 2. Access Control Validation
+        if (!$this->validateAccessControl()) {
+            return 1;
+        }
+
+        // 3. Configuration Security Validation
+        if (!$this->validateConfigurationSecurity()) {
+            return 1;
+        }
+
+        // 4. Audit Logging
+        $this->logSecurityEvent('command_started', [
+            'user' => $this->getCurrentUser(),
+            'ip' => $this->getClientIP(),
+            'options' => $this->options(),
+        ]);
+
+        $this->info('🔒 Laravel Model Schema Checker v3.0 - Security Validated');
+        $this->info('=======================================================');
+
+        if ($this->option('dry-run')) {
+            $this->warn('Running in DRY-RUN mode - no changes will be made');
+        }
+
+        try {
+            // Route to appropriate functionality based on options
+            $result = $this->routeCommand();
+
+            // Log execution time and completion
+            if ($this->startTime) {
+                $executionTime = now()->diffInSeconds($this->startTime);
+                $this->info("⏱️  Total execution time: {$executionTime} seconds");
+                $this->logSecurityEvent('command_completed', [
+                    'result' => $result,
+                    'execution_time_seconds' => $executionTime,
+                ]);
+            }
+
+            return $result;
+        } catch (\Throwable $e) {
+            // Log security incidents
+            $this->logSecurityEvent('command_error', [
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+
+            // Don't expose internal error details
+            $this->error('An internal error occurred. Check logs for details.');
+            return 1;
+        }
+    }
+
+    protected function validateEnvironmentSecurity(): bool
+    {
+        $env = app()->environment();
+        $securityConfig = config('security.environments.' . $env, []);
+
+        // Check if tool is enabled for this environment
+        if (($securityConfig['enabled'] ?? true) === false) {
+            $this->error('🚫 SECURITY ERROR: Laravel Model Schema Checker is disabled in ' . $env . ' environment.');
+            $this->error('This tool is designed for development and testing environments only.');
+            return false;
+        }
+
+        // Check for production environment
         if ($this->isProductionEnvironment()) {
             $this->error('🚫 SECURITY ERROR: Laravel Model Schema Checker is disabled in production environments.');
             $this->error('');
@@ -85,19 +161,190 @@ class ModelSchemaCheckCommand extends Command
             $this->error('Running schema analysis tools in production can pose significant security risks.');
             $this->error('');
             $this->error('If you believe this is an error, please check your APP_ENV setting.');
-            return 1;
+            return false;
         }
 
-        $this->info('Laravel Model Schema Checker v3.0');
-        $this->info('=====================================');
-
-        if ($this->option('dry-run')) {
-            $this->warn('Running in DRY-RUN mode - no changes will be made');
+        // Check for debug mode in non-development environments
+        if (config('app.debug') && !in_array($env, ['local', 'development', 'testing'])) {
+            $this->error('🚫 SECURITY WARNING: Debug mode is enabled outside of development environment.');
+            $this->error('This may expose sensitive application information.');
         }
 
+        return true;
+    }
+
+    protected function validateAccessControl(): bool
+    {
+        $securityConfig = config('security.access_control', []);
+
+        // Check IP restrictions
+        if (!empty($securityConfig['allowed_ips'])) {
+            $allowedIPs = explode(',', $securityConfig['allowed_ips']);
+            $clientIP = $this->getClientIP();
+
+            if (!in_array($clientIP, array_map('trim', $allowedIPs))) {
+                $this->error('🚫 ACCESS DENIED: Your IP address is not authorized to use this tool.');
+                $this->logSecurityEvent('access_denied_ip', ['ip' => $clientIP]);
+                return false;
+            }
+        }
+
+        // Check user restrictions
+        if (!empty($securityConfig['allowed_users'])) {
+            $allowedUsers = explode(',', $securityConfig['allowed_users']);
+            $currentUser = $this->getCurrentUser();
+
+            if (!in_array($currentUser, array_map('trim', $allowedUsers))) {
+                $this->error('🚫 ACCESS DENIED: Your user account is not authorized to use this tool.');
+                $this->logSecurityEvent('access_denied_user', ['user' => $currentUser]);
+                return false;
+            }
+        }
+
+        // Check authentication requirement
+        if ($securityConfig['require_auth'] ?? false) {
+            if (!auth()->check()) {
+                $this->error('🚫 AUTHENTICATION REQUIRED: You must be logged in to use this tool.');
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    protected function validateConfigurationSecurity(): bool
+    {
+        // Check APP_KEY security
+        $appKey = config('app.key');
+        if (empty($appKey) || strlen($appKey) < 32) {
+            $this->error('🚫 SECURITY ERROR: APP_KEY is missing or insecure.');
+            $this->error('Application key must be at least 32 characters long.');
+            return false;
+        }
+
+        // Check database security
+        if (config('security.database_security.allow_live_database') === false) {
+            $dbHost = config('database.connections.' . config('database.default') . '.host');
+            if (in_array($dbHost, ['localhost', '127.0.0.1', '::1'])) {
+                // Local database is OK
+            } else {
+                $this->warn('⚠️  WARNING: Analyzing non-local database. Ensure this is intended.');
+            }
+        }
+
+        return true;
+    }
+
+    protected function routeCommand(): int
+    {
         // Route to appropriate functionality based on options
         if ($this->option('backup') || $this->option('backup-db')) {
             return $this->handleBackup();
+        }
+
+        if ($this->option('generate-migrations')) {
+            return $this->handleGenerateMigrations();
+        }
+
+        if ($this->option('run-migrations')) {
+            return $this->handleRunMigrations();
+        }
+
+        if ($this->option('analyze')) {
+            return $this->handleAnalyze();
+        }
+
+        if ($this->option('generate-schema')) {
+            return $this->handleGenerateSchema();
+        }
+
+        if ($this->option('generate-schema-sql')) {
+            return $this->handleGenerateSchemaSql();
+        }
+
+        if ($this->option('check-filament')) {
+            return $this->handleCheckFilament();
+        }
+
+        if ($this->option('check-security')) {
+            return $this->handleCheckSecurity();
+        }
+
+        if ($this->option('check-relationships')) {
+            return $this->handleCheckRelationships();
+        }
+
+        if ($this->option('check-migrations')) {
+            return $this->handleCheckMigrations();
+        }
+
+        if ($this->option('check-validation')) {
+            return $this->handleCheckValidation();
+        }
+
+        if ($this->option('check-performance')) {
+            return $this->handleCheckPerformance();
+        }
+
+        if ($this->option('check-code-quality')) {
+            return $this->handleCheckCodeQuality();
+        }
+
+        // Default to comprehensive check
+        return $this->handleComprehensiveCheck();
+    }
+
+    protected function handleComprehensiveCheck(): int
+    {
+        $this->info('Running comprehensive security and quality analysis...');
+
+        $checkerManager = app(CheckerManager::class);
+        $issues = $checkerManager->run();
+
+        $this->issueManager->addIssues($issues);
+        $this->displayResults();
+
+        return $this->issueManager->hasIssues() ? 1 : 0;
+    }
+
+    protected function getClientIP(): string
+    {
+        return request()->ip() ?? $_SERVER['REMOTE_ADDR'] ?? $_SERVER['HTTP_X_FORWARDED_FOR'] ?? 'unknown';
+    }
+
+    protected function getCurrentUser(): string
+    {
+        return auth()->id() ?? get_current_user() ?? 'unknown';
+    }
+
+    protected function logSecurityEvent(string $event, array $data = []): void
+    {
+        if (!config('security.audit.enabled', true)) {
+            return;
+        }
+
+        $logData = array_merge([
+            'timestamp' => now()->toISOString(),
+            'event' => $event,
+            'command' => $this->signature,
+        ], $data);
+
+        $logFile = config('security.audit.log_file', storage_path('logs/lmsc-audit.log'));
+
+        // Ensure log directory exists
+        $logDir = dirname($logFile);
+        if (!file_exists($logDir)) {
+            mkdir($logDir, 0755, true);
+        }
+
+        file_put_contents($logFile, json_encode($logData) . PHP_EOL, FILE_APPEND | LOCK_EX);
+    }
+
+    protected function isProductionEnvironment(): bool
+    {
+        $env = app()->environment();
+        return in_array(strtolower($env), ['production', 'prod', 'live']);
+    }
         }
 
         if ($this->option('generate-migrations')) {

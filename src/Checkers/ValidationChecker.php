@@ -70,6 +70,11 @@ class ValidationChecker extends BaseChecker
             }
 
             $model = new $className();
+
+            if (!$model instanceof \Illuminate\Database\Eloquent\Model) {
+                return;
+            }
+
             $tableName = $model->getTable();
             $content = file_get_contents($file->getPathname());
 
