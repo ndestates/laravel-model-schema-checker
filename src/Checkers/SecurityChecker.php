@@ -577,15 +577,6 @@ class SecurityChecker extends BaseChecker
             ]);
         }
 
-        // Check for APP_KEY security
-        $appKey = config('app.key');
-        if (empty($appKey) || strlen($appKey) < 32) {
-            $this->addIssue('security', 'weak_app_key', [
-                'severity' => 'critical',
-                'message' => "APP_KEY is missing or too short. Must be 32+ characters for secure encryption."
-            ]);
-        }
-
         // Check database credentials exposure
         $envPath = base_path('.env');
         if (file_exists($envPath)) {
