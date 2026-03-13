@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Multi-Version Testing Script for Laravel Model Schema Checker
-# Tests against Laravel 10, 11, and 12 using DDEV
+# Tests against Laravel 11 and 12 using DDEV
 
 set -e
 
@@ -49,7 +49,7 @@ fi
 PROJECT_ROOT="$(pwd)"
 
 # Laravel versions to test
-LARAVEL_VERSIONS=("10" "11" "12")
+LARAVEL_VERSIONS=("11" "12")
 
 print_status "Testing against Laravel versions: ${LARAVEL_VERSIONS[*]} using DDEV"
 print_status "Each version will run in its own isolated DDEV environment"

@@ -25,31 +25,36 @@ The package automatically disables itself in production environments (`APP_ENV=p
 This package includes multiple layers of protection to prevent accidental or malicious use in production environments:
 
 ### **🔒 Layer 1: Service Provider Protection**
+
 - Service provider checks `app()->environment('production')` and exits early
 - No routes, commands, or services are registered in production
 
 ### **🛡️ Layer 2: Command-Level Protection**
+
 - All Artisan commands check for production environment before execution
 - Commands exit with error code 1 and display security warnings
 
 ### **🚫 Layer 3: Controller-Level Protection**
+
 - Web controller constructor checks for production environment
 - Aborts with HTTP 403 error if accessed in production
 
 ### **🔍 Layer 4: Multi-Factor Environment Detection**
+
 - Primary: Laravel's `app()->environment()` check
 - Secondary: `APP_ENV` environment variable
 - Tertiary: `$_SERVER['APP_ENV']` server variable
 - Quaternary: Hostname pattern analysis (heuristic detection)
 
 ### **🧪 Comprehensive Testing**
+
 - Unit tests verify all production safety measures
 - Tests ensure commands, routes, and controllers are properly blocked
 - Reverse engineering protection validated
 
 ## Compatibility
 
-- **Laravel**: 10.x, 11.x, 12.x
+- **Laravel**: 11.x, 12.x
 - **PHP**: 8.1+
 - **Version**: 3.0.0 (Web Dashboard & Production Safety)
 
@@ -66,21 +71,25 @@ composer require ndestates/laravel-model-schema-checker --dev
 After installation, run the migrations to create the necessary database tables:
 
 #### **DDEV**
+
 ```bash
 ddev artisan migrate
 ```
 
 #### **Laravel Sail**
+
 ```bash
 ./vendor/bin/sail artisan migrate
 ```
 
 #### **Other Environments**
+
 ```bash
 php artisan migrate
 ```
 
 This creates two tables:
+
 - `check_results` - Stores schema check results
 - `applied_fixes` - Tracks applied fixes (with user isolation)
 
@@ -131,11 +140,13 @@ The v3.0 release transforms the previous monolithic architecture into a modular,
 ### ✅ **Completed Components**
 
 #### **Core Architecture**
+
 - **Modular Services**: `CheckerManager`, `IssueManager`, `MigrationGenerator`, `DataExporter`, `DataImporter`, `MigrationCleanup`
 - **Contracts**: `CheckerInterface` for extensible checker system
 - **Base Classes**: `BaseChecker` with common functionality and configuration support
 
 #### **Enhanced Checkers (9 Total)**
+
 - **ModelChecker**: Fillable properties, table existence, schema alignment
 - **RelationshipChecker**: Model relationships integrity and consistency
 - **MigrationChecker**: Syntax validation, best practices, configurable database schema validation
@@ -147,6 +158,7 @@ The v3.0 release transforms the previous monolithic architecture into a modular,
 - **FilamentChecker**: Filament resource validation with autoloading support
 
 #### **Configuration System**
+
 - **Environment-Specific Settings**: Different validation modes for local/testing/production
 - **Comprehensive Exclusions**: Models, files, migrations, and database tables
 - **Performance Thresholds**: Configurable timeouts and limits
@@ -155,6 +167,7 @@ The v3.0 release transforms the previous monolithic architecture into a modular,
 - **Default Exclusions**: User model, common Laravel tables, migration subdirectories
 
 #### **Migration Validation Revolution**
+
 - **PHP Syntax Validation**: Catches syntax errors before execution
 - **Malformed Method Call Detection**: Prevents `$table->string('key'(255))` runtime errors
 - **Database-Agnostic Validation**: Works regardless of current database connection
@@ -162,6 +175,7 @@ The v3.0 release transforms the previous monolithic architecture into a modular,
 - **Smart Exclusions**: Automatically skips old/, archive/, legacy/ migration directories
 
 ### 🔧 **Recent Fixes & Improvements**
+
 - **PerformanceChecker N+1 Detection**: Fixed regex patterns to properly detect relationship access with method calls (e.g., `$user->posts->count()`)
 - **PerformanceChecker Config Paths**: Updated to use configurable paths instead of hardcoded `app_path()` calls for better testability
 - **PerformanceChecker Facade Agnostic**: Added facade-agnostic file operations to work in test environments without Laravel facades
@@ -195,6 +209,7 @@ php artisan model-schema:check --env=production
 ### Configuration Examples
 
 #### Environment-Specific Settings
+
 ```php
 'environments' => [
     'local' => [
@@ -213,11 +228,13 @@ php artisan model-schema:check --env=production
 ```
 
 #### Migration Validation Modes
+
 ```php
 'migration_validation_mode' => 'migration_files', // 'migration_files', 'database_schema', 'both'
 ```
 
 #### Default Exclusions
+
 ```php
 'excluded_models' => ['App\Models\User'],
 'exclude_patterns' => [
@@ -226,6 +243,7 @@ php artisan model-schema:check --env=production
 ```
 
 #### Model Directory Configuration
+
 ```php
 // Auto-detection (recommended - checks both locations):
 'models_dir' => app_path('Models'),  // Will auto-detect app/Models or app/
@@ -261,18 +279,21 @@ MSC_CACHE_TTL=3600
 ## 📋 **What It Checks**
 
 ### Models
+
 - Fillable properties vs database columns
 - Table existence and naming conventions
 - Model relationships integrity
 - Abstract class handling
 
 ### Relationships
+
 - Foreign key constraints
 - Relationship method consistency
 - Inverse relationship validation
 - N+1 query prevention
 
 ### Migrations
+
 - PHP syntax validation
 - Malformed method calls detection
 - Foreign key index requirements
@@ -281,6 +302,7 @@ MSC_CACHE_TTL=3600
 - **Forgiving Migration Runner**: Safely run migrations while skipping existing tables
 
 ### Security
+
 - XSS vulnerability detection
 - CSRF protection validation
 - SQL injection prevention
@@ -288,24 +310,28 @@ MSC_CACHE_TTL=3600
 - Mass assignment vulnerabilities
 
 ### Performance
+
 - N+1 query detection
 - Missing index identification
 - Query optimization suggestions
 - Memory usage monitoring
 
 ### Code Quality
+
 - Code style consistency
 - Maintainability checks
 - Best practice adherence
 - Documentation requirements
 
 ### Laravel Forms
+
 - Form field validation
 - Amendment suggestions
 - Schema alignment
 - Validation rule consistency
 
 ### Filament Resources
+
 - Resource class validation
 - Form and table method checking
 - Relationship integrity
@@ -339,6 +365,7 @@ Contributions are welcome! Please see our contributing guidelines and submit pul
 ## 📄 **License**
 
 This package is open-sourced software licensed under the [MIT license](LICENSE).
+
 - **Encrypted Fields Security**: Advanced security analysis for encrypted database fields
 
 ### 🔄 **Planned Modular Features**
@@ -484,11 +511,13 @@ When using `--check-migrations`, the command will validate migrations for:
 - **Database Schema Consistency**: Validates against current database structure
 
 **Auto-fixable Issues** (with `--fix-migrations`):
+
 - String columns without length specifications
 - Nullable foreign keys missing default values
 - Malformed method calls (e.g., `$table->string('key'(255))` → `$table->string('key', 255)`)
 
 **Non-fixable Issues** (requires manual intervention):
+
 - Missing foreign key dependencies (wrong migration order)
 - Database connection problems
 - Complex syntax errors requiring code restructuring
@@ -531,36 +560,42 @@ The Laravel Model Schema Checker now includes a comprehensive web-based dashboar
 ### **Dashboard Features**
 
 #### **📊 Real-time Statistics**
+
 - Total checks performed
 - Checks this month
 - Total issues found
 - Last check timestamp
 
 #### **🔍 Check Execution**
+
 - Run comprehensive model checks
 - Select specific check types (Models, Relationships, Security, Performance, etc.)
 - Real-time progress tracking with visual progress bar
 - Background processing for long-running checks
 
 #### **📋 Results Management**
+
 - Detailed issue display with severity levels
 - Code snippets and suggestions for each issue
 - One-click fix application for auto-fixable issues
 - Bulk fix application for multiple issues
 
 #### **🎯 Step-by-Step Fixes**
+
 - Interactive fix application workflow
 - Progress tracking through fix steps
 - Skip problematic fixes
 - Rollback capability for applied fixes
 
 #### **📚 Check History**
+
 - Complete history of all check runs
 - Filter by status, date range, and issue presence
 - Detailed result viewing
 - Result deletion and management
 
 #### **🛠️ Migration Tools**
+
 - **Forgiving Migration Runner**: Safely run migrations while skipping existing tables
 - **Migration Status Overview**: Real-time view of pending and completed migrations
 - **One-Click Migration Execution**: Run migrations directly from the web interface
@@ -571,16 +606,19 @@ The Laravel Model Schema Checker now includes a comprehensive web-based dashboar
 ### **Web Dashboard Setup**
 
 1. **Run database migrations** to create required tables:
+
    ```bash
    php artisan migrate
    ```
 
 2. **Publish assets** for proper styling:
+
    ```bash
    php artisan model-schema-checker:publish-assets
    ```
-   
+
    Or manually:
+
    ```bash
    php artisan vendor:publish --tag=model-schema-checker-assets
    ```
@@ -590,6 +628,7 @@ The Laravel Model Schema Checker now includes a comprehensive web-based dashboar
    - **Production**: Authentication required (automatically disabled anyway)
    - **Development**: Works with or without authentication (guest users supported)
 5. **Views can be published** (optional) to `resources/views/vendor/model-schema-checker/`:
+
    ```bash
    php artisan vendor:publish --tag=model-schema-checker-views
    ```
@@ -601,6 +640,7 @@ The Laravel Model Schema Checker now includes a comprehensive web-based dashboar
 The dashboard URL depends on your development environment:
 
 ##### **DDEV**
+
 ```bash
 # Run migration
 ddev artisan migrate
@@ -614,6 +654,7 @@ ddev launch
 ```
 
 ##### **Laravel Sail**
+
 ```bash
 # Run migration
 ./vendor/bin/sail artisan migrate
@@ -627,6 +668,7 @@ ddev launch
 ```
 
 ##### **Laravel Valet**
+
 ```bash
 # Run migration
 php artisan migrate
@@ -636,6 +678,7 @@ php artisan migrate
 ```
 
 ##### **Homestead/Vagrant**
+
 ```bash
 # Run migration
 php artisan migrate
@@ -646,6 +689,7 @@ php artisan migrate
 ```
 
 ##### **Plain PHP/Local Server**
+
 ```bash
 # Run migration
 php artisan migrate
@@ -658,6 +702,7 @@ php artisan serve
 ```
 
 ##### **Docker/Other Containers**
+
 ```bash
 # Run migration (adjust container name)
 docker exec -it your-container php artisan migrate
@@ -746,6 +791,7 @@ https://your-app.com/model-schema-checker
 ### **Dashboard Not Accessible**
 
 #### **Check Environment**
+
 ```bash
 # Verify you're not in production
 php artisan env
@@ -755,6 +801,7 @@ php artisan env
 ```
 
 #### **Clear Caches**
+
 ```bash
 # Clear all caches
 php artisan config:clear
@@ -764,6 +811,7 @@ php artisan cache:clear
 ```
 
 #### **Verify Routes Are Loaded**
+
 ```bash
 # Check if routes are registered
 php artisan route:list | grep model-schema
@@ -773,6 +821,7 @@ php artisan route:list | grep model-schema
 ```
 
 #### **Run Migrations**
+
 ```bash
 # Ensure database tables exist
 php artisan migrate:status
@@ -782,6 +831,7 @@ php artisan migrate
 ```
 
 #### **Check Authentication**
+
 ```bash
 # Make sure you're logged in
 php artisan auth:check
@@ -790,6 +840,7 @@ php artisan auth:check
 ### **Environment-Specific Issues**
 
 #### **DDEV**
+
 ```bash
 # Restart DDEV if needed
 ddev restart
@@ -799,6 +850,7 @@ ddev status
 ```
 
 #### **Laravel Sail**
+
 ```bash
 # Restart Sail
 ./vendor/bin/sail down
@@ -806,6 +858,7 @@ ddev status
 ```
 
 #### **Permission Issues**
+
 ```bash
 # Fix storage permissions
 chmod -R 755 storage/
@@ -1121,7 +1174,7 @@ Enforced Laravel best practices:
 ## Requirements
 
 - PHP 8.1+
-- Laravel 10.x, 11.x, or 12.x
+- Laravel 11.x, 12.x, or higher
 - MySQL, PostgreSQL, or SQLite database
 - File system permissions for log writing
 
@@ -1255,7 +1308,7 @@ Current test coverage includes:
 - ✅ Package structure validation
 - ✅ Service provider registration
 - ✅ Command functionality
-- ✅ Laravel version compatibility (10.x, 11.x, 12.x) using DDEV
+- ✅ Laravel version compatibility (11.x, 12.x) using DDEV
 - ✅ Code quality standards
 - ✅ Static analysis
 - ✅ Security checks
@@ -1264,7 +1317,6 @@ Current test coverage includes:
 
 The multi-version tests use isolated DDEV environments for each Laravel version:
 
-- **Laravel 10**: PHP 8.1, MariaDB 10.4
 - **Laravel 11**: PHP 8.2, MariaDB 10.4
 - **Laravel 12**: PHP 8.2, MariaDB 10.4
 

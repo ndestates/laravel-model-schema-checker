@@ -612,7 +612,7 @@ class SecurityChecker extends BaseChecker
                 if ($composerData) {
                     // Check for known vulnerable packages (basic check)
                     $vulnerablePackages = [
-                        'laravel/framework' => '10.0', // Example minimum versions
+                        'laravel/framework' => '11.0', // Example minimum versions
                         'symfony/http-kernel' => '6.0',
                     ];
 

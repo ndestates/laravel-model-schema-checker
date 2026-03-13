@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 🐛 **Bug Fixes**
 
 #### **Enhanced Migration Filename Validation**
+
 - **Added support for sequence_timestamp format** (e.g., `000068_162313`)
 - **Updated regex patterns** to handle `(\d{6,8}|\d{6}_\d{6})` timestamp formats
 - **Comprehensive format support**: 6-digit, 8-digit, and sequence_timestamp formats
@@ -17,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Improved error messages** for better debugging
 
 **Files Changed:**
+
 - `src/Checkers/MigrationChecker.php` - Enhanced naming validation regex
 - `src/Services/MigrationCleanup.php` - Updated migration name extraction
 - `src/Services/MigrationGenerator.php` - Updated migration parsing logic
@@ -30,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 🐛 **Bug Fixes**
 
 #### **Migration Filename Validation**
+
 - **Fixed regex pattern** to accept 8-digit timestamps with microseconds
 - **Updated validation logic** in `MigrationChecker`, `MigrationCleanup`, and `MigrationGenerator`
 - **Enhanced error message** to indicate microseconds are optional
@@ -37,6 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Backward compatible** - still accepts standard 6-digit timestamps
 
 **Files Changed:**
+
 - `src/Checkers/MigrationChecker.php` - Updated naming validation regex
 - `src/Services/MigrationCleanup.php` - Updated migration name extraction
 - `src/Services/MigrationGenerator.php` - Updated migration parsing logic
@@ -49,6 +53,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 🚀 **Major Features - Web Dashboard & Production Safety**
 
 #### **🌐 Interactive Web Dashboard**
+
 - **Complete web interface** for schema checking and fixes
 - **Real-time progress tracking** with visual progress bars
 - **Step-by-step fix application** with rollback capabilities
@@ -57,12 +62,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Responsive design** works on desktop and mobile
 
 #### **�️ Production Safety Measures**
+
 - **Automatic production disable** - completely disabled in production environments
 - **Environment detection** using Laravel's `app()->environment()`
 - **Security warnings** prominently displayed in documentation
 - **Composer description** updated to indicate development-only usage
 
 #### **📊 Database Integration**
+
 - **Check results storage** with detailed issue tracking
 - **Applied fixes tracking** with rollback capabilities
 - **User-based data isolation** for multi-user environments
@@ -71,6 +78,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### ✅ **Technical Implementation**
 
 #### **New Components Added**
+
 - `ModelSchemaCheckerController` - Handles all web requests
 - `CheckResult` & `AppliedFix` models with relationships
 - `RunModelChecks` background job for async processing
@@ -79,12 +87,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Vite build system for asset compilation
 
 #### **Routes & Middleware**
+
 - Authentication-protected routes at `/model-schema-checker`
 - CSRF protection on all forms
 - User middleware for data isolation
 - AJAX endpoints for real-time updates
 
 #### **Security Features**
+
 - **Production environment detection** in service provider
 - **User data isolation** via foreign key constraints
 - **CSRF protection** on all web forms
@@ -94,6 +104,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 🔧 **Environment Support**
 
 #### **Universal Compatibility**
+
 - ✅ **DDEV**: `ddev artisan migrate` + `ddev launch`
 - ✅ **Laravel Sail**: `./vendor/bin/sail artisan migrate`
 - ✅ **Laravel Valet**: `php artisan migrate`
@@ -102,6 +113,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ✅ **Docker**: Container-specific commands
 
 #### **Access URLs**
+
 - **Main Dashboard**: `/model-schema-checker`
 - **Check Results**: `/model-schema-checker/results/{id}`
 - **Step-by-Step Fixes**: `/model-schema-checker/step-by-step/{id}`
@@ -123,6 +135,7 @@ https://your-app.com/model-schema-checker
 ### 🛡️ **Production Safety**
 
 #### **Automatic Protection**
+
 ```php
 // Service provider automatically disables in production
 if ($this->app->environment('production')) {
@@ -131,12 +144,14 @@ if ($this->app->environment('production')) {
 ```
 
 #### **Environment Detection**
+
 - `APP_ENV=production` → **DISABLED**
 - `APP_ENV=local/testing/staging` → **ACTIVE**
 
 ### 🗄️ **Database Schema**
 
 #### **check_results Table**
+
 ```sql
 - id (primary key)
 - user_id (foreign key to users)
@@ -151,6 +166,7 @@ if ($this->app->environment('production')) {
 ```
 
 #### **applied_fixes Table**
+
 ```sql
 - id (primary key)
 - check_result_id (foreign key)
@@ -165,6 +181,7 @@ if ($this->app->environment('production')) {
 ### 🔌 **API Endpoints**
 
 #### **Web Routes** (auth protected)
+
 - `GET /model-schema-checker` - Dashboard
 - `POST /model-schema-checker/run-checks` - Run checks
 - `GET /model-schema-checker/results/{id}` - View results
@@ -178,6 +195,7 @@ if ($this->app->environment('production')) {
 ### 🎨 **Frontend Assets**
 
 #### **CSS Framework**
+
 - Custom responsive CSS (no external dependencies)
 - Modern design with issue severity colors
 - Mobile-first responsive design
@@ -185,6 +203,7 @@ if ($this->app->environment('production')) {
 - Form styling and validation
 
 #### **JavaScript Features**
+
 - AJAX form submissions
 - Real-time progress polling
 - Dynamic content updates
@@ -192,6 +211,7 @@ if ($this->app->environment('production')) {
 - Cross-browser compatibility
 
 #### **Build System**
+
 - Vite for asset compilation
 - PostCSS with Autoprefixer
 - Source maps for debugging
@@ -200,6 +220,7 @@ if ($this->app->environment('production')) {
 ### 🧪 **Testing & Quality**
 
 #### **Test Coverage**
+
 - Service provider environment checks
 - User isolation verification
 - Route protection testing
@@ -207,6 +228,7 @@ if ($this->app->environment('production')) {
 - Background job testing
 
 #### **Security Testing**
+
 - Production environment disable verification
 - User data isolation testing
 - CSRF protection validation
@@ -215,6 +237,7 @@ if ($this->app->environment('production')) {
 ### 📋 **Migration Guide**
 
 #### **From v2.x to v3.0**
+
 1. **Backup your data** (if any custom schema checker data exists)
 2. **Install v3.0**: `composer require ndestates/laravel-model-schema-checker --dev`
 3. **Run migrations**: `php artisan migrate`
@@ -222,6 +245,7 @@ if ($this->app->environment('production')) {
 5. **Access dashboard**: Navigate to `/model-schema-checker`
 
 #### **Breaking Changes**
+
 - **Production environments**: Package now automatically disabled
 - **Database tables**: New schema with user isolation
 - **Routes**: All routes now require authentication
@@ -230,18 +254,21 @@ if ($this->app->environment('production')) {
 ### ⚡ **Performance Considerations**
 
 #### **Background Processing**
+
 - Long-running checks use Laravel queues
 - Progress tracking via cache/database
 - Job status monitoring
 - Timeout handling
 
 #### **Database Optimization**
+
 - User-based data partitioning
 - Indexed foreign keys
 - Efficient queries with constraints
 - Migration rollback support
 
 #### **Caching Strategy**
+
 - Configuration caching
 - Route caching
 - View caching
@@ -250,12 +277,14 @@ if ($this->app->environment('production')) {
 ### 🔧 **Troubleshooting**
 
 #### **Common Issues**
+
 - **Dashboard not accessible**: Check environment (`php artisan env`)
 - **Routes not found**: Clear route cache (`php artisan route:clear`)
 - **Migrations failed**: Check database permissions
 - **Assets not loading**: Run `npm run build` or check Vite config
 
 #### **Environment-Specific Fixes**
+
 - **DDEV**: `ddev restart && ddev artisan migrate`
 - **Sail**: `./vendor/bin/sail artisan migrate:reset && ./vendor/bin/sail artisan migrate`
 - **Permissions**: `chmod -R 755 storage/ bootstrap/cache/`
@@ -263,6 +292,7 @@ if ($this->app->environment('production')) {
 ### 🚀 **Future Enhancements**
 
 #### **Planned Features**
+
 - **Real-time notifications** via WebSockets
 - **Bulk operations** for multiple projects
 - **API endpoints** for CI/CD integration
@@ -272,6 +302,7 @@ if ($this->app->environment('production')) {
 - **Integration with Laravel Telescope**
 
 #### **Performance Improvements**
+
 - **Database query optimization**
 - **Caching layer enhancements**
 - **Background job prioritization**
@@ -281,12 +312,14 @@ if ($this->app->environment('production')) {
 ### 📖 **Documentation Updates**
 
 #### **Comprehensive README**
+
 - Environment-specific installation instructions
 - Security warnings and production safety guidelines
 - Troubleshooting section for common issues
 - API documentation for custom integrations
 
 #### **New Files**
+
 - `VERSION_3_CHANGELOG.md` - Detailed version notes
 - Enhanced test coverage for new features
 - Migration files with proper documentation
@@ -294,9 +327,11 @@ if ($this->app->environment('production')) {
 ---
 
 ## Previous Versions
+
 - **Base Classes**: `BaseChecker` with common functionality and configuration support
 
 #### **Enhanced Checkers**
+
 - **ModelChecker**: Fillable properties, table existence, schema alignment
 - **RelationshipChecker**: Model relationships integrity and consistency
 - **MigrationChecker**: Syntax validation, best practices, configurable database schema validation
@@ -308,6 +343,7 @@ if ($this->app->environment('production')) {
 - **FilamentChecker**: Filament resource validation with autoloading support
 
 #### **Migration Validation Revolution**
+
 - **PHP Syntax Validation** (commit: 3739a04): Catches syntax errors before execution
 - **Malformed Method Call Detection** (commit: df38f60): Prevents `$table->string('key'(255))` errors
 - **Database-Agnostic Validation** (commit: 31705c8): Works regardless of current database
@@ -315,6 +351,7 @@ if ($this->app->environment('production')) {
 - **Default Exclusions** (commit: aa2cb8a): Automatic exclusion of old/, archive/, legacy/ migration directories
 
 #### **Configuration System Overhaul**
+
 - **Environment-Specific Settings** (commit: bc2fb83): Different validation modes for local/testing/production
 - **Comprehensive Exclusions**: Models, files, migrations, and database tables
 - **Performance Thresholds**: Configurable timeouts and limits
@@ -323,6 +360,7 @@ if ($this->app->environment('production')) {
 - **Default Exclusions**: User model, common Laravel tables, migration subdirectories
 
 #### **Bug Fixes & Improvements**
+
 - **Abstract Class Handling** (commit: 79bd645): Prevents "Cannot instantiate abstract class" errors
 - **Validation Rules Parsing** (commit: 916720f): Fixed array/string rule format handling
 - **Filament Class Loading** (commit: 1dcb3ca, f03b6bd): Enhanced autoloading and detection
@@ -340,6 +378,7 @@ if ($this->app->environment('production')) {
 - **DataImporter/MigrationGenerator**: Added try-catch blocks for storage_path calls when Laravel unavailable
 
 ### 🧪 **Testing Infrastructure Overhaul**
+
 - **Comprehensive Unit Tests**: Added 46 tests with 176 assertions covering core functionality
 - **IssueManager Testing**: 13 unit tests covering issue tracking, statistics, and filtering
 - **CheckerManager Testing**: 14 unit tests covering service initialization and checker management
@@ -356,11 +395,13 @@ if ($this->app->environment('production')) {
 ### 📋 **Configuration Options**
 
 #### **Migration Validation Modes**
+
 ```php
 'migration_validation_mode' => 'migration_files', // 'migration_files', 'database_schema', 'both'
 ```
 
 #### **Environment-Specific Settings**
+
 ```php
 'environments' => [
     'local' => ['strict_mode' => false, 'skip_performance_checks' => true],
@@ -370,6 +411,7 @@ if ($this->app->environment('production')) {
 ```
 
 #### **Default Exclusions**
+
 ```php
 'excluded_models' => ['App\Models\User'],
 'excluded_tables' => ['migrations', 'failed_jobs', 'cache', 'sessions'],
@@ -379,6 +421,7 @@ if ($this->app->environment('production')) {
 ```
 
 ### 🔧 **Environment Variables**
+
 ```env
 MSC_MIGRATION_MODE=database_schema
 MSC_OUTPUT_FORMAT=json
@@ -387,6 +430,7 @@ MSC_CACHE_ENABLED=true
 ```
 
 ### 📊 **Development Status**
+
 - **Architecture**: ✅ Complete (Modular services implemented)
 - **Checkers**: ✅ Complete (All major checkers implemented and enhanced)
 - **Configuration**: ✅ Complete (Comprehensive config system)
@@ -397,6 +441,7 @@ MSC_CACHE_ENABLED=true
 ---
 
 ## [2.x] - Previous Versions
+
 - Legacy monolithic architecture
 - Basic model and relationship validation
 - Limited configuration options
@@ -412,11 +457,13 @@ MSC_CACHE_ENABLED=true
 - **Targeted Check Execution**: CodeQualityChecker now supports running specific check types based on include paths
 
 ### Enhanced
+
 - **CodeQualityChecker**: Updated to support granular, targeted checks with automatic path filtering
 - **Command Handler Methods**: Added dedicated handler methods for each granular check type
 - **Documentation**: Updated README.md with new command options and usage examples
 
 ### Fixed
+
 - **LaravelFormsChecker**: Fixed undefined method error when calling `$this->issue()` (commit: af880da)
   - Replaced incorrect `$this->issue()` calls with proper `$this->addIssue()` method calls
   - Updated method signatures to match BaseChecker interface requirements
@@ -433,11 +480,12 @@ MSC_CACHE_ENABLED=true
 ## [1.0.0] - 2024-12-19
 
 ### Added
+
 - Initial release of Laravel Model-Database Schema Checker
 - Comprehensive model fillable property validation against database schema
 - Filament relationship integrity checking
 - Automatic environment detection (DDEV, Docker, Local)
-- Support for Laravel 10.x and 11.x
+- Support for Laravel 11.x and 12.x
 - PHP 8.1+ compatibility
 - Automated fix suggestions for common issues
 - Detailed logging and reporting
@@ -446,6 +494,7 @@ MSC_CACHE_ENABLED=true
 - Comprehensive documentation
 
 ### Features
+
 - Model-Database Schema Validation
 - Filament Form Relationship Checking
 - Migration Consistency Validation
@@ -458,10 +507,12 @@ MSC_CACHE_ENABLED=true
 - Backup and Recovery Options
 
 ### Installation
+
 - `composer require ndestates/laravel-model-schema-checker --dev`
 - Or use the provided `install.sh` script for manual installation
 
 ### Usage
+
 - `php artisan model:schema-check` - Run basic validation
 - `php artisan model:schema-check --check-all` - Run comprehensive checks
 - `php artisan model:schema-check --fix` - Apply automatic fixes
