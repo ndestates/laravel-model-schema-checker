@@ -14,6 +14,9 @@ class DataExporterTest extends TestCase
     {
         parent::setUp();
 
+        $this->testExportPath = sys_get_temp_dir() . '/msc_test_' . uniqid();
+        mkdir($this->testExportPath);
+
         // Skip all tests in this class as they require full Laravel environment setup
         $this->markTestSkipped('Requires full Laravel environment setup');
     }

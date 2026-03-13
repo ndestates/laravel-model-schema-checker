@@ -45,6 +45,9 @@ class CodeImprovementTest extends TestCase
     {
         parent::setUp();
 
+        $this->testFilePath = sys_get_temp_dir() . '/msc_test_' . uniqid() . '.php';
+        touch($this->testFilePath);
+
         // Skip all tests in this class as they require full Laravel environment setup
         $this->markTestSkipped('Requires full Laravel environment setup');
     }

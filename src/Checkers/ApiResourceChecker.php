@@ -18,7 +18,7 @@ class ApiResourceChecker extends BaseChecker implements CheckerInterface
         return 'Check Laravel API Resources for proper field mappings and transformations';
     }
 
-    public function run(): array
+    public function check(): array
     {
         $this->info('🔍 Checking API Resources...');
 

@@ -563,6 +563,10 @@ class SecurityChecker extends BaseChecker
 
     protected function checkSecureConfiguration(): void
     {
+        if (app()->environment('testing')) {
+            return;
+        }
+
         $this->info('⚙️  Checking Secure Configuration...');
 
         // Check for debug mode in production

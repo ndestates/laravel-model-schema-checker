@@ -16,6 +16,11 @@ class MigrationCleanupTest extends TestCase
     {
         parent::setUp();
 
+        $this->testMigrationsPath = sys_get_temp_dir() . '/msc_migrations_' . uniqid();
+        mkdir($this->testMigrationsPath);
+        $this->testBackupPath = sys_get_temp_dir() . '/msc_backup_' . uniqid();
+        mkdir($this->testBackupPath);
+
         // Skip all tests in this class as they require full Laravel environment setup
         $this->markTestSkipped('Requires full Laravel environment setup');
     }

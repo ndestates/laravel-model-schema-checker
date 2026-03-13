@@ -2,7 +2,7 @@
 
 namespace NDEstates\LaravelModelSchemaChecker\Tests;
 
-use PHPUnit\Framework\TestCase;
+use Tests\TestCase;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\File;
 use NDEstates\LaravelModelSchemaChecker\Checkers\SecurityChecker;
@@ -46,7 +46,6 @@ use Mockery;
  */
 class SecurityCheckerTest extends TestCase
 {
-    use RefreshDatabase;
 
     private SecurityChecker $checker;
     private array $config;
@@ -76,6 +75,7 @@ class SecurityCheckerTest extends TestCase
         ];
 
         $this->checker = new SecurityChecker($this->config, $this->viewDir, $this->controllerDir, $this->modelDir);
+        $this->checker->setCommand(Mockery::mock(\Illuminate\Console\Command::class));
     }
 
     protected function tearDown(): void
