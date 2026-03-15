@@ -3,6 +3,7 @@
 namespace NDEstates\LaravelModelSchemaChecker\Commands;
 
 use Illuminate\Console\Command;
+use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use NDEstates\LaravelModelSchemaChecker\Services\CheckerManager;
@@ -832,9 +833,20 @@ class ModelSchemaCheckCommand extends Command
             $this->line("  - {$plan['filename']} (table: {$plan['table']}, columns: " . implode(', ', $plan['columns']) . ')');
         }
 
+        $review = $this->runMissingFieldMigrationSafetyReview($plannedMigrations);
+        $this->displayMissingFieldMigrationSafetyReview($review);
+
         if ($this->option('dry-run')) {
             $this->warn('Dry-run mode enabled. No migration files were written.');
             return Command::SUCCESS;
+        }
+
+        if ($review['high_risk_count'] > 0) {
+            $this->warn('High-risk items were detected during safety review.');
+            if (!$this->confirm('Continue writing migration files anyway?', false)) {
+                $this->info('Operation cancelled after safety review. No files were created.');
+                return Command::SUCCESS;
+            }
         }
 
         if (!$this->confirm('Write these migration files to database/migrations?', true)) {
@@ -890,6 +902,7 @@ class ModelSchemaCheckCommand extends Command
 
             $plans[] = [
                 'table' => $table,
+                'model' => $data['model'],
                 'columns' => $data['columns'],
                 'filename' => $filename,
                 'content' => $this->buildMissingFieldMigrationContent($table, $data['model'], $data['columns']),
@@ -989,6 +1002,95 @@ return new class extends Migration
         }
 
         return "\$table->string('{$column}', 255)->nullable();";
+    }
+
+    protected function runMissingFieldMigrationSafetyReview(array $plannedMigrations): array
+    {
+        $warnings = [];
+        $highRisk = [];
+
+        foreach ($plannedMigrations as $plan) {
+            $table = $plan['table'];
+            $modelClass = $plan['model'] ?? '';
+            $casts = $this->resolveModelCasts($modelClass);
+
+            foreach ($plan['columns'] as $column) {
+                $cast = strtolower((string) ($casts[$column] ?? ''));
+
+                if ($this->looksLikeForeignKey($column)) {
+                    $relatedTable = Str::plural(Str::beforeLast($column, '_id'));
+                    if ($this->tableExists($relatedTable)) {
+                        $warnings[] = "{$table}.{$column}: detected foreign-key-like column. Consider using foreignId()->constrained('{$relatedTable}') and adding an index if needed.";
+                    } else {
+                        $warnings[] = "{$table}.{$column}: column looks like a foreign key, but related table '{$relatedTable}' was not found for automatic constraint suggestion.";
+                    }
+                }
+
+                if ($cast === '' && $this->looksLikeDateTimeField($column)) {
+                    $highRisk[] = "{$table}.{$column}: no cast provided; generator defaults to string(255), but this name looks date/time-related.";
+                }
+
+                if ($cast === '' && $this->looksLikeMoneyField($column)) {
+                    $highRisk[] = "{$table}.{$column}: no cast provided; generator defaults to string(255), but this name looks monetary and may need decimal.";
+                }
+
+                if ($cast === '' && $this->looksLikeBooleanField($column)) {
+                    $highRisk[] = "{$table}.{$column}: no cast provided; generator defaults to string(255), but this name looks boolean-like and may need boolean.";
+                }
+            }
+        }
+
+        return [
+            'warnings' => $warnings,
+            'high_risk' => $highRisk,
+            'high_risk_count' => count($highRisk),
+        ];
+    }
+
+    protected function displayMissingFieldMigrationSafetyReview(array $review): void
+    {
+        $this->info('');
+        $this->info('Safety Review Pass');
+        $this->info('==================');
+
+        if (empty($review['warnings']) && empty($review['high_risk'])) {
+            $this->info('✅ No obvious safety concerns found in generated migration plans.');
+            return;
+        }
+
+        if (!empty($review['warnings'])) {
+            $this->warn('Advisory warnings:');
+            foreach ($review['warnings'] as $warning) {
+                $this->line("  - {$warning}");
+            }
+        }
+
+        if (!empty($review['high_risk'])) {
+            $this->warn('High-risk items to review before writing:');
+            foreach ($review['high_risk'] as $risk) {
+                $this->line("  - {$risk}");
+            }
+        }
+    }
+
+    protected function looksLikeForeignKey(string $column): bool
+    {
+        return Str::endsWith($column, '_id');
+    }
+
+    protected function looksLikeDateTimeField(string $column): bool
+    {
+        return Str::endsWith($column, ['_at', '_on', '_date', '_time']);
+    }
+
+    protected function looksLikeMoneyField(string $column): bool
+    {
+        return preg_match('/(price|amount|total|cost|rate|balance)/i', $column) === 1;
+    }
+
+    protected function looksLikeBooleanField(string $column): bool
+    {
+        return Str::startsWith($column, ['is_', 'has_', 'can_']) || Str::endsWith($column, ['_enabled', '_active', '_flag']);
     }
 
     protected function displayResults(): void

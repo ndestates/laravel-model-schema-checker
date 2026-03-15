@@ -435,6 +435,8 @@ php artisan model:schema-check
 - `--import-data` - Import previously exported data
 - `--cleanup-migrations` - Safely remove old migration files
 
+`--generate-migrations` and `--generate-missing-field-migrations` now run an automatic safety review pass before writing files, highlighting foreign-key opportunities and risky inferred types.
+
 #### Combined Checks
 
 - `--all` - Run all available checks
