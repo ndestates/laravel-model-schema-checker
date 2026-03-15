@@ -405,7 +405,7 @@ php artisan model:schema-check
 - `--help` - Show help information
 - `--dry-run` - Show what would be changed without making changes
 - `--fix` - Fix model fillable properties
-- `--generate-migrations` - Generate Laravel migrations
+- `--generate-migrations` - Generate migration files for model fields missing from database tables (does not run migrations)
 - `--json` - Output results in JSON format
 
 #### Specialized Checks

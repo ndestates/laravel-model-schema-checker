@@ -227,9 +227,9 @@ class ModelSchemaCheckCommand extends Command
     protected function handleGenerateMigrations(): int
     {
         $this->info('Generating migrations...');
-        $this->warn('⚠️  Migration generation not yet implemented in v3.0');
-        $this->info('This feature will be available in a future update.');
-        return Command::SUCCESS;
+        $this->info('Using missing-field migration generation mode.');
+
+        return $this->handleGenerateMissingFieldMigrations();
     }
 
     protected function handleRunMigrations(): int
