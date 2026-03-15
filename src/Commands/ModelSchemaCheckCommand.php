@@ -14,6 +14,8 @@ use NDEstates\LaravelModelSchemaChecker\Services\MigrationCleanup;
 
 class ModelSchemaCheckCommand extends Command
 {
+    protected const DISPLAY_VERSION = '3.2.2';
+
         protected $description = 'Comprehensive Laravel application validation: models, relationships, security, performance, code quality, and form analysis with amendment suggestions';
 
     protected $signature = 'model:schema-check
@@ -89,7 +91,7 @@ class ModelSchemaCheckCommand extends Command
             return 1;
         }
 
-        $this->info('Laravel Model Schema Checker v3.0');
+        $this->info('Laravel Model Schema Checker v' . self::DISPLAY_VERSION);
         $this->info('=====================================');
 
         if ($this->option('dry-run')) {
@@ -227,15 +229,15 @@ class ModelSchemaCheckCommand extends Command
     protected function handleGenerateMigrations(): int
     {
         $this->info('Generating migrations...');
-        $this->warn('⚠️  Migration generation not yet implemented in v3.0');
-        $this->info('This feature will be available in a future update.');
-        return Command::SUCCESS;
+        $this->info('Using missing-field migration generation mode.');
+
+        return $this->handleGenerateMissingFieldMigrations();
     }
 
     protected function handleRunMigrations(): int
     {
         $this->info('Running migrations...');
-        $this->warn('⚠️  Migration running not yet implemented in v3.0');
+        $this->warn('⚠️  Migration running is not yet implemented.');
         $this->info('Please run migrations manually: php artisan migrate');
         return Command::SUCCESS;
     }
@@ -243,7 +245,7 @@ class ModelSchemaCheckCommand extends Command
     protected function handleAnalyze(): int
     {
         $this->info('Running comprehensive analysis...');
-        $this->warn('⚠️  Analysis functionality not yet implemented in v3.0');
+        $this->warn('⚠️  Analysis functionality is not yet implemented.');
         $this->info('Running basic model checks instead...');
         return $this->handleModelChecks();
     }
@@ -251,7 +253,7 @@ class ModelSchemaCheckCommand extends Command
     protected function handleGenerateSchema(): int
     {
         $this->info('Generating schema documentation...');
-        $this->warn('⚠️  Schema generation not yet implemented in v3.0');
+        $this->warn('⚠️  Schema generation is not yet implemented.');
         $this->info('This feature will be available in a future update.');
         return Command::SUCCESS;
     }
@@ -259,7 +261,7 @@ class ModelSchemaCheckCommand extends Command
     protected function handleGenerateSchemaSql(): int
     {
         $this->info('Generating schema SQL...');
-        $this->warn('⚠️  Schema SQL generation not yet implemented in v3.0');
+        $this->warn('⚠️  Schema SQL generation is not yet implemented.');
         $this->info('This feature will be available in a future update.');
         return Command::SUCCESS;
     }
