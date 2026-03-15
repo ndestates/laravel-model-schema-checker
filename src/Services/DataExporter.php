@@ -173,7 +173,11 @@ SET FOREIGN_KEY_CHECKS = 1;
      */
     protected function generateTableData(string $tableName, array $options = []): string
     {
-        $sql = "\n-- Dumping data for table `{$tableName}`\n";
+        
+        if (!preg_match('/^[a-zA-Z0-9_]+$/', $tableName)) {
+            throw new \RuntimeException('Invalid input');
+        }
+        $sql = "\n-- Dumping data for table `{$tableName}`\n";$sql = "\n-- Dumping data for table `{$tableName}`\n";
 
         // Get table structure (optional)
         if ($options['include_structure'] ?? false) {
