@@ -430,6 +430,7 @@ php artisan model:schema-check
 #### Migration Synchronization
 
 - `--sync-migrations` - Generate fresh migrations from current database schema
+- `--generate-missing-field-migrations` - Generate add-column migrations for model fields missing from the database
 - `--export-data` - Export database data before migration changes
 - `--import-data` - Import previously exported data
 - `--cleanup-migrations` - Safely remove old migration files
@@ -461,6 +462,12 @@ php artisan model:schema-check --import-data
 ```bash
 # Clean up old migration files (with backup)
 php artisan model:schema-check --cleanup-migrations
+
+# Preview missing-field migrations without writing files
+php artisan model:schema-check --generate-missing-field-migrations --dry-run
+
+# Generate missing-field migration files only (does not run migrate)
+php artisan model:schema-check --generate-missing-field-migrations
 
 # Export data only
 php artisan model:schema-check --export-data
