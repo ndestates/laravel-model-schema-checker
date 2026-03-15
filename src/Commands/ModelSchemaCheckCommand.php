@@ -50,6 +50,7 @@ class ModelSchemaCheckCommand extends Command
                             {--export-data : Export database data to compressed SQL file}
                             {--import-data : Import database data from compressed SQL file}
                             {--cleanup-migrations : Safely remove old migration files with backup}
+                            {--generate-missing-field-migrations : Generate add-column migrations for model fields missing from database}
                             {--check-all : Run all available checks (alias for --all)}
                             {--fix-migrations : Generate alter migrations to fix detected migration issues}
                             {--rollback-migrations : Rollback the last batch of migrations}
@@ -182,6 +183,10 @@ class ModelSchemaCheckCommand extends Command
 
         if ($this->option('cleanup-migrations')) {
             return $this->handleCleanupMigrations();
+        }
+
+        if ($this->option('generate-missing-field-migrations')) {
+            return $this->handleGenerateMissingFieldMigrations();
         }
 
         if ($this->option('fix-migrations')) {
@@ -791,6 +796,197 @@ class ModelSchemaCheckCommand extends Command
         }
 
         return Command::SUCCESS;
+    }
+
+    protected function handleGenerateMissingFieldMigrations(): int
+    {
+        $this->info('Analyzing models for fields missing from database tables...');
+
+        $checker = $this->checkerManager->getChecker('model');
+        if (!$checker) {
+            $this->error('ModelChecker not found. Make sure it is properly registered.');
+            return Command::FAILURE;
+        }
+
+        $issues = $checker->check();
+        $missingFieldIssues = array_filter($issues, function ($issue) {
+            return ($issue['type'] ?? '') === 'orphaned_fillable';
+        });
+
+        if (empty($missingFieldIssues)) {
+            $this->info('No model-defined missing database fields were detected.');
+            return Command::SUCCESS;
+        }
+
+        $plannedMigrations = $this->buildMissingFieldMigrationPlan($missingFieldIssues);
+
+        if (empty($plannedMigrations)) {
+            $this->warn('No safe migration plan could be generated from detected issues.');
+            return Command::SUCCESS;
+        }
+
+        $this->info('Planned migrations: ' . count($plannedMigrations));
+        foreach ($plannedMigrations as $plan) {
+            $this->line("  - {$plan['filename']} (table: {$plan['table']}, columns: " . implode(', ', $plan['columns']) . ')');
+        }
+
+        if ($this->option('dry-run')) {
+            $this->warn('Dry-run mode enabled. No migration files were written.');
+            return Command::SUCCESS;
+        }
+
+        if (!$this->confirm('Write these migration files to database/migrations?', true)) {
+            $this->info('Operation cancelled. No files were created.');
+            return Command::SUCCESS;
+        }
+
+        $saved = [];
+        foreach ($plannedMigrations as $plan) {
+            $path = database_path('migrations/' . $plan['filename']);
+            File::put($path, $plan['content']);
+            $saved[] = $path;
+        }
+
+        $this->info('Migration files created successfully:');
+        foreach ($saved as $filePath) {
+            $this->line("  - {$filePath}");
+        }
+
+        $this->warn('Review generated migration files before running php artisan migrate.');
+
+        return Command::SUCCESS;
+    }
+
+    protected function buildMissingFieldMigrationPlan(array $missingFieldIssues): array
+    {
+        $grouped = [];
+
+        foreach ($missingFieldIssues as $issue) {
+            $table = $issue['table'] ?? null;
+            $modelClass = $issue['model'] ?? null;
+            $columns = $issue['orphaned_columns'] ?? [];
+
+            if (!$table || !$modelClass || empty($columns)) {
+                continue;
+            }
+
+            if (!isset($grouped[$table])) {
+                $grouped[$table] = [
+                    'model' => $modelClass,
+                    'columns' => [],
+                ];
+            }
+
+            $grouped[$table]['columns'] = array_values(array_unique(array_merge($grouped[$table]['columns'], $columns)));
+        }
+
+        $plans = [];
+        $sequence = 1;
+        foreach ($grouped as $table => $data) {
+            $timestamp = now()->format('Y_m_d_His') . '_' . str_pad((string) $sequence, 2, '0', STR_PAD_LEFT);
+            $filename = "{$timestamp}_add_missing_fields_to_{$table}_table.php";
+
+            $plans[] = [
+                'table' => $table,
+                'columns' => $data['columns'],
+                'filename' => $filename,
+                'content' => $this->buildMissingFieldMigrationContent($table, $data['model'], $data['columns']),
+            ];
+
+            $sequence++;
+        }
+
+        return $plans;
+    }
+
+    protected function buildMissingFieldMigrationContent(string $table, string $modelClass, array $columns): string
+    {
+        $upLines = [];
+        $dropColumns = [];
+        $casts = $this->resolveModelCasts($modelClass);
+
+        foreach ($columns as $column) {
+            $upLines[] = '            ' . $this->buildColumnStatementFromCast($column, $casts[$column] ?? null);
+            $dropColumns[] = "'{$column}'";
+        }
+
+        $upBlock = implode("\n", $upLines);
+        $downDrop = count($dropColumns) === 1
+            ? '            $table->dropColumn(' . $dropColumns[0] . ');'
+            : '            $table->dropColumn([' . implode(', ', $dropColumns) . ']);';
+
+        return "<?php
+
+use Illuminate\\Database\\Migrations\\Migration;
+use Illuminate\\Database\\Schema\\Blueprint;
+use Illuminate\\Support\\Facades\\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::table('{$table}', function (Blueprint \\$table) {
+{$upBlock}
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::table('{$table}', function (Blueprint \\$table) {
+{$downDrop}
+        });
+    }
+};
+";
+    }
+
+    protected function resolveModelCasts(string $modelClass): array
+    {
+        try {
+            if (!class_exists($modelClass)) {
+                return [];
+            }
+
+            $model = new $modelClass();
+            if (!method_exists($model, 'getCasts')) {
+                return [];
+            }
+
+            return $model->getCasts();
+        } catch (\Throwable $e) {
+            return [];
+        }
+    }
+
+    protected function buildColumnStatementFromCast(string $column, ?string $cast): string
+    {
+        $normalizedCast = strtolower((string) $cast);
+
+        if (in_array($normalizedCast, ['int', 'integer', 'smallint', 'bigint'], true)) {
+            return "\$table->integer('{$column}')->nullable();";
+        }
+
+        if (in_array($normalizedCast, ['float', 'double', 'decimal', 'real'], true)) {
+            return "\$table->decimal('{$column}', 12, 2)->nullable();";
+        }
+
+        if (in_array($normalizedCast, ['bool', 'boolean'], true)) {
+            return "\$table->boolean('{$column}')->nullable();";
+        }
+
+        if (in_array($normalizedCast, ['array', 'json', 'object', 'collection'], true)) {
+            return "\$table->json('{$column}')->nullable();";
+        }
+
+        if (in_array($normalizedCast, ['date', 'immutable_date'], true)) {
+            return "\$table->date('{$column}')->nullable();";
+        }
+
+        if (in_array($normalizedCast, ['datetime', 'immutable_datetime', 'timestamp'], true)) {
+            return "\$table->dateTime('{$column}')->nullable();";
+        }
+
+        return "\$table->string('{$column}', 255)->nullable();";
     }
 
     protected function displayResults(): void
