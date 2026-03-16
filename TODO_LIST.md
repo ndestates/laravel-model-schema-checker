@@ -1,9 +1,11 @@
 # Laravel Model Schema Checker v3.0 - Implementation Plan
 
 ## Overview
+
 This document outlines the systematic implementation of all Version 2 functionality into the new modular Version 3 architecture.
 
 ## Current Status
+
 - ✅ **Modular Architecture**: Interfaces, services, and base classes implemented
 - ✅ **ModelChecker**: Basic model validation with auto-fixes working
 - ✅ **Database Backup**: Real backup functionality (MySQL, PostgreSQL, SQLite)
@@ -17,9 +19,11 @@ This document outlines the systematic implementation of all Version 2 functional
 ## Implementation Plan
 
 ### Phase 1: Core Checkers (Priority: High)
+
 These checkers implement the main validation functionality from Version 2.
 
 #### 1. FilamentChecker
+
 - **Status**: ✅ Completed
 - **Description**: Check Filament forms and relationships for broken integrity
 - **Original Methods**:
@@ -33,49 +37,59 @@ These checkers implement the main validation functionality from Version 2.
   - `checkFilamentFormFieldAlignment()`
 
 #### 2. SecurityChecker
+
 - **Status**: ✅ Completed
 - **Description**: Scan for XSS, CSRF, SQL injection, and path traversal vulnerabilities
 - **Original Method**: `checkSecurityVulnerabilities()`
 
 #### 3. RelationshipChecker
+
 - **Status**: ✅ Completed
 - **Description**: Validate model relationships and foreign keys
 - **Original Method**: `checkModelRelationships()`
 
 #### 4. MigrationChecker
+
 - **Status**: ✅ Completed
 - **Description**: Check migration consistency, indexes, and foreign keys
 - **Original Method**: `checkMigrationConsistency()`
 
 #### 5. ValidationChecker
+
 - **Status**: ✅ Completed
 - **Description**: Check validation rules against database schema
 - **Original Method**: `checkValidationRules()`
 
 #### 6. PerformanceChecker
+
 - **Status**: ✅ Completed
 - **Description**: Detect N+1 queries and optimization opportunities
 - **Original Method**: `checkPerformanceIssues()`
 
 #### 7. CodeQualityChecker
+
 - **Status**: ✅ Completed
 - **Description**: Check Laravel best practices and code quality
 - **Original Method**: `checkCodeQuality()`
 
 #### 8. LaravelFormsChecker
+
 - **Status**: ✅ Completed
 - **Description**: Check Blade templates and Livewire forms
 - **Original Method**: `checkLaravelForms()`
 
 ### Phase 2: Supporting Services (Priority: High)
+
 These services handle data operations and migration management.
 
 #### 9. MigrationGenerator Service
+
 - **Status**: ✅ Completed
 - **Description**: Generate fresh migrations from database schema
 - **Original Method**: `syncMigrationsFromDatabase()`
 
 #### 10. DataExporter Service
+
 - **Status**: ✅ Completed
 - **Description**: Export database data with compression (.sql.gz files)
 - **Original Methods**:
@@ -83,34 +97,41 @@ These services handle data operations and migration management.
   - `exportDatabaseDataToCompressedFile()`
 
 #### 11. DataImporter Service
+
 - **Status**: ✅ Completed
 - **Description**: Import previously exported compressed data
 - **Original Method**: `importDatabaseData()`
 
 #### 12. MigrationCleanup Service
+
 - **Status**: ✅ Completed
 - **Description**: Safely remove old migration files with backup
 - **Original Method**: `cleanupMigrationFiles()`
 
 ### Phase 3: Integration & Configuration (Priority: Medium)
+
 These tasks integrate all the new checkers and services.
 
 #### 13. Update CheckerManager
+
 - **Status**: ⏳ Pending
 - **Description**: Update CheckerManager to register all new checkers and enable/disable functionality
 - **Files to Update**: `src/Services/CheckerManager.php`
 
 #### 14. Update Command Handlers
+
 - **Status**: ⏳ Pending
 - **Description**: Replace placeholder handlers in ModelSchemaCheckCommand with actual implementations
 - **Files to Update**: `src/Commands/ModelSchemaCheckCommand.php`
 
 #### 15. Add Missing Command Options
+
 - **Status**: ✅ Completed
 - **Description**: Add missing command options (--sync-migrations, --export-data, --import-data, --cleanup-migrations, etc.)
 - **Files to Update**: `src/Commands/ModelSchemaCheckCommand.php`
 
 #### 16. Update Service Provider
+
 - **Status**: ✅ Completed
 - **Description**: Update service provider to register new services (MigrationGenerator, DataExporter, etc.)
 - **Files to Update**: `src/ModelSchemaCheckerServiceProvider.php`
@@ -118,6 +139,7 @@ These tasks integrate all the new checkers and services.
 ### Phase 4: Testing & Documentation (Priority: High)
 
 #### 17. Comprehensive Testing
+
 - **Status**: ⏳ Pending
 - **Description**: Run comprehensive testing of all new services and command options in DDEV environment
 - **Tasks**:
@@ -126,6 +148,7 @@ These tasks integrate all the new checkers and services.
   - Test error handling and edge cases
 
 #### 18. Documentation Updates
+
 - **Status**: ⏳ Pending
 - **Description**: Update README.md and VERSION_3_PLAN.md with completed features and new command options
 - **Tasks**:
@@ -134,6 +157,7 @@ These tasks integrate all the new checkers and services.
   - Add examples for data export/import workflows
 
 #### 19. Package Validation
+
 - **Status**: ⏳ Pending
 - **Description**: Ensure all components work together in DDEV environment and validate package structure
 - **Tasks**:
@@ -142,6 +166,7 @@ These tasks integrate all the new checkers and services.
   - Validate autoloading and dependencies
 
 #### 20. Release Preparation
+
 - **Status**: ⏳ Pending
 - **Description**: Final cleanup and preparation for merge to main branch and potential Packagist release
 - **Tasks**:
@@ -150,13 +175,24 @@ These tasks integrate all the new checkers and services.
   - Prepare release notes
 
 ## Implementation Order
+
 1. ✅ **Core Checkers**: All 8 checkers implemented and working
 2. ✅ **Supporting Services**: MigrationGenerator, DataExporter, DataImporter, MigrationCleanup completed
 3. ✅ **Integration**: Command options and service provider updates completed
 4. 🔄 **Testing & Documentation**: Current phase - comprehensive testing and documentation updates
 5. 🔄 **Release**: Package validation and release preparation
 
+### 21. GitHub Actions CI Reliability
+
+- **Status**: ⏳ Pending
+- **Description**: Keep the GitHub workflow green and error-free across the active PHP matrix.
+- **Tasks**:
+  - Ensure test job runs Pest instead of PHPUnit where Pest is the active runner.
+  - Verify workflow passes on both configured PHP versions.
+  - Remove or fix any remaining failing CI steps before release tagging.
+
 ## Success Criteria
+
 - ✅ All Version 2 functionality ported to modular architecture
 - ✅ All command options from Version 2 available
 - ✅ Automatic fixes working for all applicable checks
@@ -167,6 +203,7 @@ These tasks integrate all the new checkers and services.
 - 🔄 Documentation updated for new features
 
 ## Benefits of Version 3
+
 - **Modular**: Each checker is independent and testable
 - **Extensible**: Easy to add new checkers without touching existing code
 - **Maintainable**: Smaller, focused classes are easier to maintain
@@ -175,6 +212,7 @@ These tasks integrate all the new checkers and services.
 - **Configurable**: Checkers can be enabled/disabled individually
 
 ## Next Steps
+
 1. **Start Testing Phase**: Run comprehensive tests of all new services in DDEV environment
 2. **Update Documentation**: Refresh README.md and VERSION_3_PLAN.md with new features
 3. **Package Validation**: Test installation and validate package structure

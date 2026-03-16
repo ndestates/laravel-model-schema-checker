@@ -44,7 +44,7 @@ class RelationshipChecker extends BaseChecker
         return $this->issues;
     }
 
-    protected function checkModelRelationshipsForFile(\Symfony\Component\Finder\SplFileInfo $file): void
+    protected function checkModelRelationshipsForFile(\SplFileInfo $file): void
     {
         $namespace = $this->getNamespaceFromFile($file->getPathname());
         $className = $namespace . '\\' . pathinfo($file->getFilename(), PATHINFO_FILENAME);

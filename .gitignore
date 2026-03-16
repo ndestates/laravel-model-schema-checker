@@ -33,9 +33,6 @@ Thumbs.db
 .ddev/web-entrypoint.d/
 .ddev/xhprof/
 
-# Test Laravel application
-test-package/
-
 # Test outputs
 test_results/
 outputs/

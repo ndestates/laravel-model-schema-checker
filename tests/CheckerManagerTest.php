@@ -61,7 +61,7 @@ class CheckerManagerTest extends TestCase
         $manager = new CheckerManager($this->defaultConfig, 'testing');
         $checkers = $manager->getCheckers();
 
-        $this->assertCount(9, $checkers);
+        $this->assertCount(10, $checkers);
 
         $checkerNames = array_map(fn($checker) => $checker->getName(), $checkers);
         $expectedNames = [
@@ -74,6 +74,7 @@ class CheckerManagerTest extends TestCase
             'Performance Checker',
             'Code Quality Checker',
             'Laravel Forms Checker',
+            'API Resource Checker',
         ];
 
         foreach ($expectedNames as $expectedName) {
@@ -93,7 +94,7 @@ class CheckerManagerTest extends TestCase
         $manager->register($customChecker);
 
         $checkers = $manager->getCheckers();
-        $this->assertCount(10, $checkers);
+        $this->assertCount(11, $checkers);
 
         $customCheckerFromManager = $manager->getChecker('Custom Checker');
         $this->assertSame($customChecker, $customCheckerFromManager);
@@ -105,13 +106,13 @@ class CheckerManagerTest extends TestCase
 
         // Initially all checkers should be enabled
         $enabledCheckers = $manager->getEnabledCheckers();
-        $this->assertCount(9, $enabledCheckers);
+        $this->assertCount(10, $enabledCheckers);
 
         // Disable a checker
         $manager->disableChecker('Model Checker');
 
         $enabledCheckers = $manager->getEnabledCheckers();
-        $this->assertCount(8, $enabledCheckers);
+        $this->assertCount(9, $enabledCheckers);
 
         $modelChecker = $manager->getChecker('Model Checker');
         $this->assertFalse($modelChecker->isEnabled());
@@ -120,7 +121,7 @@ class CheckerManagerTest extends TestCase
         $manager->enableChecker('Model Checker');
 
         $enabledCheckers = $manager->getEnabledCheckers();
-        $this->assertCount(9, $enabledCheckers);
+        $this->assertCount(10, $enabledCheckers);
 
         $modelChecker = $manager->getChecker('Model Checker');
         $this->assertTrue($modelChecker->isEnabled());
@@ -239,7 +240,7 @@ class CheckerManagerTest extends TestCase
         $manager = new CheckerManager($this->defaultConfig, 'testing');
         $availableCheckers = $manager->getAvailableCheckers();
 
-        $this->assertCount(9, $availableCheckers);
+        $this->assertCount(10, $availableCheckers);
 
         foreach ($availableCheckers as $checkerInfo) {
             $this->assertArrayHasKey('name', $checkerInfo);

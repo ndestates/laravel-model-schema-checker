@@ -65,8 +65,8 @@ jobs:
         echo "Pest Version: $(vendor/bin/pest --version 2>/dev/null || echo 'Pest not available')"
         echo "PHPStan Version: $(vendor/bin/phpstan --version 2>/dev/null || echo 'PHPStan not found')"
 
-    - name: Run tests (PHPUnit)
-      run: vendor/bin/phpunit --testdox
+    - name: Run tests (Pest)
+      run: vendor/bin/pest --testdox
 
     - name: Run PHPStan static analysis
       run: vendor/bin/phpstan analyse --error-format=github || echo "PHPStan found issues but continuing..."
@@ -100,10 +100,50 @@ jobs:
         composer show --available ndestates/laravel-model-schema-checker 2>/dev/null || echo "Package not yet published (expected in CI)"
         echo "✅ Composer resolution test passed"
 
+  laravel12-filament-integration:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: 8.3
+        extensions: pdo, pdo_mysql, pdo_sqlite
+        coverage: none
+
+    - name: Cache Composer dependencies (test-package)
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.composer/cache
+          test-package/vendor
+        key: composer-test-package-${{ hashFiles('test-package/composer.json') }}
+        restore-keys: |
+          composer-test-package-
+
+    - name: Install Laravel 12 test app dependencies (including Filament)
+      run: |
+        cd test-package
+        composer clear-cache
+        composer update --no-progress --prefer-dist --optimize-autoloader --no-interaction
+
+    - name: Configure Laravel 12 test app
+      run: |
+        cd test-package
+        cp -n .env.example .env || true
+        php artisan key:generate --no-interaction
+
+    - name: Run Laravel 12 + Filament integration tests
+      run: |
+        cd test-package
+        php artisan test --testsuite=Feature --filter=FilamentIntegrationTest
+
   publish:
     runs-on: ubuntu-latest
     if: github.event_name == 'release' || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v'))
-    needs: test
+    needs: [test, laravel12-filament-integration]
 
     steps:
     - uses: actions/checkout@v4
