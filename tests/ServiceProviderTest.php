@@ -234,7 +234,19 @@ class ServiceProviderTest extends TestCase
 
     public function test_is_production_environment_detects_app_env_override()
     {
+        $originalDdevProject = $_SERVER['DDEV_PROJECT'] ?? null;
+        $originalDdevHostname = $_SERVER['DDEV_HOSTNAME'] ?? null;
+        $originalEnvDdevProject = getenv('DDEV_PROJECT');
+        $originalEnvDdevHostname = getenv('DDEV_HOSTNAME');
+        $originalEnvIsDdevProject = getenv('IS_DDEV_PROJECT');
+        $originalEnvAppEnv = getenv('APP_ENV');
+
+        unset($_SERVER['DDEV_PROJECT'], $_SERVER['DDEV_HOSTNAME']);
         $_SERVER['APP_ENV'] = 'production';
+        putenv('DDEV_PROJECT');
+        putenv('DDEV_HOSTNAME');
+        putenv('IS_DDEV_PROJECT');
+        putenv('APP_ENV=production');
 
         $reflection = new \ReflectionClass($this->provider);
         $method = $reflection->getMethod('isProductionEnvironment');
@@ -243,6 +255,19 @@ class ServiceProviderTest extends TestCase
         $this->assertTrue($method->invoke($this->provider));
 
         unset($_SERVER['APP_ENV']);
+
+        if ($originalDdevProject !== null) {
+            $_SERVER['DDEV_PROJECT'] = $originalDdevProject;
+        }
+
+        if ($originalDdevHostname !== null) {
+            $_SERVER['DDEV_HOSTNAME'] = $originalDdevHostname;
+        }
+
+        $originalEnvDdevProject === false ? putenv('DDEV_PROJECT') : putenv("DDEV_PROJECT={$originalEnvDdevProject}");
+        $originalEnvDdevHostname === false ? putenv('DDEV_HOSTNAME') : putenv("DDEV_HOSTNAME={$originalEnvDdevHostname}");
+        $originalEnvIsDdevProject === false ? putenv('IS_DDEV_PROJECT') : putenv("IS_DDEV_PROJECT={$originalEnvIsDdevProject}");
+        $originalEnvAppEnv === false ? putenv('APP_ENV') : putenv("APP_ENV={$originalEnvAppEnv}");
     }
 
     public function test_is_production_environment_ignores_ddev_hosts()
@@ -270,6 +295,8 @@ class ServiceProviderTest extends TestCase
         $reflection = new \ReflectionClass($this->provider);
         $method = $reflection->getMethod('isPathWithinRoots');
         $method->setAccessible(true);
+
+        mkdir($allowedDir . '/child', 0755, true);
 
         $safePath = $allowedDir . '/child/file.txt';
         $unsafePath = $allowedDir . '/../outside/file.txt';

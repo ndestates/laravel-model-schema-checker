@@ -79,7 +79,7 @@ class SecurityCheckerTest extends TestCase
         ];
 
         $this->checker = new SecurityChecker($this->config, $this->viewDir, $this->controllerDir, $this->modelDir);
-        $this->checker->setCommand(Mockery::mock(\Illuminate\Console\Command::class));
+        $this->checker->setCommand(Mockery::mock(\Illuminate\Console\Command::class)->shouldIgnoreMissing());
     }
 
     protected function tearDown(): void
