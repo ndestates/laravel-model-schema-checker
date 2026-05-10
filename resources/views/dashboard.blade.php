@@ -72,6 +72,52 @@
 
         <!-- Main Content -->
         <main class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+            @if (session('status'))
+                <div class="mb-6 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+                    {{ session('status') }}
+                </div>
+            @endif
+
+            <div class="bg-white shadow rounded-lg mb-8">
+                <div class="px-4 py-5 sm:p-6">
+                    <div class="flex items-start justify-between gap-6">
+                        <div>
+                            <h3 class="text-lg leading-6 font-medium text-gray-900 mb-1">Safety Controls</h3>
+                            <p class="text-sm text-gray-600">Control whether the package may write files or perform code/schema modifications at runtime.</p>
+                        </div>
+                        <div class="text-xs text-gray-500">Stored in app cache until changed</div>
+                    </div>
+
+                    <form method="POST" action="{{ route('model-schema-checker.settings.update') }}" class="mt-5 space-y-4">
+                        @csrf
+                        <label class="flex items-start justify-between gap-4 rounded-lg border border-gray-200 px-4 py-3">
+                            <div>
+                                <div class="text-sm font-medium text-gray-900">Allow File Writes</div>
+                                <div class="text-sm text-gray-500">Enables generated migrations, saved reports, backups, and other file-writing operations.</div>
+                            </div>
+                            <input type="hidden" name="allow_file_writes" value="0">
+                            <input type="checkbox" name="allow_file_writes" value="1" @checked($runtimeSettings['allow_file_writes']) class="mt-1 rounded border-gray-300 text-indigo-600 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+                        </label>
+
+                        <label class="flex items-start justify-between gap-4 rounded-lg border border-gray-200 px-4 py-3">
+                            <div>
+                                <div class="text-sm font-medium text-gray-900">Allow Code Modification</div>
+                                <div class="text-sm text-gray-500">Required for commands that modify schema/code behavior, including generated migration and fix workflows.</div>
+                            </div>
+                            <input type="hidden" name="allow_code_modification" value="0">
+                            <input type="checkbox" name="allow_code_modification" value="1" @checked($runtimeSettings['allow_code_modification']) class="mt-1 rounded border-gray-300 text-indigo-600 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+                        </label>
+
+                        <div class="flex items-center justify-between gap-4">
+                            <p class="text-xs text-gray-500">These controls affect command guardrails alongside config and env defaults.</p>
+                            <button type="submit" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-slate-900 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-500">
+                                Save Safety Settings
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
             <!-- Stats Cards -->
             <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
                 <div class="bg-white overflow-hidden shadow rounded-lg">

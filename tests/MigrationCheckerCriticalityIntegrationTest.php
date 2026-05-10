@@ -3,6 +3,7 @@
 namespace NDEstates\LaravelModelSchemaChecker\Tests;
 
 use PHPUnit\Framework\TestCase;
+use Mockery;
 use NDEstates\LaravelModelSchemaChecker\Checkers\MigrationChecker;
 
 /**
@@ -16,6 +17,8 @@ class MigrationCheckerCriticalityIntegrationTest extends TestCase
     private string $tempDir;
     private string $migrationDir;
     private array $config;
+    private object $commandSpy;
+    private array $output;
 
     protected function setUp(): void
     {
@@ -32,6 +35,24 @@ class MigrationCheckerCriticalityIntegrationTest extends TestCase
                 'enabled' => ['migration_syntax' => true]
             ]
         ];
+
+        $this->output = [];
+        $this->commandSpy = Mockery::mock(\Illuminate\Console\Command::class)->shouldIgnoreMissing();
+        $this->commandSpy->shouldReceive('info')->andReturnUsing(function (string $message): void {
+            $this->output[] = $message;
+        });
+        $this->commandSpy->shouldReceive('warn')->andReturnUsing(function (string $message): void {
+            $this->output[] = $message;
+        });
+        $this->commandSpy->shouldReceive('error')->andReturnUsing(function (string $message): void {
+            $this->output[] = $message;
+        });
+        $this->commandSpy->shouldReceive('line')->andReturnUsing(function (string $message): void {
+            $this->output[] = $message;
+        });
+        $this->commandSpy->shouldReceive('newLine')->andReturnUsing(function (): void {
+            $this->output[] = '';
+        });
     }
 
     protected function tearDown(): void
@@ -39,6 +60,8 @@ class MigrationCheckerCriticalityIntegrationTest extends TestCase
         if (file_exists($this->tempDir)) {
             exec("rm -rf " . escapeshellarg($this->tempDir));
         }
+
+        Mockery::close();
 
         parent::tearDown();
     }
@@ -49,6 +72,7 @@ class MigrationCheckerCriticalityIntegrationTest extends TestCase
         $config['enable_criticality_analysis'] = true;
 
         $checker = new MigrationChecker($config, $this->migrationDir);
+        $checker->setCommand($this->commandSpy);
 
         // Create a test migration with issues
         $migrationContent = '<?php
@@ -100,6 +124,7 @@ class TestMigration extends Migration
         $config['enable_criticality_analysis'] = true;
 
         $checker = new MigrationChecker($config, $this->migrationDir);
+        $checker->setCommand($this->commandSpy);
 
         // Create a migration with high-risk issues
         $migrationContent = '<?php
@@ -128,9 +153,8 @@ class HighRiskMigration extends Migration
         file_put_contents($this->migrationDir . '/2024_01_01_000000_high_risk_migration.php', $migrationContent);
 
         // Capture output
-        ob_start();
         $issues = $checker->check();
-        $output = ob_get_clean();
+        $output = implode("\n", $this->output);
 
         // Should contain criticality analysis output
         $this->assertStringContainsString('Migration Criticality Analysis', $output);
@@ -144,6 +168,7 @@ class HighRiskMigration extends Migration
         $config['enable_criticality_analysis'] = true;
 
         $checker = new MigrationChecker($config, $this->migrationDir);
+        $checker->setCommand($this->commandSpy);
 
         // Create a migration with critical syntax error
         $migrationContent = '<?php
@@ -169,9 +194,8 @@ class CriticalSyntaxMigration extends Migration
 
         file_put_contents($this->migrationDir . '/2024_01_01_000000_critical_syntax.php', $migrationContent);
 
-        ob_start();
         $issues = $checker->check();
-        $output = ob_get_clean();
+        $output = implode("\n", $this->output);
 
         $this->assertStringContainsString('CRITICAL', $output);
         $this->assertStringContainsString('DO NOT rerun migrations', $output);
@@ -183,6 +207,7 @@ class CriticalSyntaxMigration extends Migration
         $config['enable_criticality_analysis'] = true;
 
         $checker = new MigrationChecker($config, $this->migrationDir);
+        $checker->setCommand($this->commandSpy);
 
         // Create a clean migration
         $migrationContent = '<?php
@@ -210,9 +235,8 @@ class CleanMigration extends Migration
 
         file_put_contents($this->migrationDir . '/2024_01_01_000000_clean_migration.php', $migrationContent);
 
-        ob_start();
         $issues = $checker->check();
-        $output = ob_get_clean();
+        $output = implode("\n", $this->output);
 
         $this->assertStringContainsString('Database Rerun Risk Level', $output);
         $this->assertStringContainsString('MINIMAL', $output);
@@ -224,6 +248,7 @@ class CleanMigration extends Migration
         $config['enable_criticality_analysis'] = true;
 
         $checker = new MigrationChecker($config, $this->migrationDir);
+        $checker->setCommand($this->commandSpy);
 
         // Create a migration requiring data mapping
         $migrationContent = '<?php
@@ -251,11 +276,10 @@ class DataMappingMigration extends Migration
 
         file_put_contents($this->migrationDir . '/2024_01_01_000000_data_mapping.php', $migrationContent);
 
-        ob_start();
         $issues = $checker->check();
-        $output = ob_get_clean();
+        $output = implode("\n", $this->output);
 
         $this->assertStringContainsString('Recommendations', $output);
-        $this->assertStringContainsString('data mapping required', $output);
+        $this->assertStringContainsString('Data mapping required', $output);
     }
 }

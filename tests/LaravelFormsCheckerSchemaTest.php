@@ -8,8 +8,8 @@ use NDEstates\LaravelModelSchemaChecker\Checkers\LaravelFormsChecker;
 class LaravelFormsCheckerSchemaTest extends TestCase
 {
     private LaravelFormsChecker $checker;
-    private string $modelsDir;
-    private string $viewsDir;
+    private string $modelsDir = '';
+    private string $viewsDir = '';
 
     protected function setUp(): void
     {
@@ -22,10 +22,10 @@ class LaravelFormsCheckerSchemaTest extends TestCase
     protected function tearDown(): void
     {
         // Clean up test directories
-        if (file_exists($this->modelsDir)) {
+        if ($this->modelsDir !== '' && file_exists($this->modelsDir)) {
             $this->removeDirectory($this->modelsDir);
         }
-        if (file_exists($this->viewsDir)) {
+        if ($this->viewsDir !== '' && file_exists($this->viewsDir)) {
             $this->removeDirectory($this->viewsDir);
         }
         

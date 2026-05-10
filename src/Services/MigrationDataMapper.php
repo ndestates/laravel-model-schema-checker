@@ -4,7 +4,6 @@ namespace NDEstates\LaravelModelSchemaChecker\Services;
 
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
-use Illuminate\Support\Facades\Storage;
 
 class MigrationDataMapper
 {
@@ -23,17 +22,17 @@ class MigrationDataMapper
      */
     public function createBackupWithMetadata(): array
     {
-        $backupId = 'backup_' . date('Y_m_d_H_i_s') . '_' . uniqid();
+        $backupId = 'backup_' . date('Y_m_d_His') . '_' . uniqid();
         $backupDir = $this->backupPath . '/' . $backupId;
 
-        if (!File::exists($backupDir)) {
-            File::makeDirectory($backupDir, 0755, true);
+        if (!$this->pathExists($backupDir)) {
+            $this->makeDirectory($backupDir);
         }
 
         $metadata = [
             'backup_id' => $backupId,
-            'timestamp' => now()->toISOString(),
-            'database_name' => config('database.connections.mysql.database'),
+            'timestamp' => $this->currentTimestamp(),
+            'database_name' => $this->databaseName(),
             'tables' => [],
             'schema' => [],
             'data_hashes' => []
@@ -47,7 +46,7 @@ class MigrationDataMapper
         }
 
         // Save metadata
-        File::put($backupDir . '/metadata.json', json_encode($metadata, JSON_PRETTY_PRINT));
+        $this->writeFile($backupDir . '/metadata.json', json_encode($metadata, JSON_PRETTY_PRINT));
 
         return [
             'backup_id' => $backupId,
@@ -59,22 +58,45 @@ class MigrationDataMapper
 
     protected function getAllTables(): array
     {
-        return DB::select('SHOW TABLES');
+        if (!$this->canUseFacades()) {
+            return [];
+        }
+
+        try {
+            $driver = DB::getDriverName();
+
+            if ($driver === 'sqlite') {
+                $tables = DB::select("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'");
+
+                return array_map(static fn ($row) => $row->name ?? $row['name'] ?? null, $tables);
+            }
+
+            if ($driver === 'mysql') {
+                $tables = DB::select('SHOW TABLES');
+                $databaseName = DB::getDatabaseName();
+
+                return array_map(static fn ($row) => $row->{'Tables_in_' . $databaseName} ?? null, $tables);
+            }
+        } catch (\Throwable $e) {
+            return [];
+        }
+
+        return [];
     }
 
     protected function backupTable(string $table, string $backupDir): array
     {
-        $tableData = DB::table($table)->get();
+        $tableData = $this->canUseFacades() ? DB::table($table)->get() : collect();
         $tableSchema = $this->getTableSchema($table);
 
         $tableFile = $backupDir . "/{$table}.json";
         $schemaFile = $backupDir . "/{$table}_schema.json";
 
         // Backup data
-        File::put($tableFile, json_encode($tableData, JSON_PRETTY_PRINT));
+        $this->writeFile($tableFile, json_encode($tableData, JSON_PRETTY_PRINT));
 
         // Backup schema
-        File::put($schemaFile, json_encode($tableSchema, JSON_PRETTY_PRINT));
+        $this->writeFile($schemaFile, json_encode($tableSchema, JSON_PRETTY_PRINT));
 
         return [
             'row_count' => $tableData->count(),
@@ -86,6 +108,14 @@ class MigrationDataMapper
 
     protected function getTableSchema(string $table): array
     {
+        if (!$this->canUseFacades()) {
+            return [
+                'columns' => [],
+                'indexes' => [],
+                'foreign_keys' => [],
+            ];
+        }
+
         $columns = DB::select("DESCRIBE `{$table}`");
         $indexes = DB::select("SHOW INDEX FROM `{$table}`");
         $foreignKeys = DB::select("
@@ -151,16 +181,16 @@ class MigrationDataMapper
     protected function handleDataLossMapping(array $issue, array &$strategy): void
     {
         // Extract table and column information from the issue description
-        if (preg_match('/Migration ([^\s]+).*table ([^\s]+)/', $issue['description'], $matches)) {
+        if (preg_match('/Migration ([^\s]+)/', $issue['description'], $matches)) {
             $migration = $matches[1];
-            $table = $matches[2];
+            $table = $issue['table'] ?? 'unknown_table';
 
             $strategy['data_transformations'][] = [
                 'type' => 'data_preservation',
                 'migration' => $migration,
                 'table' => $table,
                 'action' => 'backup_and_restore',
-                'reason' => 'Column changes may cause data loss'
+                'reason' => 'column changes may cause data loss'
             ];
         }
     }
@@ -174,7 +204,7 @@ class MigrationDataMapper
                 'type' => 'constraint_validation',
                 'migration' => $migration,
                 'action' => 'validate_references',
-                'reason' => 'Foreign key constraints need validation'
+                'reason' => 'foreign key constraints need validation'
             ];
         }
     }
@@ -215,6 +245,9 @@ class MigrationDataMapper
             $risks['data_loss_potential'] = true;
             $risks['constraint_violations'] = true;
             $risks['estimated_migration_time'] = 'SLOW';
+        } elseif (!empty($migrationAnalysis['criticality']['MEDIUM'] ?? [])) {
+            $risks['overall_risk'] = 'MEDIUM';
+            $risks['estimated_migration_time'] = 'MEDIUM';
         }
 
         return $risks;
@@ -264,26 +297,26 @@ class MigrationDataMapper
         return $results;
     }
 
-    protected function validateBackup(string $backupId): void
+    public function validateBackup(string $backupId): void
     {
         $backupDir = $this->backupPath . '/' . $backupId;
         $metadataFile = $backupDir . '/metadata.json';
 
-        if (!File::exists($metadataFile)) {
+        if (!$this->pathExists($metadataFile)) {
             throw new \Exception("Backup metadata not found: {$metadataFile}");
         }
 
-        $metadata = json_decode(File::get($metadataFile), true);
+        $metadata = json_decode($this->readFile($metadataFile), true);
 
         // Validate each table backup
         foreach ($metadata['tables'] as $table => $tableMetadata) {
             $dataFile = $backupDir . "/{$table}.json";
-            if (!File::exists($dataFile)) {
+            if (!$this->pathExists($dataFile)) {
                 throw new \Exception("Table data backup missing: {$table}");
             }
 
             // Verify data integrity using hash
-            $currentData = File::get($dataFile);
+            $currentData = $this->readFile($dataFile);
             $currentHash = md5($currentData);
 
             if ($currentHash !== $tableMetadata['data_hash']) {
@@ -342,7 +375,7 @@ class MigrationDataMapper
     protected function importTransformedData(array $strategy): void
     {
         $backupDir = $this->backupPath . '/' . $strategy['backup_id'];
-        $metadata = json_decode(File::get($backupDir . '/metadata.json'), true);
+        $metadata = json_decode($this->readFile($backupDir . '/metadata.json'), true);
 
         foreach ($metadata['tables'] as $table => $tableMetadata) {
             $this->importTableData($table, $backupDir . "/{$table}.json", $strategy);
@@ -351,7 +384,7 @@ class MigrationDataMapper
 
     protected function importTableData(string $table, string $dataFile, array $strategy): void
     {
-        $data = json_decode(File::get($dataFile), true);
+        $data = json_decode($this->readFile($dataFile), true);
 
         // Apply any transformations defined in the strategy
         $transformedData = $this->applyTableTransformations($table, $data, $strategy);
@@ -402,5 +435,79 @@ class MigrationDataMapper
             'success' => false,
             'message' => 'Rollback functionality not yet implemented'
         ];
+    }
+
+    protected function canUseFacades(): bool
+    {
+        return $this->facadeIsAvailable(DB::class);
+    }
+
+    protected function pathExists(string $path): bool
+    {
+        if ($this->facadeIsAvailable(File::class)) {
+            return File::exists($path);
+        }
+
+        return file_exists($path);
+    }
+
+    protected function makeDirectory(string $path): void
+    {
+        if ($this->facadeIsAvailable(File::class)) {
+            File::makeDirectory($path, 0755, true);
+
+            return;
+        }
+
+        if (!is_dir($path)) {
+            mkdir($path, 0755, true);
+        }
+    }
+
+    protected function writeFile(string $path, string $contents): void
+    {
+        if ($this->facadeIsAvailable(File::class)) {
+            File::put($path, $contents);
+
+            return;
+        }
+
+        file_put_contents($path, $contents);
+    }
+
+    protected function readFile(string $path): string
+    {
+        if ($this->facadeIsAvailable(File::class)) {
+            return File::get($path);
+        }
+
+        return (string) file_get_contents($path);
+    }
+
+    protected function currentTimestamp(): string
+    {
+        return function_exists('now') ? now()->toISOString() : date(DATE_ATOM);
+    }
+
+    protected function databaseName(): ?string
+    {
+        if (!$this->canUseFacades()) {
+            return null;
+        }
+
+        return DB::getDatabaseName();
+    }
+
+    protected function facadeIsAvailable(string $facadeClass): bool
+    {
+        if (!class_exists($facadeClass)) {
+            return false;
+        }
+
+        try {
+            return $facadeClass::getFacadeRoot() !== null;
+        } catch (\Throwable $e) {
+            return false;
+        }
     }
 }

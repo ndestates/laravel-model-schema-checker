@@ -418,8 +418,9 @@ class MigrationChecker extends BaseChecker
             $issues = $analysis['criticality'][$level] ?? [];
 
             if (!empty($issues)) {
+                $issueCount = count($issues);
                 $this->newLine();
-                $this->error("🚨 {$level} ({count($issues)} issues):");
+                $this->error("🚨 {$level} ({$issueCount} issues):");
 
                 foreach ($issues as $issue) {
                     $this->line("  • {$issue['description']}");

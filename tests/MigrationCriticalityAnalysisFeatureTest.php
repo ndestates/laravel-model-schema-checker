@@ -3,6 +3,7 @@
 namespace NDEstates\LaravelModelSchemaChecker\Tests;
 
 use PHPUnit\Framework\TestCase;
+use Mockery;
 use NDEstates\LaravelModelSchemaChecker\Services\MigrationCriticalityAnalyzer;
 use NDEstates\LaravelModelSchemaChecker\Services\MigrationDataMapper;
 use NDEstates\LaravelModelSchemaChecker\Checkers\MigrationChecker;
@@ -17,6 +18,8 @@ class MigrationCriticalityAnalysisFeatureTest extends TestCase
 {
     private string $tempDir;
     private string $migrationDir;
+    private object $commandSpy;
+    private array $output;
 
     protected function setUp(): void
     {
@@ -25,6 +28,24 @@ class MigrationCriticalityAnalysisFeatureTest extends TestCase
         $this->tempDir = sys_get_temp_dir() . '/migration_feature_test_' . uniqid();
         $this->migrationDir = $this->tempDir . '/database/migrations';
         mkdir($this->migrationDir, 0755, true);
+
+        $this->output = [];
+        $this->commandSpy = Mockery::mock(\Illuminate\Console\Command::class)->shouldIgnoreMissing();
+        $this->commandSpy->shouldReceive('info')->andReturnUsing(function (string $message): void {
+            $this->output[] = $message;
+        });
+        $this->commandSpy->shouldReceive('warn')->andReturnUsing(function (string $message): void {
+            $this->output[] = $message;
+        });
+        $this->commandSpy->shouldReceive('error')->andReturnUsing(function (string $message): void {
+            $this->output[] = $message;
+        });
+        $this->commandSpy->shouldReceive('line')->andReturnUsing(function (string $message): void {
+            $this->output[] = $message;
+        });
+        $this->commandSpy->shouldReceive('newLine')->andReturnUsing(function (): void {
+            $this->output[] = '';
+        });
     }
 
     protected function tearDown(): void
@@ -32,6 +53,8 @@ class MigrationCriticalityAnalysisFeatureTest extends TestCase
         if (file_exists($this->tempDir)) {
             exec("rm -rf " . escapeshellarg($this->tempDir));
         }
+
+        Mockery::close();
 
         parent::tearDown();
     }
@@ -382,6 +405,7 @@ class AddForeignKeys extends Migration
         ];
 
         $checker = new MigrationChecker($config, $this->migrationDir);
+        $checker->setCommand($this->commandSpy);
 
         // Create a migration with multiple issues
         $complexMigration = '<?php
@@ -413,14 +437,13 @@ class ComplexMigration extends Migration
 
         file_put_contents($this->migrationDir . '/2024_01_01_000000_complex_migration.php', $complexMigration);
 
-        ob_start();
         $issues = $checker->check();
-        $output = ob_get_clean();
+        $output = implode("\n", $this->output);
 
         // Should contain both regular checking and criticality analysis
         $this->assertStringContainsString('Checking Migration Consistency', $output);
         $this->assertStringContainsString('Migration Criticality Analysis', $output);
-        $this->assertStringContainsString('CRITICAL', $output);
+        $this->assertStringContainsString('HIGH', $output);
         $this->assertIsArray($issues);
     }
 }

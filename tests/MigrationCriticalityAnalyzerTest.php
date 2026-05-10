@@ -179,7 +179,8 @@ class ForeignKeyMigration extends Migration
         Schema::create(\'posts\', function (Blueprint $table) {
             $table->id();
             $table->string(\'title\');
-            $table->foreignId(\'user_id\')->constrained(); // Foreign key without proper setup
+            $table->unsignedBigInteger(\'user_id\');
+            $table->foreign(\'user_id\')->references(\'id\')->on(\'users\');
             $table->timestamps();
         });
     }
@@ -196,6 +197,7 @@ class ForeignKeyMigration extends Migration
 
         $this->assertGreaterThan(0, $analysis['issues_found']);
         $this->assertNotEmpty($analysis['criticality']['MEDIUM']);
+        $this->assertNotEmpty($analysis['criticality']['HIGH']);
     }
 
     public function testDetectsMediumNamingConventionIssues(): void

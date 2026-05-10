@@ -21,6 +21,7 @@ Route::middleware($middleware)->prefix('model-schema-checker')->name('model-sche
 
     // Main dashboard
     Route::get('/', [ModelSchemaCheckerController::class, 'index'])->name('index');
+    Route::post('/settings', [ModelSchemaCheckerController::class, 'updateSettings'])->name('settings.update');
 
     // Run checks
     Route::post('/run-checks', [ModelSchemaCheckerController::class, 'runChecks'])->name('run-checks');

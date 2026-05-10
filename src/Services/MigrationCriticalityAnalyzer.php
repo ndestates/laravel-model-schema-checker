@@ -250,11 +250,6 @@ class MigrationCriticalityAnalyzer
             $issues[] = 'unnamed_foreign_key';
         }
 
-        // Foreign key using foreignId()->constrained() without cascade rules
-        if (preg_match('/->foreignId\s*\(\s*[^)]+\s*\)\s*->constrained\s*\(\s*\)\s*(?!.*->onDelete|->onUpdate|->cascadeOnDelete|->cascadeOnUpdate)/s', $content)) {
-            $issues[] = 'missing_cascade_rules';
-        }
-
         // Foreign key without cascade/delete rules that might cause constraint violations
         if (preg_match('/->foreign\s*\(\s*[^)]+\s*\)\s*->references\s*\(\s*[^)]+\s*\)\s*->on\s*\(\s*[^)]+\s*\)\s*(?!.*->onDelete|->onUpdate)/s', $content)) {
             $issues[] = 'missing_cascade_rules';
@@ -265,9 +260,8 @@ class MigrationCriticalityAnalyzer
 
     protected function hasMissingIndexes(string $content): bool
     {
-        // Look for foreign key constraints that might not have corresponding indexes
-        $hasForeignKey = preg_match('/->foreign\s*\(\s*[^)]+\s*\)\s*->references\s*\(\s*[^)]+\s*\)\s*->on\s*\(\s*[^)]+\s*\)/', $content) ||
-                         preg_match('/->foreignId\s*\(\s*[^)]+\s*\)\s*->constrained\s*\(/', $content);
+        // Look for manually declared foreign key constraints that may need explicit indexes.
+        $hasForeignKey = preg_match('/->foreign\s*\(\s*[^)]+\s*\)\s*->references\s*\(\s*[^)]+\s*\)\s*->on\s*\(\s*[^)]+\s*\)/', $content);
 
         $hasIndex = preg_match('/->index\s*\(\s*[^)]*\b(id|.+_id)\b[^)]*\)/', $content);
 

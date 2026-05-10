@@ -60,9 +60,34 @@ class ModelSchemaCheckerController
 
         $recentResults = CheckResult::where('user_id', $userId)->latest()->take(5)->get();
         $stats = $this->getDashboardStats($userId);
+        $runtimeSettings = $this->getRuntimeSettings();
 
-        return view('model-schema-checker::dashboard', compact('recentResults', 'stats'));
+        return view('model-schema-checker::dashboard', compact('recentResults', 'stats', 'runtimeSettings'));
     }    /**
+
+    /**
+     * Update dashboard runtime settings
+     */
+    public function updateSettings(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'allow_file_writes' => 'nullable|boolean',
+            'allow_code_modification' => 'nullable|boolean',
+        ]);
+
+        $settings = [
+            'allow_file_writes' => (bool) ($validated['allow_file_writes'] ?? false),
+            'allow_code_modification' => (bool) ($validated['allow_code_modification'] ?? false),
+        ];
+
+        Cache::forever('model-schema-checker.runtime-settings', $settings);
+
+        return redirect()
+            ->route('model-schema-checker.index')
+            ->with('status', 'Runtime safety settings updated.');
+    }
+
+    /**
      * Run forgiving migrations
      */
     public function runForgivingMigrations(Request $request): JsonResponse
@@ -385,6 +410,20 @@ class ModelSchemaCheckerController
             'last_check_date' => CheckResult::where('user_id', $userId)
                 ->latest()
                 ->value('created_at'),
+        ];
+    }
+
+    protected function getRuntimeSettings(): array
+    {
+        $stored = Cache::get('model-schema-checker.runtime-settings', []);
+
+        return [
+            'allow_file_writes' => array_key_exists('allow_file_writes', $stored)
+                ? (bool) $stored['allow_file_writes']
+                : (bool) (config('model-schema-checker.output.allow_file_writes') ?? false),
+            'allow_code_modification' => array_key_exists('allow_code_modification', $stored)
+                ? (bool) $stored['allow_code_modification']
+                : (bool) (config('model-schema-checker.security.allow_code_modification') ?? false),
         ];
     }
 

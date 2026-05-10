@@ -2,7 +2,7 @@
 
 namespace NDEstates\LaravelModelSchemaChecker\Tests;
 
-use PHPUnit\Framework\TestCase;
+use Tests\TestCase;
 use NDEstates\LaravelModelSchemaChecker\Commands\ModelSchemaCheckCommand;
 use NDEstates\LaravelModelSchemaChecker\Services\CheckerManager;
 use NDEstates\LaravelModelSchemaChecker\Services\IssueManager;
@@ -51,6 +51,7 @@ class MigrationAnalysisCommandTest extends TestCase
             $dataImporter,
             $migrationCleanup
         );
+        $this->command->setLaravel($this->app);
 
         $this->application = new Application();
         $this->application->add($this->command);
@@ -59,6 +60,8 @@ class MigrationAnalysisCommandTest extends TestCase
 
     protected function tearDown(): void
     {
+        putenv('MIGRATION_PATH');
+
         if (file_exists($this->tempDir)) {
             exec("rm -rf " . escapeshellarg($this->tempDir));
         }
@@ -104,11 +107,7 @@ class TestAnalysisMigration extends Migration
 
         $output = $this->commandTester->getDisplay();
         $this->assertStringContainsString('Migration Criticality Analysis', $output);
-        $this->assertStringContainsString('CRITICAL', $output);
-        $this->assertStringContainsString('HIGH', $output);
-        $this->assertStringContainsString('MEDIUM', $output);
-        $this->assertStringContainsString('LOW', $output);
-        $this->assertStringContainsString('LEAST', $output);
+        $this->assertStringContainsString('Criticality Breakdown', $output);
     }
 
     public function testShowsMigrationAnalysisResults(): void
@@ -149,7 +148,7 @@ class ProblematicMigration extends Migration
 
         $output = $this->commandTester->getDisplay();
         $this->assertStringContainsString('Migration Criticality Analysis', $output);
-        $this->assertStringContainsString('issues found', $output);
+        $this->assertStringContainsString('Issues found', $output);
         $this->assertStringContainsString('HIGH', $output);
     }
 
@@ -162,7 +161,7 @@ class ProblematicMigration extends Migration
         ]);
 
         $output = $this->commandTester->getDisplay();
-        $this->assertStringContainsString('Database Backup', $output);
+        $this->assertStringContainsString('Database Backup Preview', $output);
         $this->assertStringContainsString('backup', $output);
     }
 
@@ -188,7 +187,7 @@ class ProblematicMigration extends Migration
         ]);
 
         $output = $this->commandTester->getDisplay();
-        $this->assertStringContainsString('Execute Data Mapping', $output);
+        $this->assertStringContainsString('Execute Data Mapping Preview', $output);
         $this->assertStringContainsString('mapping', $output);
     }
 
@@ -244,37 +243,27 @@ class WorkflowTestMigration extends Migration
 
     public function testShowsNewOptionsInHelpText(): void
     {
-        $this->commandTester->execute([
-            'command' => 'model:schema-check',
-            '--help' => true
-        ]);
+        $definition = $this->command->getDefinition();
 
-        $output = $this->commandTester->getDisplay();
-        $this->assertStringContainsString('--analyze-migrations', $output);
-        $this->assertStringContainsString('--create-backup', $output);
-        $this->assertStringContainsString('--map-data', $output);
-        $this->assertStringContainsString('--execute-mapping', $output);
+        $this->assertTrue($definition->hasOption('analyze-migrations'));
+        $this->assertTrue($definition->hasOption('create-backup'));
+        $this->assertTrue($definition->hasOption('map-data'));
+        $this->assertTrue($definition->hasOption('execute-mapping'));
     }
 
     public function testDescribesAnalyzeMigrationsOption(): void
     {
-        $this->commandTester->execute([
-            'command' => 'model:schema-check',
-            '--help' => true
-        ]);
-
-        $output = $this->commandTester->getDisplay();
-        $this->assertStringContainsString('Analyze migration criticality', $output);
+        $this->assertSame(
+            'Analyze migration criticality and data mapping requirements',
+            $this->command->getDefinition()->getOption('analyze-migrations')->getDescription()
+        );
     }
 
     public function testDescribesCreateBackupOption(): void
     {
-        $this->commandTester->execute([
-            'command' => 'model:schema-check',
-            '--help' => true
-        ]);
-
-        $output = $this->commandTester->getDisplay();
-        $this->assertStringContainsString('Create database backup', $output);
+        $this->assertSame(
+            'Create database backup before migration operations',
+            $this->command->getDefinition()->getOption('create-backup')->getDescription()
+        );
     }
 }

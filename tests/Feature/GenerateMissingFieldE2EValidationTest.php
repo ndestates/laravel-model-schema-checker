@@ -18,6 +18,8 @@ class GenerateMissingFieldE2EValidationTest extends TestCase
 
         config()->set('model-schema-checker.models_dir', $fixtureDir);
         config()->set('model-schema-checker.excluded_models', []);
+        config()->set('model-schema-checker.output.allow_file_writes', true);
+        config()->set('model-schema-checker.security.allow_code_modification', true);
 
         $modelFixturePath = $fixtureDir . '/ValidationMissingFieldModel.php';
         file_put_contents($modelFixturePath, <<<'PHP'

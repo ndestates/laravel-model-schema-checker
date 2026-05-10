@@ -4,6 +4,7 @@ namespace NDEstates\LaravelModelSchemaChecker\Commands;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use NDEstates\LaravelModelSchemaChecker\Services\CheckerManager;
@@ -107,6 +108,8 @@ class ModelSchemaCheckCommand extends Command
         if ($mutationGuardResult !== null) {
             return $mutationGuardResult;
         }
+
+        $this->refreshCheckerManager();
 
         // Route to appropriate functionality based on options
         if ($this->option('backup') || $this->option('backup-db')) {
@@ -519,7 +522,7 @@ class ModelSchemaCheckCommand extends Command
     {
         $this->info('🔍 Analyzing migration criticality and data mapping requirements...');
 
-        $migrationPath = database_path('migrations');
+        $migrationPath = $this->resolveMigrationPath();
 
         if (!file_exists($migrationPath)) {
             $this->error("Migrations directory not found: {$migrationPath}");
@@ -543,6 +546,14 @@ class ModelSchemaCheckCommand extends Command
     {
         $this->info('💾 Creating comprehensive database backup...');
 
+        if ($this->option('dry-run')) {
+            $this->newLine();
+            $this->info('📋 Database Backup Preview');
+            $this->line('Backup creation is running in dry-run mode. No database changes or files will be written.');
+
+            return Command::SUCCESS;
+        }
+
         try {
             $mapper = new \NDEstates\LaravelModelSchemaChecker\Services\MigrationDataMapper();
             $backup = $mapper->createBackupWithMetadata();
@@ -563,7 +574,7 @@ class ModelSchemaCheckCommand extends Command
     {
         $this->info('🔄 Creating data mapping strategy...');
 
-        $migrationPath = database_path('migrations');
+        $migrationPath = $this->resolveMigrationPath();
 
         // First analyze migrations
         $analyzer = new \NDEstates\LaravelModelSchemaChecker\Services\MigrationCriticalityAnalyzer();
@@ -572,6 +583,25 @@ class ModelSchemaCheckCommand extends Command
         if (isset($analysis['error'])) {
             $this->error("Analysis failed: {$analysis['error']}");
             return Command::FAILURE;
+        }
+
+        if ($this->option('dry-run')) {
+            $strategy = [
+                'backup_id' => 'dry-run-preview',
+                'mappings_required' => $analysis['data_mapping_required'],
+                'risk_assessment' => [
+                    'overall_risk' => $analysis['rerun_risk_level'],
+                    'data_loss_potential' => $analysis['data_mapping_required'],
+                    'constraint_violations' => !empty($analysis['criticality']['HIGH'] ?? []),
+                    'performance_impact' => !empty($analysis['criticality']['LOW'] ?? []),
+                    'estimated_migration_time' => $analysis['rerun_risk_level'],
+                ],
+                'data_transformations' => [],
+            ];
+
+            $this->displayDataMappingStrategy($strategy);
+
+            return Command::SUCCESS;
         }
 
         // Create backup if not exists
@@ -588,6 +618,13 @@ class ModelSchemaCheckCommand extends Command
 
     protected function handleExecuteMapping(): int
     {
+        if ($this->option('dry-run')) {
+            $this->info('🔄 Execute Data Mapping Preview');
+            $this->line('Dry-run mode enabled. No database recreation or data mapping will be executed.');
+
+            return Command::SUCCESS;
+        }
+
         $this->warn('⚠️  EXECUTING DATA MAPPING - This will recreate the database!');
         $this->warn('Make sure you have a complete backup before proceeding.');
 
@@ -613,14 +650,19 @@ class ModelSchemaCheckCommand extends Command
 
     protected function displayMigrationAnalysis(array $analysis): void
     {
-        $this->newLine();
-        $this->info("📊 Migration Analysis Results");
-        $this->info("============================");
+        $migrationCount = $analysis['migration_count'] ?? 0;
+        $issuesFound = $analysis['issues_found'] ?? $analysis['total_issues'] ?? 0;
+        $dataMappingRequired = (bool) ($analysis['data_mapping_required'] ?? false);
+        $rerunRiskLevel = $analysis['rerun_risk_level'] ?? 'UNKNOWN';
 
-        $this->line("📁 Total migrations: {$analysis['migration_count']}");
-        $this->line("⚠️  Issues found: {$analysis['issues_found']}");
-        $this->line("🔄 Data mapping required: " . ($analysis['data_mapping_required'] ? 'YES' : 'NO'));
-        $this->line("🚨 Rerun risk level: {$analysis['rerun_risk_level']}");
+        $this->newLine();
+        $this->info("📊 Migration Criticality Analysis");
+        $this->info("===============================");
+
+        $this->line("📁 Total migrations: {$migrationCount}");
+        $this->line("⚠️  Issues found: {$issuesFound}");
+        $this->line("🔄 Data mapping required: " . ($dataMappingRequired ? 'YES' : 'NO'));
+        $this->line("🚨 Rerun risk level: {$rerunRiskLevel}");
 
         // Display criticality breakdown
         $this->newLine();
@@ -679,6 +721,16 @@ class ModelSchemaCheckCommand extends Command
         }
     }
 
+    protected function resolveMigrationPath(): string
+    {
+        $override = getenv('MIGRATION_PATH');
+        if (is_string($override) && $override !== '' && file_exists($override)) {
+            return $override;
+        }
+
+        return config('model-schema-checker.migrations_dir', database_path('migrations'));
+    }
+
     protected function handleCheckLaravelForms(): int
     {
         $this->info('Checking Laravel forms...');
@@ -710,8 +762,7 @@ class ModelSchemaCheckCommand extends Command
         }
 
         // Check if file writes are allowed in config
-        $config = config('model-schema-checker');
-        if (!($config['output']['allow_file_writes'] ?? false)) {
+        if (!$this->isFileWritingAllowed()) {
             $this->error('❌ Automatic form fixes are disabled in configuration.');
             $this->line('');
             $this->line('To enable automatic fixes, set the following in your config/model-schema-checker.php:');
@@ -1048,10 +1099,26 @@ class ModelSchemaCheckCommand extends Command
             return Command::SUCCESS;
         }
 
+        $migrationDirectory = database_path('migrations');
+        if (!is_dir($migrationDirectory) && !mkdir($migrationDirectory, 0755, true) && !is_dir($migrationDirectory)) {
+            $this->error("Failed to create migrations directory: {$migrationDirectory}");
+
+            return Command::FAILURE;
+        }
+
         $saved = [];
         foreach ($plannedMigrations as $plan) {
-            $path = database_path('migrations/' . $plan['filename']);
-            File::put($path, $plan['content']);
+            $path = $migrationDirectory . DIRECTORY_SEPARATOR . $plan['filename'];
+
+            $bytesWritten = @file_put_contents($path, $plan['content']);
+            if ($bytesWritten === false) {
+                $lastError = error_get_last();
+                $message = $lastError['message'] ?? 'unknown write error';
+                $this->error("Failed to write migration file {$plan['filename']}: {$message}");
+
+                return Command::FAILURE;
+            }
+
             $saved[] = $path;
         }
 
@@ -2374,17 +2441,17 @@ return new class extends Migration
         }
 
         $fileWritingOptions = $this->getEnabledOptions($this->getFileWritingOptionNames());
-        if ($fileWritingOptions !== [] && !(config('model-schema-checker.output.allow_file_writes') ?? false)) {
+        if ($fileWritingOptions !== [] && !$this->isFileWritingAllowed()) {
             $this->error('🚫 SECURITY ERROR: File-writing operations are disabled by configuration.');
-            $this->line('Enable model-schema-checker.output.allow_file_writes or set MSC_ALLOW_FILE_WRITES=true to continue.');
+            $this->line('Enable model-schema-checker.output.allow_file_writes, set MSC_ALLOW_FILE_WRITES=true, or use the dashboard control panel to continue.');
             $this->line('Blocked options: --' . implode(', --', $fileWritingOptions));
             return Command::FAILURE;
         }
 
         $codeModificationOptions = $this->getEnabledOptions($this->getCodeModificationOptionNames());
-        if ($codeModificationOptions !== [] && !(config('model-schema-checker.security.allow_code_modification') ?? false)) {
+        if ($codeModificationOptions !== [] && !$this->isCodeModificationAllowed()) {
             $this->error('🚫 SECURITY ERROR: Mutating schema/code operations require an explicit opt-in.');
-            $this->line('Enable model-schema-checker.security.allow_code_modification or set MSC_ALLOW_CODE_MODIFICATION=true to continue.');
+            $this->line('Enable model-schema-checker.security.allow_code_modification, set MSC_ALLOW_CODE_MODIFICATION=true, or use the dashboard control panel to continue.');
             $this->line('Blocked options: --' . implode(', --', $codeModificationOptions));
             return Command::FAILURE;
         }
@@ -2403,6 +2470,45 @@ return new class extends Migration
         }
 
         return $enabled;
+    }
+
+    protected function refreshCheckerManager(): void
+    {
+        $environment = null;
+
+        try {
+            $environment = app()->environment();
+        } catch (\Throwable $e) {
+            $environment = null;
+        }
+
+        $this->checkerManager = new CheckerManager(config('model-schema-checker', []), $environment);
+        $this->checkerManager->setCommand($this);
+    }
+
+    protected function isFileWritingAllowed(): bool
+    {
+        return $this->getRuntimeSetting('allow_file_writes', config('model-schema-checker.output.allow_file_writes') ?? false);
+    }
+
+    protected function isCodeModificationAllowed(): bool
+    {
+        return $this->getRuntimeSetting('allow_code_modification', config('model-schema-checker.security.allow_code_modification') ?? false);
+    }
+
+    protected function getRuntimeSetting(string $key, bool $default): bool
+    {
+        try {
+            $settings = Cache::get('model-schema-checker.runtime-settings', []);
+        } catch (\Throwable $e) {
+            $settings = [];
+        }
+
+        if (array_key_exists($key, $settings)) {
+            return (bool) $settings[$key];
+        }
+
+        return $default;
     }
 
     protected function getFileWritingOptionNames(): array
