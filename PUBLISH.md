@@ -1,5 +1,9 @@
 # Publishing to Packagist - DDEV Guide
 
+Current release target: `v3.2.4`
+
+Release branch requirement: publish from `master`.
+
 ## Prerequisites
 
 ✅ DDEV is running: `ddev start`  
@@ -23,8 +27,13 @@ ddev composer install --no-dev --optimize-autoloader
 # Verify all required files exist
 ls -la src/
 ls -la config/
-ls -la check/
 cat composer.json | head -20
+```
+
+### 1.4 Build Release Assets
+```bash
+npm install
+npm run build
 ```
 
 ## Step 2: Prepare Git Repository
@@ -39,15 +48,15 @@ git commit -m "Prepare package for Packagist release"
 ### 2.2 Merge to Master Branch
 ```bash
 git checkout master
-git merge feature/develop
+git merge fix/security-updates
 git push origin master
 ```
 
 ### 2.3 Create Release Tag
 ```bash
 # Create semantic version tag
-git tag v1.0.0
-git push origin v1.0.0
+git tag v3.2.4
+git push origin v3.2.4
 ```
 
 ## Step 3: Submit to Packagist
@@ -81,8 +90,8 @@ composer require ndestates/laravel-model-schema-checker --dev
 
 ### 4.3 Test Package Functionality
 ```bash
-php vendor/ndestates/laravel-model-schema-checker/check.php --help
-php artisan vendor:publish --provider="NDEstates\\LaravelModelSchemaChecker\\ModelSchemaCheckerServiceProvider"
+php artisan model:schema-check --check-security --dry-run
+php artisan model-schema-checker:publish-assets --force
 ```
 
 ## Step 5: Set Up Auto-Updates (Optional)
@@ -105,12 +114,12 @@ ddev composer validate --strict
 git add .
 git commit -m "Ready for Packagist release"
 git checkout master
-git merge feature/develop
+git merge fix/security-updates
 git push origin master
 
 # 3. Create release tag  
-git tag v1.0.0
-git push origin v1.0.0
+git tag v3.2.4
+git push origin v3.2.4
 
 # 4. Submit to Packagist (manual step on website)
 # Visit: https://packagist.org/packages/submit
@@ -121,7 +130,8 @@ cd ~/projects
 composer create-project laravel/laravel test-install
 cd test-install
 composer require ndestates/laravel-model-schema-checker --dev
-php vendor/ndestates/laravel-model-schema-checker/check.php --help
+php artisan model:schema-check --check-security --dry-run
+php artisan model-schema-checker:publish-assets --force
 ```
 
 ## Troubleshooting
@@ -141,6 +151,7 @@ ddev composer validate --strict --no-check-all
 - Test in completely fresh Laravel project
 - Check Laravel version compatibility
 - Ensure all dependencies are correctly specified
+- Confirm `MSC_ALLOW_FILE_WRITES` and `MSC_ALLOW_CODE_MODIFICATION` remain disabled unless you are intentionally testing mutating commands
 
 ## Success Indicators
 

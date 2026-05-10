@@ -225,6 +225,30 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Security Guardrails
+    |--------------------------------------------------------------------------
+    |
+    | Mutating operations are disabled by default and must be explicitly
+    | enabled in development environments. Path whitelists are used to prevent
+    | scanning or writing outside expected application roots.
+    |
+    */
+    'security' => [
+        'allow_code_modification' => env('MSC_ALLOW_CODE_MODIFICATION', false),
+        'path_prefix_whitelist' => array_values(array_filter([
+            base_path(),
+            app_path(),
+            resource_path(),
+            database_path(),
+            config_path(),
+            public_path(),
+            storage_path(),
+        ])),
+        'max_file_scan_size_mb' => env('MSC_MAX_FILE_SCAN_SIZE_MB', 5),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Custom Validation Rules
     |--------------------------------------------------------------------------
     |

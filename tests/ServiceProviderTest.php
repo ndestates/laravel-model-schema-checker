@@ -2,18 +2,10 @@
 
 namespace NDEstates\LaravelModelSchemaChecker\Tests;
 
-use PHPUnit\Framework\TestCase;
 use Illuminate\Foundation\Application;
-use Illuminate\Support\Facades\Artisan;
 use Illuminate\Config\Repository;
+use PHPUnit\Framework\TestCase;
 use NDEstates\LaravelModelSchemaChecker\ModelSchemaCheckerServiceProvider;
-use NDEstates\LaravelModelSchemaChecker\Services\IssueManager;
-use NDEstates\LaravelModelSchemaChecker\Services\CheckerManager;
-use NDEstates\LaravelModelSchemaChecker\Services\MigrationGenerator;
-use NDEstates\LaravelModelSchemaChecker\Services\DataExporter;
-use NDEstates\LaravelModelSchemaChecker\Services\DataImporter;
-use NDEstates\LaravelModelSchemaChecker\Services\MigrationCleanup;
-use NDEstates\LaravelModelSchemaChecker\Commands\ModelSchemaCheckCommand;
 
 /**
  * ServiceProviderTest - Comprehensive test suite for Laravel service provider
@@ -238,5 +230,53 @@ class ServiceProviderTest extends TestCase
     {
         // Skip this test as it requires full Laravel environment setup
         $this->markTestSkipped('Requires full Laravel environment setup');
+    }
+
+    public function test_is_production_environment_detects_app_env_override()
+    {
+        $_SERVER['APP_ENV'] = 'production';
+
+        $reflection = new \ReflectionClass($this->provider);
+        $method = $reflection->getMethod('isProductionEnvironment');
+        $method->setAccessible(true);
+
+        $this->assertTrue($method->invoke($this->provider));
+
+        unset($_SERVER['APP_ENV']);
+    }
+
+    public function test_is_production_environment_ignores_ddev_hosts()
+    {
+        $_SERVER['HTTP_HOST'] = 'project.ddev.site';
+
+        $reflection = new \ReflectionClass($this->provider);
+        $method = $reflection->getMethod('isProductionEnvironment');
+        $method->setAccessible(true);
+
+        $this->assertFalse($method->invoke($this->provider));
+
+        unset($_SERVER['HTTP_HOST']);
+    }
+
+    public function test_is_path_within_roots_rejects_parent_traversal()
+    {
+        $baseDir = sys_get_temp_dir() . '/msc_provider_test_' . uniqid();
+        $allowedDir = $baseDir . '/allowed';
+        $outsideDir = $baseDir . '/outside';
+
+        mkdir($allowedDir, 0755, true);
+        mkdir($outsideDir, 0755, true);
+
+        $reflection = new \ReflectionClass($this->provider);
+        $method = $reflection->getMethod('isPathWithinRoots');
+        $method->setAccessible(true);
+
+        $safePath = $allowedDir . '/child/file.txt';
+        $unsafePath = $allowedDir . '/../outside/file.txt';
+
+        $this->assertTrue($method->invoke($this->provider, $safePath, [$allowedDir]));
+        $this->assertFalse($method->invoke($this->provider, $unsafePath, [$allowedDir]));
+
+        exec('rm -rf ' . escapeshellarg($baseDir));
     }
 }

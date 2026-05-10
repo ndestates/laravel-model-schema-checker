@@ -55,8 +55,8 @@ This package includes multiple layers of protection to prevent accidental or mal
 ## Compatibility
 
 - **Laravel**: 11.x, 12.x
-- **PHP**: 8.1+
-- **Version**: 3.0.0 (Web Dashboard & Production Safety)
+- **PHP**: 8.2+
+- **Version**: 3.2.4 (Security Hardening Release)
 
 ## Installation
 
@@ -1286,8 +1286,8 @@ The package is tested against multiple Laravel and PHP versions:
 
 GitHub Actions automatically runs the full test suite on:
 
-- Push to `main`, `master`, or `feature/version-3` branches
-- Pull requests to `main`, `master`, or `feature/version-3`
+- Push to `master` or `feature/version-3` branches
+- Pull requests to `master` or `feature/version-3`
 - Tag pushes (for releases)
 
 Tests include:

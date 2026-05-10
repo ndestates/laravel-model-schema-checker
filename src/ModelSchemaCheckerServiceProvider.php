@@ -3,6 +3,7 @@
 namespace NDEstates\LaravelModelSchemaChecker;
 
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Support\Str;
 use NDEstates\LaravelModelSchemaChecker\Commands\ModelSchemaCheckCommand;
 use NDEstates\LaravelModelSchemaChecker\Commands\PublishAssetsCommand;
 use NDEstates\LaravelModelSchemaChecker\Commands\MigrateForgivingCommand;
@@ -52,7 +53,7 @@ class ModelSchemaCheckerServiceProvider extends ServiceProvider
     public function boot(): void
     {
         // Only load in non-production environments
-        if ($this->app->environment('production')) {
+        if ($this->isProductionEnvironment()) {
             return;
         }
 
@@ -124,8 +125,12 @@ class ModelSchemaCheckerServiceProvider extends ServiceProvider
         $from = __DIR__ . '/../config/model-schema-checker.php';
         $to = config_path('model-schema-checker.php');
 
-        if (!file_exists(dirname($to))) {
-            mkdir(dirname($to), 0755, true);
+        if (!$this->isSafePackagePath($from) || !$this->isPathWithinRoots($to, [config_path()])) {
+            return;
+        }
+
+        if (!$this->ensureDirectoryExists(dirname($to), [config_path()])) {
+            return;
         }
 
         copy($from, $to);
@@ -139,8 +144,8 @@ class ModelSchemaCheckerServiceProvider extends ServiceProvider
         $from = __DIR__ . '/../dist';
         $to = public_path('vendor/model-schema-checker');
 
-        if (!file_exists($to)) {
-            mkdir($to, 0755, true);
+        if (!$this->isSafePackagePath($from) || !$this->ensureDirectoryExists($to, [public_path()])) {
+            return;
         }
 
         $this->copyDirectory($from, $to);
@@ -151,7 +156,15 @@ class ModelSchemaCheckerServiceProvider extends ServiceProvider
      */
     protected function copyDirectory(string $from, string $to): void
     {
+        if (!$this->isSafePackagePath($from) || !$this->ensureDirectoryExists($to, [public_path(), resource_path(), config_path()])) {
+            throw new \RuntimeException('Refusing to copy files outside allowed package paths.');
+        }
+
         $files = scandir($from);
+
+        if ($files === false) {
+            throw new \RuntimeException('Unable to read source directory for publishing.');
+        }
 
         foreach ($files as $file) {
             if ($file === '.' || $file === '..') {
@@ -161,14 +174,108 @@ class ModelSchemaCheckerServiceProvider extends ServiceProvider
             $source = $from . '/' . $file;
             $destination = $to . '/' . $file;
 
+            if (is_link($source)) {
+                continue;
+            }
+
             if (is_dir($source)) {
-                if (!file_exists($destination)) {
-                    mkdir($destination, 0755, true);
+                if (!$this->ensureDirectoryExists($destination, [public_path(), resource_path(), config_path()])) {
+                    throw new \RuntimeException('Refusing to create directory outside allowed publish roots.');
                 }
                 $this->copyDirectory($source, $destination);
             } else {
+                if (!$this->isPathWithinRoots($destination, [public_path(), resource_path(), config_path()])) {
+                    throw new \RuntimeException('Refusing to copy file outside allowed publish roots.');
+                }
                 copy($source, $destination);
             }
         }
+    }
+
+    protected function isProductionEnvironment(): bool
+    {
+        if (isset($_SERVER['DDEV_PROJECT']) || isset($_SERVER['DDEV_HOSTNAME']) || getenv('DDEV_PROJECT') || getenv('IS_DDEV_PROJECT')) {
+            return false;
+        }
+
+        $env = strtolower((string) $this->app->environment());
+        if (in_array($env, ['production', 'prod', 'live'], true)) {
+            return true;
+        }
+
+        $appEnv = strtolower((string) ($_SERVER['APP_ENV'] ?? getenv('APP_ENV') ?? ''));
+        if (in_array($appEnv, ['production', 'prod', 'live'], true)) {
+            return true;
+        }
+
+        $host = strtolower((string) ($_SERVER['HTTP_HOST'] ?? ''));
+        if ($host === '') {
+            return false;
+        }
+
+        $looksLocal = Str::contains($host, ['localhost', '127.0.0.1', '.local', '.dev', '.test', '.ddev.site', 'ddev']);
+        $looksProduction = Str::contains($host, ['.com', '.org', '.net']) && !Str::contains($host, ['dev', 'staging', 'test', 'demo']);
+
+        return !$looksLocal && $looksProduction;
+    }
+
+    protected function isSafePackagePath(string $path): bool
+    {
+        return $this->isPathWithinRoots($path, [$this->getPackageRoot()]);
+    }
+
+    protected function isPathWithinRoots(string $path, array $roots): bool
+    {
+        $normalizedPath = $this->normalizePath($path);
+        if ($normalizedPath === null) {
+            return false;
+        }
+
+        foreach ($roots as $root) {
+            $normalizedRoot = $this->normalizePath($root);
+            if ($normalizedRoot === null) {
+                continue;
+            }
+
+            if ($normalizedPath === $normalizedRoot || str_starts_with($normalizedPath, $normalizedRoot . DIRECTORY_SEPARATOR)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    protected function ensureDirectoryExists(string $directory, array $allowedRoots): bool
+    {
+        if (!$this->isPathWithinRoots($directory, $allowedRoots)) {
+            return false;
+        }
+
+        if (is_dir($directory)) {
+            return true;
+        }
+
+        return mkdir($directory, 0755, true) || is_dir($directory);
+    }
+
+    protected function normalizePath(string $path): ?string
+    {
+        $resolved = realpath($path);
+        if ($resolved !== false) {
+            return rtrim($resolved, DIRECTORY_SEPARATOR);
+        }
+
+        $parent = dirname($path);
+        $resolvedParent = realpath($parent);
+        if ($resolvedParent === false) {
+            return null;
+        }
+
+        return rtrim($resolvedParent, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . basename($path);
+    }
+
+    protected function getPackageRoot(): string
+    {
+        return realpath(__DIR__ . '/..') ?: dirname(__DIR__);
     }
 }

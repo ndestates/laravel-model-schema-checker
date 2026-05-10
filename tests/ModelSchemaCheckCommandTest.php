@@ -93,4 +93,34 @@ class ModelSchemaCheckCommandTest extends TestCase
         $this->assertInstanceOf(ModelSchemaCheckCommand::class, $customCommand);
         $this->assertNotSame($this->command, $customCommand);
     }
+
+    public function test_command_displays_release_version_constant()
+    {
+        $this->assertSame('3.2.4', $this->getProtectedConstantValue('DISPLAY_VERSION'));
+    }
+
+    public function test_file_write_and_code_modification_options_are_classified()
+    {
+        $reflection = new \ReflectionClass($this->command);
+
+        $fileWriteMethod = $reflection->getMethod('getFileWritingOptionNames');
+        $fileWriteMethod->setAccessible(true);
+        $codeModificationMethod = $reflection->getMethod('getCodeModificationOptionNames');
+        $codeModificationMethod->setAccessible(true);
+
+        $fileWritingOptions = $fileWriteMethod->invoke($this->command);
+        $codeModificationOptions = $codeModificationMethod->invoke($this->command);
+
+        $this->assertContains('backup', $fileWritingOptions);
+        $this->assertContains('fix-forms', $fileWritingOptions);
+        $this->assertContains('import-data', $codeModificationOptions);
+        $this->assertContains('fix-migrations', $codeModificationOptions);
+    }
+
+    private function getProtectedConstantValue(string $constantName): string
+    {
+        $reflection = new \ReflectionClass($this->command);
+
+        return $reflection->getConstant($constantName);
+    }
 }

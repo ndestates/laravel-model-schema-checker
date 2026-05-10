@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.2.4] - 2026-05-10
+
+### Security
+
+- Hardened publish-time file operations in the service provider with package-root and destination-root validation.
+- Strengthened production environment detection to account for `APP_ENV`, host heuristics, and DDEV exceptions.
+- Added explicit config guardrails for mutating operations with `security.allow_code_modification` and path whitelist settings.
+- Restricted `SecurityChecker` file scans to whitelisted roots, skipped symlinks, and capped oversized files during recursive scans.
+
+### Changed
+
+- Gated mutating `model:schema-check` options behind explicit configuration instead of relying on interactive prompts alone.
+- Aligned the surfaced package version and release documentation for the Packagist publish flow.
+
+### Tests
+
+- Added focused tests for provider environment/path helpers, command option classification, and security checker path whitelisting.
+
 ## [3.0.2] - 2025-11-18
 
 ### 🐛 **Bug Fixes**

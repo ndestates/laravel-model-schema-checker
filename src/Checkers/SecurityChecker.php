@@ -3,6 +3,8 @@
 namespace NDEstates\LaravelModelSchemaChecker\Checkers;
 
 use Illuminate\Support\Facades\File;
+use RecursiveDirectoryIterator;
+use RecursiveIteratorIterator;
 
 class SecurityChecker extends BaseChecker
 {
@@ -14,9 +16,9 @@ class SecurityChecker extends BaseChecker
     {
         parent::__construct($config);
 
-        $this->viewPath = $viewPath ?? $this->getDefaultViewPath();
-        $this->controllerPath = $controllerPath ?? $this->getDefaultControllerPath();
-        $this->modelPath = $modelPath ?? $this->getDefaultModelPath();
+        $this->viewPath = $this->normalizeConfiguredPath($viewPath ?? $this->getDefaultViewPath());
+        $this->controllerPath = $this->normalizeConfiguredPath($controllerPath ?? $this->getDefaultControllerPath());
+        $this->modelPath = $this->normalizeConfiguredPath($modelPath ?? $this->getDefaultModelPath());
     }
 
     protected function getDefaultViewPath(): string
@@ -71,26 +73,110 @@ class SecurityChecker extends BaseChecker
 
     protected function getAllFiles(string $directory): array
     {
+        if (!$this->isSafeScanPath($directory)) {
+            return [];
+        }
+
         if ($this->isLaravelEnvironment()) {
             try {
-                return File::allFiles($directory);
+                return array_values(array_filter(
+                    array_map(static fn ($file) => $file->getPathname(), File::allFiles($directory)),
+                    fn (string $file) => $this->isReadableScanFile($file)
+                ));
             } catch (\Exception $e) {
                 // Fallback to PHP functions if facade is not available
             }
         }
 
         $files = [];
-        $iterator = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($directory, \RecursiveDirectoryIterator::SKIP_DOTS)
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($directory, RecursiveDirectoryIterator::SKIP_DOTS)
         );
 
         foreach ($iterator as $file) {
-            if ($file->isFile()) {
+            if ($file->isFile() && $this->isReadableScanFile($file->getPathname())) {
                 $files[] = $file->getPathname();
             }
         }
 
         return $files;
+    }
+
+    protected function normalizeConfiguredPath(?string $path): string
+    {
+        if (!is_string($path) || trim($path) === '') {
+            return '';
+        }
+
+        return $path;
+    }
+
+    protected function isSafeScanPath(string $path): bool
+    {
+        $normalizedPath = $this->normalizePath($path);
+        if ($normalizedPath === null || is_link($path)) {
+            return false;
+        }
+
+        foreach ($this->getAllowedScanRoots() as $root) {
+            $normalizedRoot = $this->normalizePath($root);
+            if ($normalizedRoot === null) {
+                continue;
+            }
+
+            if ($normalizedPath === $normalizedRoot || str_starts_with($normalizedPath, $normalizedRoot . DIRECTORY_SEPARATOR)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    protected function isReadableScanFile(string $file): bool
+    {
+        if (!$this->isSafeScanPath($file) || is_link($file) || !is_file($file) || !is_readable($file)) {
+            return false;
+        }
+
+        $maxBytes = (int) (($this->config['security']['max_file_scan_size_mb'] ?? 5) * 1024 * 1024);
+        $size = @filesize($file);
+
+        return $size === false || $size <= $maxBytes;
+    }
+
+    protected function getAllowedScanRoots(): array
+    {
+        $configuredRoots = $this->config['security']['path_prefix_whitelist'] ?? [];
+        $fallbackRoots = array_filter([
+            $this->viewPath,
+            $this->controllerPath,
+            $this->modelPath,
+            function_exists('base_path') ? base_path() : null,
+            function_exists('app_path') ? app_path() : null,
+            function_exists('resource_path') ? resource_path() : null,
+            function_exists('database_path') ? database_path() : null,
+            function_exists('config_path') ? config_path() : null,
+            function_exists('public_path') ? public_path() : null,
+            function_exists('storage_path') ? storage_path() : null,
+        ]);
+
+        return array_values(array_unique(array_filter(array_merge($configuredRoots, $fallbackRoots), 'is_string')));
+    }
+
+    protected function normalizePath(string $path): ?string
+    {
+        $resolved = realpath($path);
+        if ($resolved !== false) {
+            return rtrim($resolved, DIRECTORY_SEPARATOR);
+        }
+
+        $parent = dirname($path);
+        $resolvedParent = realpath($parent);
+        if ($resolvedParent === false) {
+            return null;
+        }
+
+        return rtrim($resolvedParent, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . basename($path);
     }
 
     public function getName(): string

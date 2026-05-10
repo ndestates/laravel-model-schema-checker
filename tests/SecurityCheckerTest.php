@@ -69,6 +69,10 @@ class SecurityCheckerTest extends TestCase
         mkdir($this->modelDir, 0755, true);
 
         $this->config = [
+            'security' => [
+                'path_prefix_whitelist' => [$this->tempDir],
+                'max_file_scan_size_mb' => 1,
+            ],
             'rules' => [
                 'enabled' => ['security_checks' => true]
             ]
@@ -425,5 +429,20 @@ class User extends Model {
         $checker = new SecurityChecker($minimalConfig, '', '', '');
         $this->assertInstanceOf(SecurityChecker::class, $checker);
         $this->assertTrue($checker->isEnabled()); // Should default to enabled
+    }
+
+    public function test_blocks_scan_paths_outside_whitelist()
+    {
+        $externalDir = sys_get_temp_dir() . '/msc_security_external_' . uniqid();
+        mkdir($externalDir, 0755, true);
+        file_put_contents($externalDir . '/OutsideController.php', '<?php echo "outside";');
+
+        $reflection = new \ReflectionClass($this->checker);
+        $method = $reflection->getMethod('getAllFiles');
+        $method->setAccessible(true);
+
+        $this->assertSame([], $method->invoke($this->checker, $externalDir));
+
+        exec('rm -rf ' . escapeshellarg($externalDir));
     }
 }

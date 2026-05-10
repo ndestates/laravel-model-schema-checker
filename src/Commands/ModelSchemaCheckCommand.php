@@ -15,7 +15,7 @@ use NDEstates\LaravelModelSchemaChecker\Services\MigrationCleanup;
 
 class ModelSchemaCheckCommand extends Command
 {
-    protected const DISPLAY_VERSION = '3.2.2';
+    protected const DISPLAY_VERSION = '3.2.4';
 
         protected $description = 'Comprehensive Laravel application validation: models, relationships, security, performance, code quality, and form analysis with amendment suggestions';
 
@@ -97,6 +97,11 @@ class ModelSchemaCheckCommand extends Command
 
         if ($this->option('dry-run')) {
             $this->warn('Running in DRY-RUN mode - no changes will be made');
+        }
+
+        $mutationGuardResult = $this->ensureMutatingOperationsAreAllowed();
+        if ($mutationGuardResult !== null) {
+            return $mutationGuardResult;
         }
 
         // Route to appropriate functionality based on options
@@ -2171,5 +2176,77 @@ return new class extends Migration
         }
 
         return false;
+    }
+
+    protected function ensureMutatingOperationsAreAllowed(): ?int
+    {
+        if ($this->option('dry-run')) {
+            return null;
+        }
+
+        $fileWritingOptions = $this->getEnabledOptions($this->getFileWritingOptionNames());
+        if ($fileWritingOptions !== [] && !(config('model-schema-checker.output.allow_file_writes') ?? false)) {
+            $this->error('🚫 SECURITY ERROR: File-writing operations are disabled by configuration.');
+            $this->line('Enable model-schema-checker.output.allow_file_writes or set MSC_ALLOW_FILE_WRITES=true to continue.');
+            $this->line('Blocked options: --' . implode(', --', $fileWritingOptions));
+            return Command::FAILURE;
+        }
+
+        $codeModificationOptions = $this->getEnabledOptions($this->getCodeModificationOptionNames());
+        if ($codeModificationOptions !== [] && !(config('model-schema-checker.security.allow_code_modification') ?? false)) {
+            $this->error('🚫 SECURITY ERROR: Mutating schema/code operations require an explicit opt-in.');
+            $this->line('Enable model-schema-checker.security.allow_code_modification or set MSC_ALLOW_CODE_MODIFICATION=true to continue.');
+            $this->line('Blocked options: --' . implode(', --', $codeModificationOptions));
+            return Command::FAILURE;
+        }
+
+        return null;
+    }
+
+    protected function getEnabledOptions(array $optionNames): array
+    {
+        $enabled = [];
+
+        foreach ($optionNames as $optionName) {
+            if ($this->option($optionName)) {
+                $enabled[] = $optionName;
+            }
+        }
+
+        return $enabled;
+    }
+
+    protected function getFileWritingOptionNames(): array
+    {
+        return [
+            'backup',
+            'backup-db',
+            'fix',
+            'fix-forms',
+            'generate-migrations',
+            'sync-migrations',
+            'export-data',
+            'cleanup-migrations',
+            'generate-missing-field-migrations',
+            'fix-migrations',
+            'save-output',
+        ];
+    }
+
+    protected function getCodeModificationOptionNames(): array
+    {
+        return [
+            'fix',
+            'fix-forms',
+            'generate-migrations',
+            'sync-migrations',
+            'import-data',
+            'cleanup-migrations',
+            'generate-missing-field-migrations',
+            'fix-migrations',
+            'rollback-migrations',
+            'amend-migrations',
+            'rollback-fixes',
+        ];
     }
 }
