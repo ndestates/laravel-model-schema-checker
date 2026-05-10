@@ -1,0 +1,502 @@
+<?php
+
+namespace NDEstates\LaravelModelSchemaChecker\Tests;
+
+use PHPUnit\Framework\TestCase;
+use NDEstates\LaravelModelSchemaChecker\Commands\ModelSchemaCheckCommand;
+use Symfony\Component\Console\Application;
+use Symfony\Component\Console\Tester\CommandTester;
+
+/**
+ * MigrationAnalysisCommandTest - Tests for migration analysis command options
+ *
+ * Tests the new command-line options for migration criticality analysis,
+ * backup creation, data mapping, and execution mapping.
+ */
+class MigrationAnalysisCommandTest extends TestCase
+{
+    private Application $application;
+    private ModelSchemaCheckCommand $command;
+    private CommandTester $commandTester;
+    private string $tempDir;
+    private string $migrationDir;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->tempDir = sys_get_temp_dir() . '/command_test_' . uniqid();
+        $this->migrationDir = $this->tempDir . '/database/migrations';
+        mkdir($this->migrationDir, 0755, true);
+
+        $this->application = new Application();
+        $this->command = new ModelSchemaCheckCommand();
+        $this->application->add($this->command);
+        $this->commandTester = new CommandTester($this->command);
+    }
+
+    protected function tearDown(): void
+    {
+        if (file_exists($this->tempDir)) {
+            exec("rm -rf " . escapeshellarg($this->tempDir));
+        }
+
+        parent::tearDown();
+    }
+
+    public function testExecutesMigrationCriticalityAnalysis(): void
+    {
+        // Create a test migration
+        $migrationContent = '<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+class TestAnalysisMigration extends Migration
+{
+    public function up()
+    {
+        Schema::create(\'test_table\', function (Blueprint $table) {
+            $table->id();
+            $table->string(\'name\');
+        });
+    }
+
+    public function down()
+    {
+        Schema::dropIfExists(\'test_table\');
+    }
+}';
+
+        file_put_contents($this->migrationDir . '/2024_01_01_000000_test_analysis_migration.php', $migrationContent);
+
+        // Mock the migration path for testing
+        putenv('MIGRATION_PATH=' . $this->migrationDir);
+
+        $this->commandTester->execute([
+            'command' => 'model:schema-check',
+            '--analyze-migrations' => true,
+            '--dry-run' => true
+        ]);
+
+        $output = $this->commandTester->getDisplay();
+        $this->assertStringContains('Migration Criticality Analysis', $output);
+        $this->assertStringContains('CRITICAL', $output);
+        $this->assertStringContains('HIGH', $output);
+        $this->assertStringContains('MEDIUM', $output);
+        $this->assertStringContains('LOW', $output);
+        $this->assertStringContains('LEAST', $output);
+    }
+
+    public function testShowsMigrationAnalysisResults(): void
+    {
+        // Create a migration with issues
+        $migrationContent = '<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+class ProblematicMigration extends Migration
+{
+    public function up()
+    {
+        Schema::table(\'users\', function (Blueprint $table) {
+            $table->dropColumn(\'email\');
+        });
+    }
+
+    public function down()
+    {
+        Schema::table(\'users\', function (Blueprint $table) {
+            $table->string(\'email\');
+        });
+    }
+}';
+
+        file_put_contents($this->migrationDir . '/2024_01_01_000000_problematic_migration.php', $migrationContent);
+
+        putenv('MIGRATION_PATH=' . $this->migrationDir);
+
+        $this->commandTester->execute([
+            'command' => 'model:schema-check',
+            '--analyze-migrations' => true,
+            '--dry-run' => true
+        ]);
+
+        $output = $this->commandTester->getDisplay();
+        $this->assertStringContains('Migration Criticality Analysis', $output);
+        $this->assertStringContains('issues found', $output);
+        $this->assertStringContains('HIGH', $output);
+    }
+
+    public function testCreatesDatabaseBackup(): void
+    {
+        $this->commandTester->execute([
+            'command' => 'model:schema-check',
+            '--create-backup' => true,
+            '--dry-run' => true
+        ]);
+
+        $output = $this->commandTester->getDisplay();
+        $this->assertStringContains('Database Backup', $output);
+        $this->assertStringContains('backup', $output);
+    }
+
+    public function testCreatesDataMappingStrategy(): void
+    {
+        $this->commandTester->execute([
+            'command' => 'model:schema-check',
+            '--map-data' => true,
+            '--dry-run' => true
+        ]);
+
+        $output = $this->commandTester->getDisplay();
+        $this->assertStringContains('Data Mapping Strategy', $output);
+        $this->assertStringContains('mapping', $output);
+    }
+
+    public function testExecutesDataMapping(): void
+    {
+        $this->commandTester->execute([
+            'command' => 'model:schema-check',
+            '--execute-mapping' => true,
+            '--dry-run' => true
+        ]);
+
+        $output = $this->commandTester->getDisplay();
+        $this->assertStringContains('Execute Data Mapping', $output);
+        $this->assertStringContains('mapping', $output);
+    }
+
+    public function testSupportsAnalyzeThenBackupWorkflow(): void
+    {
+        // Create a test migration
+        $migrationContent = '<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+class WorkflowTestMigration extends Migration
+{
+    public function up()
+    {
+        Schema::create(\'workflow_test\', function (Blueprint $table) {
+            $table->id();
+            $table->string(\'name\');
+        });
+    }
+
+    public function down()
+    {
+        Schema::dropIfExists(\'workflow_test\');
+    }
+}';
+
+        file_put_contents($this->migrationDir . '/2024_01_01_000000_workflow_test_migration.php', $migrationContent);
+
+        putenv('MIGRATION_PATH=' . $this->migrationDir);
+
+        // First analyze
+        $this->commandTester->execute([
+            'command' => 'model:schema-check',
+            '--analyze-migrations' => true,
+            '--dry-run' => true
+        ]);
+
+        $output = $this->commandTester->getDisplay();
+        $this->assertStringContains('Migration Criticality Analysis', $output);
+
+        // Then create backup
+        $this->commandTester->execute([
+            'command' => 'model:schema-check',
+            '--create-backup' => true,
+            '--dry-run' => true
+        ]);
+
+        $output = $this->commandTester->getDisplay();
+        $this->assertStringContains('Database Backup', $output);
+    }
+
+    public function testShowsNewOptionsInHelpText(): void
+    {
+        $this->commandTester->execute([
+            'command' => 'model:schema-check',
+            '--help' => true
+        ]);
+
+        $output = $this->commandTester->getDisplay();
+        $this->assertStringContains('--analyze-migrations', $output);
+        $this->assertStringContains('--create-backup', $output);
+        $this->assertStringContains('--map-data', $output);
+        $this->assertStringContains('--execute-mapping', $output);
+    }
+
+    public function testDescribesAnalyzeMigrationsOption(): void
+    {
+        $this->commandTester->execute([
+            'command' => 'model:schema-check',
+            '--help' => true
+        ]);
+
+        $output = $this->commandTester->getDisplay();
+        $this->assertStringContains('Analyze migration criticality', $output);
+    }
+
+    public function testDescribesCreateBackupOption(): void
+    {
+        $this->commandTester->execute([
+            'command' => 'model:schema-check',
+            '--help' => true
+        ]);
+
+        $output = $this->commandTester->getDisplay();
+        $output = $this->commandTester->getDisplay();
+        $this->assertStringContains('Create database backup', $output);
+    }
+}
+    }
+}
+}
+            // Create a temporary migration directory
+            $tempDir = sys_get_temp_dir() . '/command_test_' . uniqid();
+            $migrationDir = $tempDir . '/database/migrations';
+            mkdir($migrationDir, 0755, true);
+
+            // Create a test migration
+            $migrationContent = '<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+class TestAnalysisMigration extends Migration
+{
+    public function up()
+    {
+        Schema::create(\'test_table\', function (Blueprint $table) {
+            $table->id();
+            $table->string(\'name\');
+        });
+    }
+
+    public function down()
+    {
+        Schema::dropIfExists(\'test_table\');
+    }
+}';
+
+            file_put_contents($migrationDir . '/2024_01_01_000000_test_analysis_migration.php', $migrationContent);
+
+            // Mock the migration path for testing
+            putenv('MIGRATION_PATH=' . $migrationDir);
+
+            $this->commandTester->execute([
+                'command' => 'model:schema-check',
+                '--analyze-migrations' => true,
+                '--dry-run' => true
+            ]);
+
+            $output = $this->commandTester->getDisplay();
+
+            // Should contain analysis output
+            expect($output)->toContain('Migration Criticality Analysis');
+
+            // Cleanup
+            exec("rm -rf " . escapeshellarg($tempDir));
+        });
+
+        it('shows migration analysis results', function () {
+            $tempDir = sys_get_temp_dir() . '/command_analysis_test_' . uniqid();
+            $migrationDir = $tempDir . '/database/migrations';
+            mkdir($migrationDir, 0755, true);
+
+            // Create a migration with issues
+            $migrationContent = '<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+class ProblematicMigration extends Migration
+{
+    public function up()
+    {
+        Schema::dropIfExists(\'users\');
+        Schema::create(\'users\', function (Blueprint $table) {
+            $table->id();
+        });
+    }
+
+    public function down()
+    {
+        Schema::dropIfExists(\'users\');
+    }
+}';
+
+            file_put_contents($migrationDir . '/2024_01_01_000000_problematic_migration.php', $migrationContent);
+
+            putenv('MIGRATION_PATH=' . $migrationDir);
+
+            $this->commandTester->execute([
+                'command' => 'model:schema-check',
+                '--analyze-migrations' => true,
+                '--dry-run' => true
+            ]);
+
+            $output = $this->commandTester->getDisplay();
+
+            expect($output)->toContain('Migration Analysis Results');
+            expect($output)->toContain('issues found');
+
+            // Cleanup
+            exec("rm -rf " . escapeshellarg($tempDir));
+        });
+
+    });
+
+    describe('--create-backup option', function () {
+
+        it('creates database backup', function () {
+            $this->commandTester->execute([
+                'command' => 'model:schema-check',
+                '--create-backup' => true,
+                '--dry-run' => true
+            ]);
+
+            $output = $this->commandTester->getDisplay();
+
+            // Should attempt backup creation
+            expect($output)->toContain('Creating comprehensive database backup');
+        });
+
+    });
+
+    describe('--map-data option', function () {
+
+        it('creates data mapping strategy', function () {
+            $this->commandTester->execute([
+                'command' => 'model:schema-check',
+                '--map-data' => true,
+                '--dry-run' => true
+            ]);
+
+            $output = $this->commandTester->getDisplay();
+
+            expect($output)->toContain('Creating data mapping strategy');
+        });
+
+    });
+
+    describe('--execute-mapping option', function () {
+
+        it('executes data mapping', function () {
+            $this->commandTester->execute([
+                'command' => 'model:schema-check',
+                '--execute-mapping' => true,
+                '--dry-run' => true
+            ]);
+
+            $output = $this->commandTester->getDisplay();
+
+            expect($output)->toContain('Executing data mapping');
+        });
+
+    });
+
+    describe('Combined options workflow', function () {
+
+        it('supports analyze then backup workflow', function () {
+            $tempDir = sys_get_temp_dir() . '/workflow_test_' . uniqid();
+            $migrationDir = $tempDir . '/database/migrations';
+            mkdir($migrationDir, 0755, true);
+
+            // Create a migration requiring backup
+            $migrationContent = '<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+class BackupRequiredMigration extends Migration
+{
+    public function up()
+    {
+        Schema::table(\'users\', function (Blueprint $table) {
+            $table->dropColumn(\'old_column\');
+        });
+    }
+
+    public function down()
+    {
+        Schema::table(\'users\', function (Blueprint $table) {
+            $table->string(\'old_column\');
+        });
+    }
+}';
+
+            file_put_contents($migrationDir . '/2024_01_01_000000_backup_required.php', $migrationContent);
+
+            putenv('MIGRATION_PATH=' . $migrationDir);
+
+            // First analyze
+            $this->commandTester->execute([
+                'command' => 'model:schema-check',
+                '--analyze-migrations' => true,
+                '--dry-run' => true
+            ]);
+
+            $analysisOutput = $this->commandTester->getDisplay();
+
+            // Should recommend backup
+            expect($analysisOutput)->toContain('backup');
+
+            // Cleanup
+            exec("rm -rf " . escapeshellarg($tempDir));
+        });
+
+    });
+
+    describe('Command help', function () {
+
+        it('shows new options in help text', function () {
+            $this->commandTester->execute([
+                'command' => 'model:schema-check',
+                '--help' => true
+            ]);
+
+            $output = $this->commandTester->getDisplay();
+
+            expect($output)->toContain('--analyze-migrations');
+            expect($output)->toContain('--create-backup');
+            expect($output)->toContain('--map-data');
+            expect($output)->toContain('--execute-mapping');
+        });
+
+        it('describes analyze-migrations option', function () {
+            $this->commandTester->execute([
+                'command' => 'model:schema-check',
+                '--help' => true
+            ]);
+
+            $output = $this->commandTester->getDisplay();
+
+            expect($output)->toContain('Analyze migration criticality');
+        });
+
+        it('describes create-backup option', function () {
+            $this->commandTester->execute([
+                'command' => 'model:schema-check',
+                '--help' => true
+            ]);
+
+            $output = $this->commandTester->getDisplay();
+
+            expect($output)->toContain('Create database backup');
+        });
+
+    });
+
+});
